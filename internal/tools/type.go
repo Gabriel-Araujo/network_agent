@@ -1,27 +1,37 @@
 package tools
 
 import (
-	file_tools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
+	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
 )
 
-var File_read_tool = openai.ChatCompletionToolUnionParam{
+var FileReadTool = openai.ChatCompletionToolUnionParam{
 	OfFunction: &openai.ChatCompletionFunctionToolParam{
 		Function: shared.FunctionDefinitionParam{
-			Name:        file_tools.READ_TOOL_NAME,
-			Description: openai.String(file_tools.READ_TOOL_DESCRIPTION),
-			Parameters:  file_tools.READ_TOOL_PARAMETERS,
+			Name:        filetools.READ_TOOL_NAME,
+			Description: openai.String(filetools.READ_TOOL_DESCRIPTION),
+			Parameters:  filetools.READ_TOOL_PARAMETERS,
 		},
 	},
 }
 
-var File_edit_tool = openai.ChatCompletionToolUnionParam{
+var FileEditTool = openai.ChatCompletionToolUnionParam{
 	OfFunction: &openai.ChatCompletionFunctionToolParam{
 		Function: shared.FunctionDefinitionParam{
-			Name:        file_tools.EDIT_TOOL_NAME,
-			Description: openai.String(file_tools.EDIT_TOOL_DESCRIPTION),
-			Parameters:  file_tools.EDIT_TOOL_PARAMETERS,
+			Name:        filetools.EDIT_TOOL_NAME,
+			Description: openai.String(filetools.EDIT_TOOL_DESCRIPTION),
+			Parameters:  filetools.EDIT_TOOL_PARAMETERS,
+		},
+	},
+}
+
+var FileWriteTool = openai.ChatCompletionToolUnionParam{
+	OfFunction: &openai.ChatCompletionFunctionToolParam{
+		Function: shared.FunctionDefinitionParam{
+			Name:        filetools.WRITE_TOOL_NAME,
+			Description: openai.String(filetools.WRITE_TOOL_DESCRIPTION),
+			Parameters:  filetools.WRITE_TOOL_PARAMETERS,
 		},
 	},
 }

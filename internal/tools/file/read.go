@@ -1,4 +1,4 @@
-package file_tools
+package filetools
 
 import (
 	"log"
@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-func ReadFile(working_directory string, path string) string {
-	clean := filepath.Join(working_directory, filepath.Clean("/"+path))
-	rel, err := filepath.Rel(working_directory, clean)
+func ReadFile(workingDirectory string, filePath string) string {
+	clean := filepath.Join(workingDirectory, filepath.Clean("/"+filePath))
+	rel, err := filepath.Rel(workingDirectory, clean)
 
 	if err != nil || strings.HasPrefix(rel, "..") {
 		log.Default().Print(err)
-		return "Error: Filepath outside the permiteed working directory"
+		return "Error: Filepath outside the permitted working directory"
 	}
 
 	file, err := os.ReadFile(rel)

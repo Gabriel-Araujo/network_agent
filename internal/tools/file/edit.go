@@ -1,4 +1,4 @@
-package file_tools
+package filetools
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 )
 
-func EditFile(working_directory string, file_path string, old_text string, new_text string) string {
-	rel, err := util.SafePath(working_directory, file_path)
+func EditFile(workingDirectory string, filePath string, oldText string, newText string) string {
+	rel, err := util.SafePath(workingDirectory, filePath)
 
 	if err != nil {
 		log.Default().Print(err)
@@ -33,7 +33,7 @@ func EditFile(working_directory string, file_path string, old_text string, new_t
 	}
 
 	contentStr := string(content)
-	if !strings.Contains(contentStr, old_text) {
+	if !strings.Contains(contentStr, oldText) {
 		return "Error: old_text not found in file"
 	}
 
@@ -47,7 +47,7 @@ func EditFile(working_directory string, file_path string, old_text string, new_t
 		return "Error: File was modified by another process since it was last accessed."
 	}
 
-	newContentStr := strings.ReplaceAll(contentStr, old_text, new_text)
+	newContentStr := strings.ReplaceAll(contentStr, oldText, newText)
 	err = os.WriteFile(rel, []byte(newContentStr), 0644)
 	if err != nil {
 		log.Default().Print(err)

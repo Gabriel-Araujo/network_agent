@@ -3,7 +3,7 @@ package agent
 import (
 	"fmt"
 
-	file_tools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
+	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 )
 
 var SYSTEM_PROMPT string = fmt.Sprintf(`
@@ -35,6 +35,7 @@ Você é um Engenheiro de Redes Sênior especializado em infraestrutura de alta 
 O usuário pode pedir para você executar alguma ação. Para isso, você pode executar as seguintes operações fazendo chamadas de funções:
 - %s tool;
 - %s tool;
+- %s tool;
 
 ## TOOLS DESCRIPTION
 
@@ -53,9 +54,17 @@ Leitura do conteúdo de um arquivo.
 Edição de arquivos existentes.
 
 - %s
+
+#### Write File Tool
+
+Escrita de arquivos. (Para arquivos que não existem ou sobre-escrita total)
+
+%s
 `,
-	file_tools.READ_TOOL_NAME,
-	file_tools.EDIT_TOOL_NAME,
-	file_tools.READ_TOOL_DESCRIPTION,
-	file_tools.EDIT_TOOL_DESCRIPTION,
+	filetools.READ_TOOL_NAME,
+	filetools.EDIT_TOOL_NAME,
+	filetools.WRITE_TOOL_NAME,
+	filetools.READ_TOOL_DESCRIPTION,
+	filetools.EDIT_TOOL_DESCRIPTION,
+	filetools.WRITE_TOOL_DESCRIPTION,
 )

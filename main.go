@@ -14,7 +14,7 @@ import (
 func main() {
 	llmConfig := config.Load()
 	llmServer := llm.New(server.Connect(llmConfig))
-	llmServer.Messages = append(llmServer.Messages, openai.UserMessage("Edit .config.toml file and put the comment 'hi'."))
+	llmServer.Messages = append(llmServer.Messages, openai.UserMessage("Write '# Hi' to CHANGELOG.md"))
 
 	for {
 		stream := llmServer.Client.Chat.Completions.NewStreaming(
@@ -48,7 +48,7 @@ func main() {
 		}
 
 		if toolCallChunk != nil {
-			response := tools.Call_function(*toolCallChunk, true)
+			response := tools.CallFunction(*toolCallChunk, true)
 			fmt.Print(response.OfTool.Content.OfString.Value)
 
 			llmServer.Messages = append(llmServer.Messages, acc.Choices[0].Message.ToParam())

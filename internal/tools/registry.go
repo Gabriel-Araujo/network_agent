@@ -4,41 +4,47 @@ import (
 	"encoding/json"
 	"log"
 
-	file_tools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
+	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3"
 )
 
 var DEFAULT_ROOT_DIRECTORY = "."
-var Tools = []openai.ChatCompletionToolUnionParam{File_read_tool, File_edit_tool}
+var Tools = []openai.ChatCompletionToolUnionParam{FileReadTool, FileEditTool, FileWriteTool}
 
-func Call_function(function_call openai.ChatCompletionChunkChoiceDeltaToolCall, verbose bool) openai.ChatCompletionMessageParamUnion {
+func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, verbose bool) openai.ChatCompletionMessageParamUnion {
 	if verbose {
-		log.Default().Printf("function '%s' called with arguments: [%s]", function_call.Function.Name, function_call.Function.Arguments)
+		log.Default().Printf("function '%s' called with arguments: [%s]", functionCall.Function.Name, functionCall.Function.Arguments)
 	}
 
 	args := make(map[string]string)
 
-	err := json.Unmarshal([]byte(function_call.Function.Arguments), &args)
+	err := json.Unmarshal([]byte(functionCall.Function.Arguments), &args)
 	if err != nil {
 		log.Default().Println(err)
-		return openai.ToolMessage("Error: Failed to get args from function call object.", function_call.ID)
+		return openai.ToolMessage("Error: Failed to get args from function call object.", functionCall.ID)
 	}
 
-	args["working_directory"] = DEFAULT_ROOT_DIRECTORY
+	args["workingDirectory"] = DEFAULT_ROOT_DIRECTORY
 
-	switch function_call.Function.Name {
-	case file_tools.READ_TOOL_NAME:
+	switch functionCall.Function.Name {
+	case filetools.READ_TOOL_NAME:
 		return openai.ToolMessage(
-			file_tools.ReadFile(args["working_directory"], args["file_path"]),
-			function_call.ID)
-	case file_tools.EDIT_TOOL_NAME:
-		return openai.ToolMessage(file_tools.EditFile(
-			args["working_directory"],
-			args["file_path"],
-			args["old_text"],
-			args["new_text"]),
-			function_call.ID)
+			filetools.ReadFile(args["workingDirectory"], args["filePath"]),
+			functionCall.ID)
+	case filetools.EDIT_TOOL_NAME:
+		return openai.ToolMessage(filetools.EditFile(
+			args["workingDirectory"],
+			args["filePath"],
+			args["oldText"],
+			args["newText"]),
+			functionCall.ID)
+	case filetools.WRITE_TOOL_NAME:
+		return openai.ToolMessage(filetools.WriteFile(
+			args["workingDirectory"],
+			args["filePath"],
+			args["content"]),
+			functionCall.ID)
 	default:
-		return openai.ToolMessage("Error: Called invalid function", function_call.ID)
+		return openai.ToolMessage("Error: Called invalid function", functionCall.ID)
 	}
 }
