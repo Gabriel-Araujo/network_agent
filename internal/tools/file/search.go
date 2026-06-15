@@ -33,7 +33,7 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 	seen := make(map[string]bool)
 
 	for _, pat := range patterns {
-		// Substitui ** por * para simplificar para filepath.Match,
+		// substitui ** por * para simplificar para filepath. Match,
 		// já que o WalkDir já percorre recursivamente.
 		matchPat := strings.ReplaceAll(pat, "**", "*")
 
@@ -113,7 +113,7 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 }
 
 func ExpandBraces(pattern string) []string {
-	// Implementação simples de expansão de chaves {a,b}
+	// Implementação simples de expansão de chaves {a, b}
 	// Se não houver chaves, retorna o padrão original
 	start := strings.Index(pattern, "{")
 	end := strings.Index(pattern, "}")

@@ -60,11 +60,11 @@ func TestWriteFile(t *testing.T) {
 			workingDir: ".",
 			filePath:   "../outside.txt",
 			content:    "fail",
-			want:       "Error Filepath outside the permiteed working directory",
+			want:       "Error Filepath outside the permitted working directory",
 		},
 	}
 
-	// Setup existing file for the error case
+	// Set up existing file for the error case
 	os.WriteFile("existing.txt", []byte("exists"), 0644)
 
 	for _, tt := range tests {

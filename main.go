@@ -15,7 +15,11 @@ import (
 )
 
 func main() {
-	llmConfig := config.Load()
+	llmConfig, err := config.Load()
+	if err != nil {
+		fmt.Printf("Error loading configuration: %v\n", err)
+		os.Exit(1)
+	}
 	llmServer := llm.New(server.Connect(llmConfig))
 
 	fmt.Println("Network Agent started. Type your message (or 'exit' to quit):")
