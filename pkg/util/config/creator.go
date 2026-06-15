@@ -14,7 +14,7 @@ var BUILDER = map[string]func() provider_config.ProviderConfig{
 }
 
 func showProviderOptions() {
-	println("You can choose betwen this providers")
+	println("You can choose between this providers")
 
 	for _, i := range PROVIDERS {
 		println("[1] %s", i)
@@ -46,7 +46,7 @@ func getProvider() string {
 	return getProviderName()
 }
 
-func CreateConfig() []provider_config.ProviderConfig {
+func CreateConfig() ([]provider_config.ProviderConfig, error) {
 	name := getProvider()
 	return SaveConfig([]provider_config.ProviderConfig{BUILDER[name]()})
 }

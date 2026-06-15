@@ -2,6 +2,6 @@ package exception
 
 import "errors"
 
-var InvalidInput = errors.New("Invalid Input")
+var InvalidInput = errors.New("invalid Input")
 
-var InvalidFilePath = errors.New("Filepath outside the permiteed working directory")
+var InvalidFilePath = errors.New("filepath outside the permitted working directory")

@@ -35,3 +35,13 @@ var FileWriteTool = openai.ChatCompletionToolUnionParam{
 		},
 	},
 }
+
+var SearchFileTool = openai.ChatCompletionToolUnionParam{
+	OfFunction: &openai.ChatCompletionFunctionToolParam{
+		Function: shared.FunctionDefinitionParam{
+			Name:        filetools.SEARCH_TOOL_NAME,
+			Description: openai.String(filetools.SEARCH_TOOL_DESCRIPTION),
+			Parameters:  filetools.SEARCH_TOOL_PARAMETERS,
+		},
+	},
+}

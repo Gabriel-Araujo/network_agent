@@ -8,11 +8,16 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/pkg/exception"
 )
 
-func SafePath(working_directory string, file_path string) (string, error) {
-	clean := filepath.Join(working_directory, filepath.Clean("/"+file_path))
-	rel, err := filepath.Rel(working_directory, clean)
+func SafePath(workingDirectory string, filePath string) (string, error) {
+	absolutePath, err := filepath.Abs(workingDirectory)
+	if err != nil {
+		return "", exception.InvalidFilePath
+	}
 
-	if err != nil || strings.HasPrefix(rel, "..") {
+	targetPath := filepath.Join(absolutePath, filePath)
+	rel, err := filepath.Rel(absolutePath, targetPath)
+
+	if err != nil || strings.HasPrefix(rel, "..") || rel == ".." {
 		return "", exception.InvalidFilePath
 	}
 

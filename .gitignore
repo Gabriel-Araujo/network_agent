@@ -5,3 +5,7 @@
 
 # executable
 network_agent
+
+# generated
+generated/
+
