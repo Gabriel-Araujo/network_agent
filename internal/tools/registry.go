@@ -9,7 +9,7 @@ import (
 )
 
 var DEFAULT_ROOT_DIRECTORY = "."
-var Tools = []openai.ChatCompletionToolUnionParam{FileReadTool, FileEditTool, FileWriteTool}
+var Tools = []openai.ChatCompletionToolUnionParam{FileReadTool, FileEditTool, FileWriteTool, SearchFileTool}
 
 func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, verbose bool) openai.ChatCompletionMessageParamUnion {
 	if verbose {
@@ -43,6 +43,12 @@ func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, ve
 			args["workingDirectory"],
 			args["filePath"],
 			args["content"]),
+			functionCall.ID)
+	case filetools.SEARCH_TOOL_NAME:
+		return openai.ToolMessage(filetools.SearchPattern(
+			args["workingDirectory"],
+			args["path"],
+			args["pattern"]),
 			functionCall.ID)
 	default:
 		return openai.ToolMessage("Error: Called invalid function", functionCall.ID)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 )
@@ -23,6 +24,13 @@ func WriteFile(workingDirectory string, filePath string, content string) string 
 
 	if len(content) > MAX_EDIT_FILE_SIZE {
 		return fmt.Sprintf("Error: Content is too large. Content has %s bu the limit is %s", util.FormatFileSize(int64(len(content))), util.FormatFileSize(int64(MAX_EDIT_FILE_SIZE)))
+	}
+
+	dir := filepath.Dir(path)
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		log.Default().Print(err)
+		return "Error: failed to create directory"
 	}
 
 	err = os.WriteFile(path, []byte(content), 0644)
