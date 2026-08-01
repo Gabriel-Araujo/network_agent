@@ -20,6 +20,11 @@ Or alternatively, you can use the docker-compose file in the docker folder (.age
 docker compose -f ./.agentcontainer/docker-compose.yml up -d 
 ```
 
+Or run the Dockerfile:
+```bash
+docker build --tag network-agent --file Dockerfile .
+docker run -p 5433:5432 --name network-agent --detach network-agent 
+```
 #### Observations
 
 - check the [.agentcontainer/.env](.agentcontainer/.env) file for database configuration params.

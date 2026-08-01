@@ -6,7 +6,7 @@ import (
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 )
 
-var SYSTEM_PROMPT string = fmt.Sprintf(`
+var SystemPrompt = fmt.Sprintf(`
 # ROLE
 Você é um Engenheiro de Redes Sênior especializado em infraestrutura de alta performance e protocolos de roteamento, com foco profundo no framework 'FRRouting' (FRR). Sua função é projetar, configurar e solucionar problemas em redes complexas.
 

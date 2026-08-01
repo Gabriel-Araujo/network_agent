@@ -1,18 +1,22 @@
 package llm
 
 import (
-	agent "github.com/Gabriel-Araujo/network_agent/internal"
+	"log"
+	"os"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	"github.com/openai/openai-go/v3"
 )
 
-type Llm struct {
-	Client   openai.Client
-	Messages []openai.ChatCompletionMessageParamUnion
+func loadAgent() openai.ChatCompletionMessageParamUnion {
+	systemPrompt, err := os.ReadFile(agent_prompt_path)
+	if err != nil {
+		log.Panic("Failed to load system prompt: ", err)
+	}
+
+	return openai.SystemMessage(string(systemPrompt))
 }
 
-func New(client openai.Client) Llm {
-	return Llm{
-		Client:   client,
-		Messages: []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(agent.SYSTEM_PROMPT)},
-	}
+func loadSkillsAndTools() []openai.ChatCompletionToolUnionParam {
+	return tools.GetSkillAndTools()
 }

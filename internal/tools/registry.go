@@ -2,8 +2,10 @@ package tools
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3"
 )
@@ -11,9 +13,16 @@ import (
 var DEFAULT_ROOT_DIRECTORY = "."
 var Tools = []openai.ChatCompletionToolUnionParam{FileReadTool, FileEditTool, FileWriteTool, SearchFileTool}
 
+func GetSkillAndTools() []openai.ChatCompletionToolUnionParam {
+	reg := skills.LoadSkills()
+	skillsTools := reg.BuildTools()
+
+	return append(skillsTools, Tools...)
+}
+
 func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, verbose bool) openai.ChatCompletionMessageParamUnion {
 	if verbose {
-		log.Default().Printf("function '%s' called with arguments: [%s]", functionCall.Function.Name, functionCall.Function.Arguments)
+		log.Printf("function '%s' called with arguments: [%s]\n", functionCall.Function.Name, functionCall.Function.Arguments)
 	}
 
 	args := make(map[string]string)
@@ -50,6 +59,35 @@ func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, ve
 			args["path"],
 			args["pattern"]),
 			functionCall.ID)
+	case skills.ToolUseSkill:
+		reg := skills.LoadSkills()
+		var args struct {
+			SkillName string `json:"skill_name"`
+		}
+		if err := json.Unmarshal([]byte(functionCall.Function.Arguments), &args); err != nil {
+			return openai.ToolMessage(fmt.Sprintf("erro: argumentos inválidos: %v", err), functionCall.ID)
+		}
+		sk, ok := reg.Get(args.SkillName)
+		if !ok {
+			return openai.ToolMessage(fmt.Sprintf("erro: skill %q não encontrada", args.SkillName), functionCall.ID)
+		}
+		return openai.ToolMessage(sk.Body, functionCall.ID)
+	case skills.ToolReadSkillFile:
+		reg := skills.LoadSkills()
+
+		var args struct {
+			SkillName    string `json:"skill_name"`
+			RelativePath string `json:"relative_path"`
+		}
+		if err := json.Unmarshal([]byte(functionCall.Function.Arguments), &args); err != nil {
+			return openai.ToolMessage(fmt.Sprintf("erro: argumentos inválidos: %v", err), functionCall.ID)
+		}
+		content, err := reg.ReadFile(args.SkillName, args.RelativePath)
+		if err != nil {
+			return openai.ToolMessage(fmt.Sprintf("erro: %v", err), functionCall.ID)
+		}
+		return openai.ToolMessage(content, functionCall.ID)
+
 	default:
 		return openai.ToolMessage("Error: Called invalid function", functionCall.ID)
 	}

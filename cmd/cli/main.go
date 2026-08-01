@@ -4,12 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm"
-	"github.com/Gabriel-Araujo/network_agent/internal/server"
-	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
 	"github.com/openai/openai-go/v3"
 )
@@ -17,10 +16,20 @@ import (
 func main() {
 	llmConfig, err := config.Load()
 	if err != nil {
-		fmt.Printf("Error loading configuration: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Error loading configuration: %v\n", err)
 	}
-	llmServer := llm.New(server.Connect(llmConfig))
+
+	// Mapeamento explícito para evitar erros de tipos de pacotes diferentes
+	agent, err := llm.Connect(llm.Config{
+		ModelName:    llmConfig.ModelName,
+		Url:          llmConfig.Url,
+		ApiKey:       llmConfig.ApiKey,
+		ProviderName: llmConfig.ProviderName,
+	})
+
+	if err != nil {
+		log.Fatalf("Failed to connect to LLM: %v\n", err)
+	}
 
 	fmt.Println("Network Agent started. Type your message (or 'exit' to quit):")
 
@@ -30,7 +39,7 @@ func main() {
 		fmt.Print("\nUser: ")
 		userInput, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Printf("Error reading input: %v\n", err)
+			log.Printf("Error reading input: %v\n", err)
 			continue
 		}
 
@@ -43,16 +52,17 @@ func main() {
 			continue
 		}
 
-		llmServer.Messages = append(llmServer.Messages, openai.UserMessage(userInput))
+		agent.Messages = append(agent.Messages, openai.UserMessage(userInput))
 
 		for {
-			stream := llmServer.Client.Chat.Completions.NewStreaming(
+			stream := agent.Client.Chat.Completions.NewStreaming(
 				context.Background(),
 				openai.ChatCompletionNewParams{
-					Model:    llmConfig.ModelName,
-					Messages: llmServer.Messages,
-					Tools:    tools.Tools,
-				})
+					Model:    agent.ModelName,
+					Messages: agent.Messages,
+					Tools:    agent.AvailableTools,
+				},
+			)
 
 			acc := openai.ChatCompletionAccumulator{}
 
@@ -79,12 +89,10 @@ func main() {
 			fmt.Println()
 
 			if toolCallChunk != nil {
-				response := tools.CallFunction(*toolCallChunk, true)
-
-				llmServer.Messages = append(llmServer.Messages, acc.Choices[0].Message.ToParam())
-				llmServer.Messages = append(llmServer.Messages, response)
+				agent.ToolCall(toolCallChunk, acc)
+				break
 			} else {
-				llmServer.Messages = append(llmServer.Messages, acc.Choices[0].Message.ToParam())
+				agent.Messages = append(agent.Messages, acc.Choices[0].Message.ToParam())
 				break
 			}
 		}
