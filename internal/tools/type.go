@@ -2,45 +2,36 @@ package tools
 
 import (
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/shared"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
 )
 
-var FileReadTool = openai.ChatCompletionToolUnionParam{
-	OfFunction: &openai.ChatCompletionFunctionToolParam{
-		Function: shared.FunctionDefinitionParam{
+var FileTools []responses.ToolUnionParam = []responses.ToolUnionParam{
+	responses.ToolUnionParam{
+		OfFunction: &responses.FunctionToolParam{
 			Name:        filetools.READ_TOOL_NAME,
-			Description: openai.String(filetools.READ_TOOL_DESCRIPTION),
+			Description: param.NewOpt(filetools.READ_TOOL_DESCRIPTION),
 			Parameters:  filetools.READ_TOOL_PARAMETERS,
 		},
 	},
-}
-
-var FileEditTool = openai.ChatCompletionToolUnionParam{
-	OfFunction: &openai.ChatCompletionFunctionToolParam{
-		Function: shared.FunctionDefinitionParam{
-			Name:        filetools.EDIT_TOOL_NAME,
-			Description: openai.String(filetools.EDIT_TOOL_DESCRIPTION),
-			Parameters:  filetools.EDIT_TOOL_PARAMETERS,
-		},
-	},
-}
-
-var FileWriteTool = openai.ChatCompletionToolUnionParam{
-	OfFunction: &openai.ChatCompletionFunctionToolParam{
-		Function: shared.FunctionDefinitionParam{
+	responses.ToolUnionParam{
+		OfFunction: &responses.FunctionToolParam{
 			Name:        filetools.WRITE_TOOL_NAME,
-			Description: openai.String(filetools.WRITE_TOOL_DESCRIPTION),
+			Description: param.NewOpt(filetools.WRITE_TOOL_DESCRIPTION),
 			Parameters:  filetools.WRITE_TOOL_PARAMETERS,
 		},
 	},
-}
-
-var SearchFileTool = openai.ChatCompletionToolUnionParam{
-	OfFunction: &openai.ChatCompletionFunctionToolParam{
-		Function: shared.FunctionDefinitionParam{
+	responses.ToolUnionParam{
+		OfFunction: &responses.FunctionToolParam{
+			Name:        filetools.EDIT_TOOL_NAME,
+			Description: param.NewOpt(filetools.EDIT_TOOL_DESCRIPTION),
+			Parameters:  filetools.EDIT_TOOL_PARAMETERS,
+		},
+	},
+	responses.ToolUnionParam{
+		OfFunction: &responses.FunctionToolParam{
 			Name:        filetools.SEARCH_TOOL_NAME,
-			Description: openai.String(filetools.SEARCH_TOOL_DESCRIPTION),
+			Description: param.NewOpt(filetools.SEARCH_TOOL_DESCRIPTION),
 			Parameters:  filetools.SEARCH_TOOL_PARAMETERS,
 		},
 	},

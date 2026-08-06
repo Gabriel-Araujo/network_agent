@@ -2,86 +2,87 @@ package llm
 
 import (
 	"context"
-	"fmt"
-	"log"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 type Agent struct {
-	Client         openai.Client
-	ModelName      string
-	Messages       []openai.ChatCompletionMessageParamUnion
-	AvailableTools []openai.ChatCompletionToolUnionParam
+	Client             openai.Client
+	ModelName          string
+	AvailableTools     []responses.ToolUnionParam
+	systemPrompt       string
+	previousResponseID string
 }
 
-// ToolCall processa a execução de ferramentas quando o LLM solicita uma chamada de função.
-func (agent *Agent) ToolCall(toolCallChunk *openai.ChatCompletionChunkChoiceDeltaToolCall, acc openai.ChatCompletionAccumulator) {
-	if toolCallChunk == nil || toolCallChunk.Function.Name == "" {
-		return
+func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
+	input := responses.ResponseNewParamsInputUnion{}
+
+	if a.previousResponseID == "" {
+		input = responses.ResponseNewParamsInputUnion{
+			OfInputItemList: responses.ResponseInputParam{
+				responses.ResponseInputItemParamOfMessage(a.systemPrompt, responses.EasyInputMessageRoleSystem),
+				responses.ResponseInputItemParamOfMessage(userMessage, responses.EasyInputMessageRoleUser),
+			},
+		}
+
+	} else {
+		input = responses.ResponseNewParamsInputUnion{
+			OfString: openai.String(userMessage),
+		}
 	}
 
-	log.Printf("[Tool Call: %s]\n", toolCallChunk.Function.Name)
-
-	// Executa a função da ferramenta
-	response := tools.CallFunction(*toolCallChunk, true)
-
-	// Verifica se há escolhas antes de acessar o índice 0 para evitar Panic
-	if len(acc.Choices) > 0 {
-		agent.Messages = append(agent.Messages, acc.Choices[0].Message.ToParam())
+	params := responses.ResponseNewParams{
+		Model: a.ModelName,
+		Input: input,
+		Tools: a.AvailableTools,
 	}
 
-	agent.Messages = append(agent.Messages, response)
-}
+	if a.previousResponseID != "" {
+		params.PreviousResponseID = openai.String(a.previousResponseID)
+	}
 
-// AskStream envia uma pergunta ao LLM e processa a resposta em tempo real (streaming).
-func (agent *Agent) AskStream(question string) {
-	agent.Messages = append(agent.Messages, openai.UserMessage(question))
+	for {
 
-	stream := agent.Client.Chat.Completions.NewStreaming(
-		context.Background(),
-		openai.ChatCompletionNewParams{
-			Model:    agent.ModelName,
-			Messages: agent.Messages,
-			Tools:    agent.AvailableTools,
-		},
-	)
+		resp, err := a.Client.Responses.New(ctx, params)
+		if err != nil {
+			return "", err
+		}
 
-	acc := openai.ChatCompletionAccumulator{}
-	var toolCallChunk *openai.ChatCompletionChunkChoiceDeltaToolCall
+		a.previousResponseID = resp.ID
 
-	fmt.Print("Agent: ")
-	for stream.Next() {
-		chunk := stream.Current()
-		acc.AddChunk(chunk)
+		outputs := []responses.ResponseInputItemUnionParam{}
 
-		// Verifica se o modelo terminou uma chamada de ferramenta
-		if tool, ok := acc.JustFinishedToolCall(); ok {
-			toolCallChunk = &openai.ChatCompletionChunkChoiceDeltaToolCall{
-				ID: tool.ID,
-				Function: openai.ChatCompletionChunkChoiceDeltaToolCallFunction{
-					Name:      tool.Name,
-					Arguments: tool.Arguments,
-				},
+		finished := true
+
+		for _, item := range resp.Output {
+
+			switch item.Type {
+
+			case "function_call":
+
+				finished = false
+
+				result := tools.CallFunction(ctx, item.AsFunctionCall())
+
+				outputs = append(outputs, result)
+
+			case "message":
+
+				// será retornado quando não houver mais tool
 			}
 		}
 
-		// Imprime o conteúdo da mensagem em tempo real
-		if len(chunk.Choices) > 0 {
-			// No v3, o Content é uma string, não um ponteiro.
-			// Verificamos se a string não está vazia.
-			if chunk.Choices[0].Delta.Content != "" {
-				fmt.Print(chunk.Choices[0].Delta.Content)
-			}
+		if finished {
+			return resp.OutputText(), nil
 		}
-	}
-	fmt.Println()
 
-	// Lógica de pós-processamento para ferramentas
-	if toolCallChunk != nil && toolCallChunk.Function.Name != "" {
-		agent.ToolCall(toolCallChunk, acc)
-	} else if len(acc.Choices) > 0 {
-		agent.Messages = append(agent.Messages, acc.Choices[0].Message.ToParam())
+		params = responses.ResponseNewParams{
+			Model:              a.ModelName,
+			PreviousResponseID: openai.String(resp.ID),
+			Input:              responses.ResponseNewParamsInputUnion{OfInputItemList: outputs},
+			Tools:              a.AvailableTools,
+		}
 	}
 }

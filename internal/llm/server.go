@@ -27,7 +27,7 @@ func Connect(config Config) (*Agent, error) {
 	return &Agent{
 		Client:         client,
 		ModelName:      config.ModelName,
-		Messages:       []openai.ChatCompletionMessageParamUnion{loadAgent()},
 		AvailableTools: loadSkillsAndTools(),
+		systemPrompt:   loadAgent(),
 	}, nil
 }

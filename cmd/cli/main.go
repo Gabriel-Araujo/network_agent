@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm"
+	intentanalyser "github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
-	"github.com/openai/openai-go/v3"
 )
 
 func main() {
@@ -31,6 +31,8 @@ func main() {
 		log.Fatalf("Failed to connect to LLM: %v\n", err)
 	}
 
+	ctx := context.Background()
+
 	fmt.Println("Network Agent started. Type your message (or 'exit' to quit):")
 
 	reader := bufio.NewReader(os.Stdin)
@@ -39,7 +41,7 @@ func main() {
 		fmt.Print("\nUser: ")
 		userInput, err := reader.ReadString('\n')
 		if err != nil {
-			log.Printf("Error reading input: %v\n", err)
+			fmt.Printf("Error reading input: %v\n", err)
 			continue
 		}
 
@@ -52,49 +54,14 @@ func main() {
 			continue
 		}
 
-		agent.Messages = append(agent.Messages, openai.UserMessage(userInput))
+		intentanalyser.Do(userInput, agent)
 
-		for {
-			stream := agent.Client.Chat.Completions.NewStreaming(
-				context.Background(),
-				openai.ChatCompletionNewParams{
-					Model:    agent.ModelName,
-					Messages: agent.Messages,
-					Tools:    agent.AvailableTools,
-				},
-			)
-
-			acc := openai.ChatCompletionAccumulator{}
-
-			var toolCallChunk *openai.ChatCompletionChunkChoiceDeltaToolCall
-
-			fmt.Print("Agent: ")
-			for stream.Next() {
-				chunk := stream.Current()
-				acc.AddChunk(chunk)
-
-				if tool, ok := acc.JustFinishedToolCall(); ok {
-					toolCallChunk = &openai.ChatCompletionChunkChoiceDeltaToolCall{
-						ID: tool.ID,
-						Function: openai.ChatCompletionChunkChoiceDeltaToolCallFunction{
-							Name:      tool.Name,
-							Arguments: tool.Arguments,
-						},
-					}
-				}
-				if len(chunk.Choices) > 0 {
-					fmt.Print(chunk.Choices[0].Delta.Content)
-				}
-			}
-			fmt.Println()
-
-			if toolCallChunk != nil {
-				agent.ToolCall(toolCallChunk, acc)
-				break
-			} else {
-				agent.Messages = append(agent.Messages, acc.Choices[0].Message.ToParam())
-				break
-			}
+		out, err := agent.Chat(ctx, userInput)
+		if err != nil {
+			fmt.Printf("Error calling LLM: %v\n", err)
+			continue
 		}
+
+		fmt.Printf("Agent: %s\n", out)
 	}
 }

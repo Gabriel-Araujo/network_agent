@@ -1,77 +1,75 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
-	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/responses"
 )
 
-var DEFAULT_ROOT_DIRECTORY = "."
-var Tools = []openai.ChatCompletionToolUnionParam{FileReadTool, FileEditTool, FileWriteTool, SearchFileTool}
+const DEFAULT_ROOT_DIRECTORY = "."
 
-func GetSkillAndTools() []openai.ChatCompletionToolUnionParam {
+var Tools = FileTools
+
+func GetSkillAndTools() []responses.ToolUnionParam {
 	reg := skills.LoadSkills()
 	skillsTools := reg.BuildTools()
 
 	return append(skillsTools, Tools...)
 }
 
-func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, verbose bool) openai.ChatCompletionMessageParamUnion {
-	if verbose {
-		log.Printf("function '%s' called with arguments: [%s]\n", functionCall.Function.Name, functionCall.Function.Arguments)
-	}
+func CallFunction(
+	ctx context.Context,
+	call responses.ResponseFunctionToolCall,
+) responses.ResponseInputItemUnionParam {
+	log.Printf("function '%s' called with arguments: [%s]\n", call.Name, call.Arguments)
 
 	args := make(map[string]string)
 
-	err := json.Unmarshal([]byte(functionCall.Function.Arguments), &args)
+	err := json.Unmarshal([]byte(call.Arguments), &args)
 	if err != nil {
 		log.Default().Println(err)
-		return openai.ToolMessage("Error: Failed to get args from function call object.", functionCall.ID)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, "Error: Failed to get args from function call object.")
 	}
 
 	args["workingDirectory"] = DEFAULT_ROOT_DIRECTORY
 
-	switch functionCall.Function.Name {
+	switch call.Name {
 	case filetools.READ_TOOL_NAME:
-		return openai.ToolMessage(
-			filetools.ReadFile(args["workingDirectory"], args["filePath"]),
-			functionCall.ID)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.ReadFile(args["workingDirectory"], args["filePath"]))
 	case filetools.EDIT_TOOL_NAME:
-		return openai.ToolMessage(filetools.EditFile(
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.EditFile(
 			args["workingDirectory"],
 			args["filePath"],
 			args["oldText"],
-			args["newText"]),
-			functionCall.ID)
+			args["newText"]))
 	case filetools.WRITE_TOOL_NAME:
-		return openai.ToolMessage(filetools.WriteFile(
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.WriteFile(
 			args["workingDirectory"],
 			args["filePath"],
-			args["content"]),
-			functionCall.ID)
+			args["content"]))
 	case filetools.SEARCH_TOOL_NAME:
-		return openai.ToolMessage(filetools.SearchPattern(
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.SearchPattern(
 			args["workingDirectory"],
 			args["path"],
-			args["pattern"]),
-			functionCall.ID)
+			args["pattern"]))
 	case skills.ToolUseSkill:
 		reg := skills.LoadSkills()
 		var args struct {
 			SkillName string `json:"skill_name"`
 		}
-		if err := json.Unmarshal([]byte(functionCall.Function.Arguments), &args); err != nil {
-			return openai.ToolMessage(fmt.Sprintf("erro: argumentos inválidos: %v", err), functionCall.ID)
+		if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: argumentos inválidos: %v", err))
 		}
 		sk, ok := reg.Get(args.SkillName)
 		if !ok {
-			return openai.ToolMessage(fmt.Sprintf("erro: skill %q não encontrada", args.SkillName), functionCall.ID)
+			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: skill %q não encontrada", args.SkillName))
 		}
-		return openai.ToolMessage(sk.Body, functionCall.ID)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, sk.Body)
 	case skills.ToolReadSkillFile:
 		reg := skills.LoadSkills()
 
@@ -79,16 +77,16 @@ func CallFunction(functionCall openai.ChatCompletionChunkChoiceDeltaToolCall, ve
 			SkillName    string `json:"skill_name"`
 			RelativePath string `json:"relative_path"`
 		}
-		if err := json.Unmarshal([]byte(functionCall.Function.Arguments), &args); err != nil {
-			return openai.ToolMessage(fmt.Sprintf("erro: argumentos inválidos: %v", err), functionCall.ID)
+		if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: argumentos inválidos: %v", err))
 		}
 		content, err := reg.ReadFile(args.SkillName, args.RelativePath)
 		if err != nil {
-			return openai.ToolMessage(fmt.Sprintf("erro: %v", err), functionCall.ID)
+			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: %v", err))
 		}
-		return openai.ToolMessage(content, functionCall.ID)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, content)
 
 	default:
-		return openai.ToolMessage("Error: Called invalid function", functionCall.ID)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, "Error: Called invalid function")
 	}
 }
