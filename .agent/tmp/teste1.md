@@ -1,0 +1,1 @@
+Olá! Como posso ajudar você com suas configurações ou problemas de rede usando o FRRouting (FRR) hoje? Se tiver alguma dúvida sobre BGP, OSPF, IS-IS, rotas estáticas ou qualquer outro protocolo, é só me dizer.
