@@ -85,10 +85,7 @@ func TestRetrieveIntegration(t *testing.T) {
 		t.Skip("DATABASE_URL não definido; pulando teste de integração")
 	}
 
-	client, err := testEmbedderClient()
-	if err != nil {
-		t.Fatalf("criando cliente de embedding: %v", err)
-	}
+	client := testEmbedderClient()
 
 	cfg := Config{
 		DSN:      dsn,
@@ -115,18 +112,14 @@ func TestRetrieveIntegration(t *testing.T) {
 	}
 }
 
-// testEmbedderClient monta um cliente OpenAI para o teste de integração a
-// partir de variáveis de ambiente (mesmo endpoint do .env runtime).
-func testEmbedderClient() (openai.Client, error) {
-	baseURL := os.Getenv("URL")
-	apiKey := os.Getenv("API_KEY")
-	if baseURL == "" || apiKey == "" {
-		return openai.Client{}, os.ErrNotExist
-	}
+// testEmbedderClient monta o cliente do LoadEmbbedAgent: embarca o LM
+// Studio (localhost:1234) com o modelo de embedding do ingester (4096),
+// idêntico ao usado em produção pelo cmd/cli.
+func testEmbedderClient() openai.Client {
 	return openai.NewClient(
-		option.WithBaseURL(baseURL),
-		option.WithAPIKey(apiKey),
-	), nil
+		option.WithBaseURL("http://localhost:1234/v1"),
+		option.WithAPIKey("none"),
+	)
 }
 
 // TestSaveResults verifica o shape do JSON gravado e a convenção de nome.

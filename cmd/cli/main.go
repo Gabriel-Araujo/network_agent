@@ -91,18 +91,21 @@ func main() {
 }
 
 // runRetrieval monta a Config do retriever (DSN do DATABASE_URL, embedder
-// = client do próprio agente, fallback LLM p/ geração de queries) e
-// executa rag.Do para o briefing gerado.
+// = cliente de embedding próprio via LoadEmbbedAgent, fallback LLM p/
+// geração de queries) e executa rag.Do para o briefing gerado.
 func runRetrieval(ctx context.Context, agent *agentapi.Agent, intentPath string) (string, error) {
-	dsn, embeddingModel := rag.LoadEnv()
+	dsn, _ := rag.LoadEnv()
 	if dsn == "" {
 		return "", fmt.Errorf("DATABASE_URL ausente — adicione ao .env ou exporte no ambiente")
 	}
 
+	// Embeddings vêm do LoadEmbbedAgent (LM Studio em localhost:1234),
+	// que serve o MESMO modelo usado no ingester (4096 dims).
+	embAgent := llm.LoadEmbbedAgent()
 	cfg := rag.Config{
 		DSN:            dsn,
-		EmbeddingModel: embeddingModel,
-		Embedder:       agent.Client,
+		EmbeddingModel: embAgent.ModelName,
+		Embedder:       embAgent.Client,
 		QueryGen: &rag.LLMQueryGenerator{
 			Client:    agent.Client,
 			ModelName: agent.ModelName,
