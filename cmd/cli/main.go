@@ -94,14 +94,14 @@ func main() {
 // = client do próprio agente, fallback LLM p/ geração de queries) e
 // executa rag.Do para o briefing gerado.
 func runRetrieval(ctx context.Context, agent *agentapi.Agent, intentPath string) (string, error) {
-	dsn := os.Getenv("DATABASE_URL")
+	dsn, embeddingModel := rag.LoadEnv()
 	if dsn == "" {
-		return "", fmt.Errorf("DATABASE_URL ausente no ambiente — configure no .env")
+		return "", fmt.Errorf("DATABASE_URL ausente — adicione ao .env ou exporte no ambiente")
 	}
 
 	cfg := rag.Config{
 		DSN:            dsn,
-		EmbeddingModel: os.Getenv("EMBEDDING_MODEL"),
+		EmbeddingModel: embeddingModel,
 		Embedder:       agent.Client,
 		QueryGen: &rag.LLMQueryGenerator{
 			Client:    agent.Client,
