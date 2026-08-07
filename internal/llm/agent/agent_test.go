@@ -265,10 +265,3 @@ func TestSubAgentCallInvalidArguments(t *testing.T) {
 		t.Fatalf("esperava erro de argumentos inválidos, veio %q", got)
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
