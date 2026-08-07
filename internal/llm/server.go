@@ -3,18 +3,12 @@ package llm
 import (
 	"log"
 
+	llm "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
 
-type Config struct {
-	ModelName    string
-	Url          string
-	ApiKey       string
-	ProviderName string
-}
-
-func Connect(config Config) (*Agent, error) {
+func Connect(config Config) (*llm.Agent, error) {
 	log.Printf("Trying connection with model '%s' through '%s' (%s)\n", config.ModelName, config.ProviderName, config.Url)
 
 	// Instancia o cliente (retorna openai.Client)
@@ -24,10 +18,10 @@ func Connect(config Config) (*Agent, error) {
 	)
 
 	log.Println("Connected and verified.")
-	return &Agent{
+	return &llm.Agent{
 		Client:         client,
 		ModelName:      config.ModelName,
 		AvailableTools: loadSkillsAndTools(),
-		systemPrompt:   loadAgent(),
+		SystemPrompt:   loadAgent(),
 	}, nil
 }

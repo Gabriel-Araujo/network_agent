@@ -1,4 +1,4 @@
-package llm
+package rag
 
 // Section representa uma seção do documento RST, com o caminho de
 // breadcrumbs (Path) até a raiz.
@@ -6,8 +6,8 @@ type Section struct {
 	Level     int
 	Title     string
 	Path      []string
-	StartLine int // primeira linha de conteúdo PRÓPRIO da seção
-	EndLine   int // onde começa o próximo header (exclusive)
+	StartLine int // Primeira linha de conteúdo PRÓPRIO da seção
+	EndLine   int // Onde começa o próximo header (exclusive)
 }
 
 // Chunk é a unidade final de indexação.
@@ -25,7 +25,7 @@ type Chunk struct {
 	Order         int     `json:"order"`
 }
 
-// headerLine é uma ocorrência de header detectada antes da montagem da
+// HeaderLine é uma ocorrência de header detectada antes da montagem da
 // árvore de seções: (linha_do_titulo, nivel, titulo).
 type HeaderLine struct {
 	TitleLine int
@@ -33,7 +33,7 @@ type HeaderLine struct {
 	Title     string
 }
 
-// clicmdEntry é um comando `.. clicmd::` com seu corpo (descrição/exemplo).
+// ClicmdEntry é um comando `.. Clicmd::` com seu corpo (descrição/exemplo).
 type ClicmdEntry struct {
 	Command string
 	Body    []string

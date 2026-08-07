@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/paths"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 )
@@ -71,7 +72,12 @@ func (r *Registry) BuildTools() []responses.ToolUnionParam {
 
 func LoadSkills() *Registry {
 
-	reg, err := LoadDir("./resources/agent/skills")
+	root, err := paths.RepoFile("resources/agent/skills")
+	if err != nil {
+		log.Fatalf("carregando skills: %v", err)
+	}
+
+	reg, err := LoadDir(root)
 	if err != nil {
 		log.Fatalf("carregando skills: %v", err)
 	}

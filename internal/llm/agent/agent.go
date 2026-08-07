@@ -15,7 +15,7 @@ type Agent struct {
 	Client             openai.Client
 	ModelName          string
 	AvailableTools     []responses.ToolUnionParam
-	systemPrompt       string
+	SystemPrompt       string
 	previousResponseID string
 }
 
@@ -25,7 +25,7 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 	if a.previousResponseID == "" {
 		input = responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
-				responses.ResponseInputItemParamOfMessage(a.systemPrompt, responses.EasyInputMessageRoleSystem),
+				responses.ResponseInputItemParamOfMessage(a.SystemPrompt, responses.EasyInputMessageRoleSystem),
 				responses.ResponseInputItemParamOfMessage(userMessage, responses.EasyInputMessageRoleUser),
 			},
 		}
@@ -129,7 +129,7 @@ func (a *Agent) subAgentCall(ctx context.Context, call responses.ResponseFunctio
 		Client:         a.Client,
 		ModelName:      a.ModelName,
 		AvailableTools: a.AvailableTools,
-		systemPrompt:   a.systemPrompt,
+		SystemPrompt:   a.SystemPrompt,
 	}
 
 	out, err := sub.Chat(ctx, args.Task)

@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/server"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
 	"github.com/jackc/pgx/v5"
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 func Embed(texts []string, client openai.Client) ([][]float64, error) {
@@ -158,12 +158,14 @@ DO UPDATE SET
 }
 
 func getOpenaiClient() openai.Client {
-	config, err := config.Load()
+	_config, err := config.Load()
 	if err != nil {
 		log.Fatalf("Error loading configuration: %v\n", err)
 	}
-
-	return server.Connect(config)
+	return openai.NewClient(
+		option.WithBaseURL(_config.Url),
+		option.WithAPIKey(_config.ApiKey),
+	)
 
 }
 func toPgVector(v []float64) string {

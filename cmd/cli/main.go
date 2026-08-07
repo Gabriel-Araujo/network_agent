@@ -54,9 +54,15 @@ func main() {
 			continue
 		}
 
-		intentanalyser.Do(userInput, agent)
+		intentPath, err := intentanalyser.Do(ctx, userInput, agent)
+		if err != nil {
+			return
+		}
+
+		log.Println("MAIN - intent saved at: " + intentPath)
 
 		out, err := agent.Chat(ctx, userInput)
+
 		if err != nil {
 			fmt.Printf("Error calling LLM: %v\n", err)
 			continue

@@ -224,7 +224,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 	a := &Agent{
 		Client:       client,
 		ModelName:    "test-model",
-		systemPrompt: "você é um assistente",
+		SystemPrompt: "você é um assistente",
 	}
 
 	call := responses.ResponseFunctionToolCall{
