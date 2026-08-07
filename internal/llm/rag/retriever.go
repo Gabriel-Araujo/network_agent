@@ -2,10 +2,14 @@ package rag
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
 )
 
@@ -175,4 +179,66 @@ func buildResponse(chunks []Chunk) string {
 		}
 	}
 	return b.String()
+}
+
+// retrievalDir é o diretório onde as saídas de busca são salvas, relativo
+// ao diretório de trabalho atual. (.agent já está no .gitignore.)
+const retrievalDir = ".agent/tmp/retrieval"
+
+// Do é o ponto de entrada do retriever: lê o arquivo de briefing gerado
+// pelo intent-analyser, gera/extrai as queries (parse determinístico da
+// seção 6 com fallback LLM), executa a busca híbrida e grava o JSON
+// [{"query","response"}] em .agent/tmp/retrieval/<arquivo-sem-ext>.json,
+// devolvendo o caminho absoluto.
+func Do(ctx context.Context, briefingPath string, cfg Config) (string, error) {
+	content, err := os.ReadFile(briefingPath)
+	if err != nil {
+		return "", fmt.Errorf("lendo briefing %s: %w", briefingPath, err)
+	}
+
+	gen := cfg.QueryGen
+	queries, err := BuildQueries(ctx, content, gen)
+	if err != nil {
+		return "", fmt.Errorf("gerando queries do briefing: %w", err)
+	}
+
+	results, err := Retrieve(ctx, cfg, queries)
+	if err != nil {
+		return "", fmt.Errorf("buscando no pgvector: %w", err)
+	}
+
+	outPath, err := saveResults(briefingPath, results)
+	if err != nil {
+		return "", err
+	}
+	return outPath, nil
+}
+
+// saveResults grava o resultado JSON em retrievalDir, seguindo a mesma
+// convenção de nome do briefing (<arquivo-sem-ext>.json) e retornando o
+// caminho do arquivo criado.
+func saveResults(briefingPath string, results []Result) (string, error) {
+	base := filepath.Base(briefingPath)
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+	name := base + ".json"
+
+	dir, err := util.SafePath(".", retrievalDir)
+	if err != nil {
+		return "", err
+	}
+
+	jsonPath := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(jsonPath), 0o755); err != nil {
+		return "", err
+	}
+
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("serializando resultados: %w", err)
+	}
+
+	if err := os.WriteFile(jsonPath, data, 0o644); err != nil {
+		return "", fmt.Errorf("gravando %s: %w", jsonPath, err)
+	}
+	return jsonPath, nil
 }

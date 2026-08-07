@@ -2,7 +2,9 @@ package rag
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/openai/openai-go/v3"
@@ -125,5 +127,40 @@ func testEmbedderClient() (openai.Client, error) {
 		option.WithBaseURL(baseURL),
 		option.WithAPIKey(apiKey),
 	), nil
+}
+
+// TestSaveResults verifica o shape do JSON gravado e a convenção de nome.
+func TestSaveResults(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+
+	briefing := filepath.Join(tmp, "meu-ospf-abc123.md")
+	if err := os.WriteFile(briefing, []byte("# x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	results := []Result{
+		{Query: "OSPF MTU mismatch", Response: "contexto A\n\nSource: https://docs.example (OSPF)"},
+		{Query: "BGP session down", Response: "contexto B"},
+	}
+	path, err := saveResults(briefing, results)
+	if err != nil {
+		t.Fatalf("saveResults: %v", err)
+	}
+	if filepath.Base(path) != "meu-ospf-abc123.json" {
+		t.Errorf("nome = %q, want meu-ospf-abc123.json", filepath.Base(path))
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []Result
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("JSON inválido: %v", err)
+	}
+	if len(got) != 2 || got[0].Query != "OSPF MTU mismatch" || got[1].Response != "contexto B" {
+		t.Fatalf("got = %+v", got)
+	}
 }
 
