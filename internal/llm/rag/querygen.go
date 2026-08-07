@@ -38,7 +38,7 @@ func BuildQueries(ctx context.Context, content []byte, gen QueryGenerator) ([]Qu
 // LLMQueryGenerator implementa QueryGenerator usando a API de Responses
 // do openai-go, no mesmo padrão da skill intentanalyser.
 type LLMQueryGenerator struct {
-	Client    *openai.Client
+	Client    openai.Client
 	ModelName string
 }
 

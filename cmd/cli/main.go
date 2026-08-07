@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm"
+	agentapi "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	intentanalyser "github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
 )
@@ -61,7 +63,23 @@ func main() {
 
 		log.Println("MAIN - intent saved at: " + intentPath)
 
-		out, err := agent.Chat(ctx, userInput)
+		// Retrieval RAG: gera/extrai queries do briefing, busca no
+		// pgvector híbrido e grava o JSON em .agent/tmp/retrieval.
+		retrievalOut, err := runRetrieval(ctx, agent, intentPath)
+		if err != nil {
+			log.Printf("MAIN - retrieval falhou (seguindo sem contexto RAG): %v\n", err)
+			retrievalOut = ""
+		}
+		if retrievalOut != "" {
+			log.Println("MAIN - retrieval saved at: " + retrievalOut)
+		}
+
+		prompt := userInput
+		if retrievalJSON := loadRetrievalJSON(retrievalOut); retrievalJSON != "" {
+			prompt = userInput + "\n\n<recovered_context>\n" + retrievalJSON + "\n</recovered_context>"
+		}
+
+		out, err := agent.Chat(ctx, prompt)
 
 		if err != nil {
 			fmt.Printf("Error calling LLM: %v\n", err)
@@ -70,4 +88,38 @@ func main() {
 
 		fmt.Printf("Agent: %s\n", out)
 	}
+}
+
+// runRetrieval monta a Config do retriever (DSN do DATABASE_URL, embedder
+// = client do próprio agente, fallback LLM p/ geração de queries) e
+// executa rag.Do para o briefing gerado.
+func runRetrieval(ctx context.Context, agent *agentapi.Agent, intentPath string) (string, error) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return "", fmt.Errorf("DATABASE_URL ausente no ambiente — configure no .env")
+	}
+
+	cfg := rag.Config{
+		DSN:            dsn,
+		EmbeddingModel: os.Getenv("EMBEDDING_MODEL"),
+		Embedder:       agent.Client,
+		QueryGen: &rag.LLMQueryGenerator{
+			Client:    agent.Client,
+			ModelName: agent.ModelName,
+		},
+	}
+
+	return rag.Do(ctx, intentPath, cfg)
+}
+
+// loadRetrievalJSON lê o JSON de retrieval gerado, se existir.
+func loadRetrievalJSON(path string) string {
+	if path == "" {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
