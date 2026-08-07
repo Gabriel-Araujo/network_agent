@@ -1,5 +1,8 @@
 # IDEs
 .idea
+.agent
+.junie
+.env
 
 .config.toml
 
