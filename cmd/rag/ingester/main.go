@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/jackc/pgx/v5"
 )
 
