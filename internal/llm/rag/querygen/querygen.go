@@ -1,4 +1,4 @@
-package rag
+package querygen
 
 import (
 	"context"
@@ -7,30 +7,25 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 )
-
-// QueryGenerator gera sugestões de query a partir do texto do briefing,
-// usado como fallback quando o briefing não traz a tabela determinística.
-type QueryGenerator interface {
-	GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error)
-}
 
 // BuildQueries retorna as queries para o briefing. Se o briefing contiver
 // a seção "Rewritten queries for RAG", usa o parse determinístico; caso
 // contrário, delega ao generator (fallback LLM). Quando gen é nil e o
 // briefing não tem a tabela, retorna ErrNoQueriesTable.
-func BuildQueries(ctx context.Context, content []byte, gen QueryGenerator) ([]QuerySuggestion, error) {
+func BuildQueries(ctx context.Context, content []byte, gen rag.QueryGenerator) ([]rag.QuerySuggestion, error) {
 	qs, err := ParseQueriesFromBriefing(content)
 	if err == nil {
 		return qs, nil
 	}
-	if !errors.Is(err, ErrNoQueriesTable) {
+	if !errors.Is(err, rag.ErrNoQueriesTable) {
 		return nil, err
 	}
 	if gen == nil {
-		return nil, ErrNoQueriesTable
+		return nil, rag.ErrNoQueriesTable
 	}
 	return gen.GenerateQueries(ctx, content)
 }
@@ -44,7 +39,7 @@ type LLMQueryGenerator struct {
 
 // GenerateQueries pede ao modelo que reescreva o briefing em queries de
 // busca para a tabela frr_docs, retornando JSON puro.
-func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error) {
+func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
 	resp, err := g.Client.Responses.New(ctx, responses.ResponseNewParams{
 		Model:        g.ModelName,
 		Instructions: openai.String(queryGenSystemPrompt),
@@ -58,14 +53,14 @@ func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte
 	if err != nil {
 		return nil, err
 	}
-	return parseGeneratedQueries(resp.OutputText())
+	return ParseGeneratedQueries(resp.OutputText())
 }
 
 var fenceRe = regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)```")
 
-// parseGeneratedQueries extrai o array JSON de queries da saída do modelo,
+// ParseGeneratedQueries extrai o array JSON de queries da saída do modelo,
 // tolerando texto ao redor e code fences.
-func parseGeneratedQueries(text string) ([]QuerySuggestion, error) {
+func ParseGeneratedQueries(text string) ([]rag.QuerySuggestion, error) {
 	text = strings.TrimSpace(text)
 
 	// Caso o modelo devolva apenas o JSON direto.
@@ -92,12 +87,12 @@ type genQueryJSON struct {
 	ChunkType string `json:"chunk_type"`
 }
 
-func parseQueriesJSON(s string) ([]QuerySuggestion, bool) {
+func parseQueriesJSON(s string) ([]rag.QuerySuggestion, bool) {
 	var raw []genQueryJSON
 	if err := json.Unmarshal([]byte(s), &raw); err != nil {
 		return nil, false
 	}
-	qs := make([]QuerySuggestion, 0, len(raw))
+	qs := make([]rag.QuerySuggestion, 0, len(raw))
 	for _, r := range raw {
 		q := strings.TrimSpace(r.Query)
 		if q == "" {
@@ -105,11 +100,11 @@ func parseQueriesJSON(s string) ([]QuerySuggestion, bool) {
 		}
 		ct := strings.ToLower(strings.TrimSpace(r.ChunkType))
 		switch ct {
-		case chunkTypeCommandReference, chunkTypeConcept:
+		case rag.ChunkTypeCommandReference, rag.ChunkTypeConcept:
 		default:
 			ct = ""
 		}
-		qs = append(qs, QuerySuggestion{
+		qs = append(qs, rag.QuerySuggestion{
 			Query:     q,
 			Protocol:  strings.ToLower(strings.TrimSpace(r.Protocol)),
 			Daemon:    strings.ToLower(strings.TrimSpace(r.Daemon)),

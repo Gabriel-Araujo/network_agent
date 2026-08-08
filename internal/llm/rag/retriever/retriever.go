@@ -1,4 +1,4 @@
-package rag
+package retriever
 
 import (
 	"context"
@@ -9,56 +9,15 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
+	"github.com/Gabriel-Araujo/network_agent/pkg/db"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
-	"github.com/openai/openai-go/v3"
 )
 
-// DefaultEmbeddingModel é o modelo usado no ingester e no retriever.
-// Manter alinhado com VECTOR(4096) da tabela frr_docs.
-const DefaultEmbeddingModel = "text-embedding-qwen3-embedding-8b"
-
-// Config centraliza o que o retriever precisa: conexão com o Postgres,
-// cliente de embeddings e o fallback de geração de queries.
-type Config struct {
-	DSN            string
-	EmbeddingModel string // vazio -> DefaultEmbeddingModel
-	Embedder       openai.Client
-	Limit          int // resultados finais por query (default 5)
-	FetchFactor    int // top-K por fonte = limit * FetchFactor (default 4)
-	QueryGen       QueryGenerator
-}
-
-func (c Config) withDefaults() Config {
-	if c.EmbeddingModel == "" {
-		c.EmbeddingModel = DefaultEmbeddingModel
-	}
-	if c.Limit <= 0 {
-		c.Limit = 5
-	}
-	if c.FetchFactor <= 0 {
-		c.FetchFactor = 4
-	}
-	return c
-}
-
-// Result é a saída estruturada pedida pelo usuário:
-// [{"query": string, "response": string}], onde response é o contexto
-// recuperado (parent_content + origem), não uma resposta gerada.
-type Result struct {
-	Query    string `json:"query"`
-	Response string `json:"response"`
-}
-
-// scoredChunk é um resultado de uma única fonte (vetorial ou FTS),
-// identificado pelo chunk_id, antes da fusão RRF.
-type scoredChunk struct {
-	ID    string
-	Score float64
-}
-
 // VectorLiteral serializa um vetor para a literal textual aceita pelo
-// pgvector (ex.: "[1.50000000,-2.25000000]"), castada como ::vector na
-// query. Não exigimos registro de tipo Go p/ pgvector.
+// pgvector (ex.: "[1,50000000,-2,25000000]"), castada como::vector na
+// query. Não exigimos registro de tipo Go "p" pgvector.
 func VectorLiteral(v []float64) string {
 	var b strings.Builder
 	b.WriteByte('[')
@@ -72,13 +31,10 @@ func VectorLiteral(v []float64) string {
 	return b.String()
 }
 
-// rrfK é a constante padrão de Reciprocal Rank Fusion.
-const rrfK = 60
-
-// fuseRRF funde duas fontes de ranking (map chunk_id -> rank 0-based)
+// FuseRRF funde duas fontes de ranking (map chunk_id → rank 0-based)
 // usando RRF: score[id] += 1/(k + rank + 1) por fonte. Deduplica por id,
 // ordena por score decrescente e limita ao limit.
-func fuseRRF(vec, fts map[string]int, k, limit int) []scoredChunk {
+func FuseRRF(vec, fts map[string]int, k, limit int) []rag.ScoredChunk {
 	total := make(map[string]float64, len(vec)+len(fts))
 	for id, rank := range vec {
 		total[id] += 1.0 / float64(k+rank+1)
@@ -87,9 +43,9 @@ func fuseRRF(vec, fts map[string]int, k, limit int) []scoredChunk {
 		total[id] += 1.0 / float64(k+rank+1)
 	}
 
-	out := make([]scoredChunk, 0, len(total))
+	out := make([]rag.ScoredChunk, 0, len(total))
 	for id, score := range total {
-		out = append(out, scoredChunk{ID: id, Score: score})
+		out = append(out, rag.ScoredChunk{ID: id, Score: score})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Score == out[j].Score {
@@ -106,20 +62,20 @@ func fuseRRF(vec, fts map[string]int, k, limit int) []scoredChunk {
 // Retrieve executa a busca híbrida para cada query sugerida e devolve um
 // Result por query. Se a query não retornar nada, ainda assim o Result
 // aparece com Response vazio (preservando o shape [{"query","response"}]).
-func Retrieve(ctx context.Context, cfg Config, queries []QuerySuggestion) ([]Result, error) {
-	cfg = cfg.withDefaults()
+func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion) ([]rag.Result, error) {
+	cfg = cfg.WithDefaults()
 
 	if len(queries) == 0 {
 		return nil, nil
 	}
 
-	store, err := openStore(ctx, cfg.DSN)
+	store, err := db.OpenDB(ctx, cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("abrindo pool pgx: %w", err)
 	}
 
 	// Probe de dimensão no 1º uso: garante consistência com a coluna.
-	if err := probeEmbeddingDim(ctx, cfg, store); err != nil {
+	if err := ProbeEmbeddingDim(ctx, cfg, store); err != nil {
 		return nil, err
 	}
 
@@ -133,7 +89,7 @@ func Retrieve(ctx context.Context, cfg Config, queries []QuerySuggestion) ([]Res
 		return nil, fmt.Errorf("embedding de queries: %w", err)
 	}
 
-	results := make([]Result, 0, len(queries))
+	results := make([]rag.Result, 0, len(queries))
 	for i, q := range queries {
 		vecs, err := searchVector(ctx, store, cfg, q, vectors[i])
 		if err != nil {
@@ -144,13 +100,13 @@ func Retrieve(ctx context.Context, cfg Config, queries []QuerySuggestion) ([]Res
 			return nil, fmt.Errorf("busca full-text [%s]: %w", q.Query, err)
 		}
 
-		fused := fuseRRF(vecs, fts, rrfK, cfg.Limit)
+		fused := FuseRRF(vecs, fts, rag.RrfK, cfg.Limit)
 		chunks, err := fetchChunks(ctx, store, fused)
 		if err != nil {
 			return nil, fmt.Errorf("buscando metadados dos chunks [%s]: %w", q.Query, err)
 		}
 
-		results = append(results, Result{
+		results = append(results, rag.Result{
 			Query:    q.Query,
 			Response: buildResponse(chunks),
 		})
@@ -161,7 +117,7 @@ func Retrieve(ctx context.Context, cfg Config, queries []QuerySuggestion) ([]Res
 
 // buildResponse monta o texto de contexto a partir dos chunks recuperados:
 // parent_content + indicação de origem.
-func buildResponse(chunks []Chunk) string {
+func buildResponse(chunks []rag.Chunk) string {
 	if len(chunks) == 0 {
 		return ""
 	}
@@ -181,23 +137,19 @@ func buildResponse(chunks []Chunk) string {
 	return b.String()
 }
 
-// retrievalDir é o diretório onde as saídas de busca são salvas, relativo
-// ao diretório de trabalho atual. (.agent já está no .gitignore.)
-const retrievalDir = ".agent/tmp/retrieval"
-
 // Do é o ponto de entrada do retriever: lê o arquivo de briefing gerado
 // pelo intent-analyser, gera/extrai as queries (parse determinístico da
 // seção 6 com fallback LLM), executa a busca híbrida e grava o JSON
-// [{"query","response"}] em .agent/tmp/retrieval/<arquivo-sem-ext>.json,
+// [{"query","response"}] em.agent/tmp/retrieval/<arquivo-sem-ext>.json,
 // devolvendo o caminho absoluto.
-func Do(ctx context.Context, briefingPath string, cfg Config) (string, error) {
+func Do(ctx context.Context, briefingPath string, cfg rag.Config) (string, error) {
 	content, err := os.ReadFile(briefingPath)
 	if err != nil {
 		return "", fmt.Errorf("lendo briefing %s: %w", briefingPath, err)
 	}
 
 	gen := cfg.QueryGen
-	queries, err := BuildQueries(ctx, content, gen)
+	queries, err := querygen.BuildQueries(ctx, content, gen)
 	if err != nil {
 		return "", fmt.Errorf("gerando queries do briefing: %w", err)
 	}
@@ -207,22 +159,22 @@ func Do(ctx context.Context, briefingPath string, cfg Config) (string, error) {
 		return "", fmt.Errorf("buscando no pgvector: %w", err)
 	}
 
-	outPath, err := saveResults(briefingPath, results)
+	outPath, err := SaveResults(briefingPath, results)
 	if err != nil {
 		return "", err
 	}
 	return outPath, nil
 }
 
-// saveResults grava o resultado JSON em retrievalDir, seguindo a mesma
+// SaveResults grava o resultado JSON em retrievalDir, seguindo a mesma
 // convenção de nome do briefing (<arquivo-sem-ext>.json) e retornando o
 // caminho do arquivo criado.
-func saveResults(briefingPath string, results []Result) (string, error) {
+func SaveResults(briefingPath string, results []rag.Result) (string, error) {
 	base := filepath.Base(briefingPath)
 	base = strings.TrimSuffix(base, filepath.Ext(base))
 	name := base + ".json"
 
-	dir, err := util.SafePath(".", retrievalDir)
+	dir, err := util.SafePath(".", rag.RetrievalDir)
 	if err != nil {
 		return "", err
 	}

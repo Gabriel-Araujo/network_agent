@@ -1,4 +1,4 @@
-package rag
+package querygen
 
 import _ "embed"
 

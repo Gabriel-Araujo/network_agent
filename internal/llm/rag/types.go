@@ -1,5 +1,12 @@
 package rag
 
+import (
+	"context"
+	"errors"
+
+	"github.com/openai/openai-go/v3"
+)
+
 // Section representa uma seção do documento RST, com o caminho de
 // breadcrumbs (Path) até a raiz.
 type Section struct {
@@ -42,4 +49,65 @@ type ClicmdEntry struct {
 type StackEntry struct {
 	Level int
 	Title string
+}
+
+// -- Retriever Types -- //
+
+// ErrNoQueriesTable indica que o briefing não contém a seção
+// "Rewritten queries for RAG", obrigando o fallback por LLM.
+var ErrNoQueriesTable = errors.New("briefing sem seção 'Rewritten queries for RAG'")
+
+// QuerySuggestion é uma query reescrita para busca, com filtros
+// opcionais de metadados para a tabela frr_docs. ChunkType vazio
+// significa "sem filtro".
+type QuerySuggestion struct {
+	Query     string
+	Protocol  string
+	Daemon    string
+	ChunkType string
+}
+
+// Config centraliza o que o retriever precisa: conexão com o Postgres,
+// cliente de embeddings e o fallback de geração de queries.
+type Config struct {
+	DSN            string
+	EmbeddingModel string // vazio -> DefaultEmbeddingModel
+	Embedder       openai.Client
+	Limit          int // resultados finais por query (default 5)
+	FetchFactor    int // top-K por fonte = limit * FetchFactor (default 4)
+	QueryGen       QueryGenerator
+}
+
+func (c Config) WithDefaults() Config {
+	if c.EmbeddingModel == "" {
+		c.EmbeddingModel = DefaultEmbeddingModel
+	}
+	if c.Limit <= 0 {
+		c.Limit = 5
+	}
+	if c.FetchFactor <= 0 {
+		c.FetchFactor = 4
+	}
+	return c
+}
+
+// QueryGenerator gera sugestões de query a partir do texto do briefing,
+// usado como fallback quando o briefing não traz a tabela determinística.
+type QueryGenerator interface {
+	GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error)
+}
+
+// Result é a saída estruturada pedida pelo usuário:
+// [{"query": string, "response": string}], onde response é o contexto
+// recuperado (parent_content + origem), não uma resposta gerada.
+type Result struct {
+	Query    string `json:"query"`
+	Response string `json:"response"`
+}
+
+// ScoredChunk é um resultado de uma única fonte (vetorial ou FTS),
+// identificado pelo chunk_id, antes da fusão RRF.
+type ScoredChunk struct {
+	ID    string
+	Score float64
 }

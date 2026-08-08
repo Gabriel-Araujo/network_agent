@@ -1,16 +1,18 @@
-package rag
+package retriever
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/pkg/db"
 	"github.com/openai/openai-go/v3"
 )
 
 // embedTexts gera os embeddings das queries em uma única chamada, usando o
 // modelo de embedding configurado. O MESMO modelo do ingester deve ser
 // usado aqui, ou a similaridade vetorial perde o sentido.
-func embedTexts(ctx context.Context, cfg Config, texts []string) ([][]float64, error) {
+func embedTexts(ctx context.Context, cfg rag.Config, texts []string) ([][]float64, error) {
 	client := cfg.Embedder
 	if len(texts) == 0 {
 		return [][]float64{}, nil
@@ -37,10 +39,10 @@ func embedTexts(ctx context.Context, cfg Config, texts []string) ([][]float64, e
 	return vectors, nil
 }
 
-// probeEmbeddingDim embeds uma string de probe no 1º uso e confere a
+// ProbeEmbeddingDim embeds uma string de probe no 1º uso e confere a
 // dimensão (4096) contra a coluna VECTOR(4096). Mismatch -> erro claro.
-func probeEmbeddingDim(ctx context.Context, cfg Config, store *store) error {
-	if store.checkedDim {
+func ProbeEmbeddingDim(ctx context.Context, cfg rag.Config, store *db.DB) error {
+	if store.CheckedDim {
 		return nil
 	}
 	vecs, err := embedTexts(ctx, cfg, []string{"probe"})
@@ -51,6 +53,6 @@ func probeEmbeddingDim(ctx context.Context, cfg Config, store *store) error {
 	if got := len(vecs[0]); got != want {
 		return fmt.Errorf("dimensão do embedding é %d, esperava %d — alinhe modelo ou ALTER TABLE", got, want)
 	}
-	store.checkedDim = true
+	store.CheckedDim = true
 	return nil
 }

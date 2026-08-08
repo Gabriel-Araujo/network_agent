@@ -1,4 +1,4 @@
-package rag
+package env
 
 import (
 	"bufio"
@@ -6,7 +6,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
 	"github.com/Gabriel-Araujo/network_agent/internal/paths"
+	"github.com/Gabriel-Araujo/network_agent/pkg/db"
 )
 
 // LoadEnv lê as variáveis usadas pelo retriever. Para cada chave,
@@ -16,7 +19,7 @@ func LoadEnv() (datasourceURL, embeddingModel string) {
 	datasourceURL = firstNonEmpty(os.Getenv("DATABASE_URL"), envFileValue("DATABASE_URL"))
 	embeddingModel = firstNonEmpty(os.Getenv("EMBEDDING_MODEL"), envFileValue("EMBEDDING_MODEL"))
 	if embeddingModel == "" {
-		embeddingModel = DefaultEmbeddingModel
+		embeddingModel = rag.DefaultEmbeddingModel
 	}
 	return datasourceURL, embeddingModel
 }
@@ -79,7 +82,7 @@ type SanityProbe struct {
 // chamadas de embedding reais (usa um vetor zero de 4096 dims apenas para
 // exercitar o ORDER BY `embedding <=> $1::vector`).
 func Probe(ctx context.Context, dsn string) (*SanityProbe, error) {
-	s, err := openStore(ctx, dsn)
+	s, err := db.OpenDB(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -88,19 +91,19 @@ func Probe(ctx context.Context, dsn string) (*SanityProbe, error) {
 	zero := make([]float64, 4096)
 
 	var p SanityProbe
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM frr_docs;`).Scan(&p.ChunkCount); err != nil {
+	if err := s.Pool.QueryRow(ctx, `SELECT count(*) FROM frr_docs;`).Scan(&p.ChunkCount); err != nil {
 		return nil, err
 	}
 
-	if err := s.pool.QueryRow(ctx,
+	if err := s.Pool.QueryRow(ctx,
 		`SELECT count(*) FROM frr_docs WHERE content_tsv @@ plainto_tsquery('english', 'bgp neighbor');`,
 	).Scan(&p.FTSHits); err != nil {
 		return nil, err
 	}
 
-	if err := s.pool.QueryRow(ctx,
+	if err := s.Pool.QueryRow(ctx,
 		`SELECT count(*) FROM (SELECT 1 FROM frr_docs ORDER BY embedding <=> $1::vector LIMIT 3) x;`,
-		VectorLiteral(zero),
+		retriever.VectorLiteral(zero),
 	).Scan(&p.VectorHits); err != nil {
 		return nil, err
 	}

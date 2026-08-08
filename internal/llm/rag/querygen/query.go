@@ -1,30 +1,10 @@
-package rag
+package querygen
 
 import (
-	"errors"
 	"regexp"
 	"strings"
-)
 
-// ErrNoQueriesTable indica que o briefing não contém a seção
-// "Rewritten queries for RAG", obrigando o fallback por LLM.
-var ErrNoQueriesTable = errors.New("briefing sem seção 'Rewritten queries for RAG'")
-
-// QuerySuggestion é uma query reescrita para busca, com filtros
-// opcionais de metadados para a tabela frr_docs. ChunkType vazio
-// significa "sem filtro".
-type QuerySuggestion struct {
-	Query     string
-	Protocol  string
-	Daemon    string
-	ChunkType string
-}
-
-const (
-	chunkTypeCommandReference = "command_reference"
-	chunkTypeConcept          = "concept"
-
-	queriesHeader = "Rewritten queries for RAG"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 )
 
 var (
@@ -41,14 +21,14 @@ var (
 //	| # | Rewritten query | protocol | daemon | suggested chunk_type |
 //	|---|---|---|---|---|
 //	| 1 | "OSPF MTU mismatch" | ospf | ospfd | concept |
-func ParseQueriesFromBriefing(content []byte) ([]QuerySuggestion, error) {
+func ParseQueriesFromBriefing(content []byte) ([]rag.QuerySuggestion, error) {
 	loc := queriesHeaderRe.FindIndex(content)
 	if loc == nil {
-		return nil, ErrNoQueriesTable
+		return nil, rag.ErrNoQueriesTable
 	}
 
 	rest := string(content[loc[1]:])
-	var out []QuerySuggestion
+	var out []rag.QuerySuggestion
 	// Cada linha da tabela vem logo após o header; paramos no primeiro
 	// header de seção seguinte ou em linha não-tabela após termos
 	// coletado pelo menos uma linha de dados.
@@ -66,7 +46,7 @@ func ParseQueriesFromBriefing(content []byte) ([]QuerySuggestion, error) {
 			}
 			continue
 		}
-		// Saiu da tabela e já temos dados -> termina.
+		// Saiu da tabela e já temos dados → termina.
 		if len(out) > 0 && trimmed != "" {
 			break
 		}
@@ -115,22 +95,22 @@ func isTableHeader(cols []string) bool {
 }
 
 // parseQueryRow interpreta uma linha de dados: [#, query, protocol, daemon, chunk_type].
-func parseQueryRow(cols []string) (QuerySuggestion, bool) {
+func parseQueryRow(cols []string) (rag.QuerySuggestion, bool) {
 	if len(cols) < 5 {
-		return QuerySuggestion{}, false
+		return rag.QuerySuggestion{}, false
 	}
 	query := unquote(strings.TrimSpace(cols[1]))
 	if query == "" {
-		return QuerySuggestion{}, false
+		return rag.QuerySuggestion{}, false
 	}
 	ct := strings.ToLower(strings.TrimSpace(cols[4]))
 	switch ct {
-	case chunkTypeCommandReference, chunkTypeConcept:
+	case rag.ChunkTypeCommandReference, rag.ChunkTypeConcept:
 		// ok
 	default:
 		ct = ""
 	}
-	return QuerySuggestion{
+	return rag.QuerySuggestion{
 		Query:     query,
 		Protocol:  strings.ToLower(strings.TrimSpace(cols[2])),
 		Daemon:    strings.ToLower(strings.TrimSpace(cols[3])),
@@ -138,7 +118,7 @@ func parseQueryRow(cols []string) (QuerySuggestion, bool) {
 	}, true
 }
 
-// unquote remove aspas duplas ou simples ao redor da query.
+// Unquote remove aspas duplas ou simples ao redor da query.
 func unquote(s string) string {
 	for _, q := range []byte{'"', '\''} {
 		if len(s) >= 2 && s[0] == q && s[len(s)-1] == q {
