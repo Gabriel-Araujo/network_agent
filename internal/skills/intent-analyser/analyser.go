@@ -50,7 +50,7 @@ func Do(ctx context.Context, input string, agent *llm.Agent) (string, error) {
 // saveReport grava o conteúdo da análise em reportDir seguindo a convenção
 // de nome <slug>-<hash8>.md e retorna o caminho do arquivo criado.
 func saveReport(query, content string) (string, error) {
-	name := slugify(query) + "-" + hash8(query) + ".md"
+	name := Slugify(query) + "-" + Hash8(query) + ".json"
 
 	path, err := util.SafePath(".", reportDir)
 	if err != nil {
@@ -70,9 +70,9 @@ func saveReport(query, content string) (string, error) {
 	return path, nil
 }
 
-// slugify converte uma query em um slug minúsculo, sem acentos, limitado a
+// Slugify converte uma query em um slug minúsculo, sem acentos, limitado a
 // no máximo 5 palavras (separadas por hífen), contendo apenas [a-z0-9-].
-func slugify(input string) string {
+func Slugify(input string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(input) {
 		switch r {
@@ -103,9 +103,9 @@ func slugify(input string) string {
 	return strings.Join(parts, "-")
 }
 
-// hash8 retorna os primeiros 8 caracteres hexadecimais do SHA1 da query
+// Hash8 retorna os primeiros 8 caracteres hexadecimais do SHA1 da query
 // concatenada com o timestamp atual, garantindo nome de arquivo único.
-func hash8(input string) string {
+func Hash8(input string) string {
 	h := sha1.Sum([]byte(input + time.Now().String()))
 	return hex.EncodeToString(h[:])[:8]
 }

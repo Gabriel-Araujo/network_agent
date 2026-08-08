@@ -14,7 +14,7 @@ the documentation context that a later step will use to build the answer.
 Path to the briefing Markdown file saved by the intent analyzer, e.g.:
 
 ```
-.agent/tmp/network_agent/meu-ospf-nao-converge-entre-60becac1.md
+.agent/tmp/meu-ospf-nao-converge-entre-60becac1.md
 ```
 
 The briefing contains (at minimum): Classification (protocol/daemon),

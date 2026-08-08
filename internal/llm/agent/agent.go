@@ -73,13 +73,13 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 				switch call.Name {
 
 				case skills.ToolUseSkill, skills.ToolReadSkillFile:
-					result = a.skillCall(ctx, call)
+					result = a.SkillCall(ctx, call)
 
 				case tools.SUB_AGENT_TOOL_NAME:
-					result = a.subAgentCall(ctx, call)
+					result = a.SubAgentCall(ctx, call)
 
 				default:
-					result = a.toolCall(ctx, call)
+					result = a.ToolCall(ctx, call)
 				}
 
 				outputs = append(outputs, result)
@@ -103,21 +103,21 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 	}
 }
 
-// toolCall executa uma tool de operação direta (ex.: leitura/escrita/edição
+// ToolCall executa uma tool de operação direta (ex.: leitura/escrita/edição
 // de arquivos) e devolve o resultado para o modelo.
-func (a *Agent) toolCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
 	return tools.CallFunction(ctx, call)
 }
 
-// skillCall ativa ou lê arquivos de uma skill (use_skill / read_skill_file),
+// SkillCall ativa ou lê arquivos de uma skill (use_skill / read_skill_file),
 // devolvendo o corpo da skill (ou do arquivo bundlado) para o modelo.
-func (a *Agent) skillCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
 	return skills.HandleSkillCall(call)
 }
 
-// subAgentCall cria um sub-agente dedicado a partir da task fornecida,
+// SubAgentCall cria um sub-agente dedicado a partir da task fornecida,
 // executa o loop de conversação dele e devolve a resposta final para o modelo.
-func (a *Agent) subAgentCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
 	var args struct {
 		Task string `json:"task"`
 	}

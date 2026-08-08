@@ -150,7 +150,7 @@ human or later step correct it without reprocessing the original question.
 Use the `WriteFile` tool to save the result to:
 
 ```
-./.agent/tmp/network_agent/<slug>-<hash8>.md
+./.agent/tmp/<slug>-<hash8>.md
 ```
 
 - `slug`: up to 5 words from the original query, lowercase, hyphen-separated
@@ -280,7 +280,7 @@ be related.
 Use the `WriteFile` tool to save the result to:
  
 ```
-./tmp/network_agent/<slug>-<hash8>.md
+./.agent/tmp/<slug>-<hash8>.md
 ```
  
 - `slug`: up to 5 words from the original query, lowercase, hyphen-separated
