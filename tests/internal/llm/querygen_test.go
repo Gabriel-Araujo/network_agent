@@ -32,8 +32,8 @@ func TestBuildQueriesUsesParseNotLLM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(qs) != 3 {
-		t.Fatalf("len = %d, want 3", len(qs))
+	if len(qs) != 4 {
+		t.Fatalf("len = %d, want 4", len(qs))
 	}
 	if qs[0].Query != "OSPF neighbor stuck Exstart Exchange state" {
 		t.Errorf("query[0] = %q", qs[0].Query)
@@ -41,7 +41,7 @@ func TestBuildQueriesUsesParseNotLLM(t *testing.T) {
 }
 
 func TestBuildQueriesFallsBackToLLM(t *testing.T) {
-	briefing := []byte("## 4. Problem/goal summary\nNo query table here.\n")
+	briefing := []byte(`{"classification":{"intentType":"troubleshooting"},"problemAndGoalSummary":"No ragQueries here."}`)
 	fake := &fakeGenerator{qs: []rag.QuerySuggestion{
 		{Query: "OSPF MTU mismatch", Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"},
 	}}
@@ -55,9 +55,9 @@ func TestBuildQueriesFallsBackToLLM(t *testing.T) {
 }
 
 func TestBuildQueriesNoTableNoGenerator(t *testing.T) {
-	_, err := querygen.BuildQueries(context.Background(), []byte("## 4. Nothing"), nil)
-	if !errors.Is(err, rag.ErrNoQueriesTable) {
-		t.Fatalf("err = %v, want ErrNoQueriesTable", err)
+	_, err := querygen.BuildQueries(context.Background(), []byte(`{"classification":{"intentType":"conceptual"}}`), nil)
+	if !errors.Is(err, rag.ErrNoQueries) {
+		t.Fatalf("err = %v, want ErrNoQueries", err)
 	}
 }
 

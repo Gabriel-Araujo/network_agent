@@ -1,6 +1,6 @@
 ---
 name: frr-rag-retriever
-description: Retrieves FRR documentation context for an intent briefing. Consumes the .md file produced by the intent analyzer (frr-intent-analyzer / intent-analyser), generates search queries from its "Rewritten queries for RAG" table (or via LLM fallback), runs hybrid pgvector search on frr_docs, and returns structured JSON [{"query": string, "response": string}] where response is retrieved context (parent_content + source/section), not a generated answer. Use after the intent briefing exists and before final answer generation.
+description: "Retrieves FRR documentation context for an intent briefing. Consumes the .md/.json file produced by the intent analyzer (frr-intent-analyzer / intent-analyser), generates search queries from its ragQueries field (or via LLM fallback), runs hybrid pgvector search on frr_docs, and returns structured JSON — a list of objects with a query string and a response string, where response is retrieved context (parent_content plus source/section), not a generated answer. Use after the intent briefing exists and before final answer generation."
 ---
 
 # FRR RAG Retriever

@@ -10,13 +10,13 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
 )
 
-// TestE2EBriefingParsing roda o pipeline determinístico (parse da seção 6)
-// contra um briefing de exemplo real gravado em .agent/tmp, e valida o
-// shape exato [{"query","response"}] produzido pelo saveResults.
+// TestE2EBriefingParsing roda o pipeline determinístico (parse do campo
+// "ragQueries" do JSON) contra um briefing de exemplo real gravado em
+// .agent/tmp, e valida o shape exato [{"query","response"}].
 func TestE2EBriefingParsing(t *testing.T) {
 	// go test roda a partir do diretório do pacote; subimos até a raiz do
-	// módulo (internal/llm/rag -> ../../..).
-	briefingPath := filepath.Join("..", "..", "..", ".agent", "tmp", "network_agent", "meu-ospf-nao-converge-entre-60becac1.md")
+	// módulo (tests/internal/llm -> ../../..).
+	briefingPath := filepath.Join("..", "..", "..", ".agent", "tmp", "network_agent", "meu-ospf-nao-converge-entre-60becac1.json")
 	content, err := os.ReadFile(briefingPath)
 	if err != nil {
 		t.Skipf("briefing de exemplo não está presente (%v); pulando", err)

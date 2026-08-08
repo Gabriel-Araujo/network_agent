@@ -11,16 +11,16 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
 )
 
-// TestE2EDoIntegration exercita o pipeline completo (parse da seção 6 →
-// embeddings LM Studio → busca híbrida → RRF → gravação do JSON) contra
-// o banco real. Gated em DATABASE_URL.
+// TestE2EDoIntegration exercita o pipeline completo (parse do "ragQueries"
+// do JSON → embeddings LM Studio → busca híbrida → RRF → gravação do JSON)
+// contra o banco real. Gated em DATABASE_URL.
 func TestE2EDoIntegration(t *testing.T) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		t.Skip("DATABASE_URL não definido; pulando E2E de integração")
 	}
 
-	briefingPath := filepath.Join("..", "..", "..", ".agent", "tmp", "network_agent", "meu-ospf-nao-converge-entre-60becac1.md")
+	briefingPath := filepath.Join("..", "..", "..", ".agent", "tmp", "network_agent", "meu-ospf-nao-converge-entre-60becac1.json")
 	if _, err := os.Stat(briefingPath); err != nil {
 		t.Skipf("briefing de exemplo ausente (%v); pulando", err)
 	}

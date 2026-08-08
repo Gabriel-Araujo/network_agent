@@ -219,13 +219,12 @@ Below is a filled-in example showing the exact structure to produce:
 - **Don't answer the question here.** This skill only structures the
   problem; the final answer is produced afterward, by whatever process
   consumes the saved file.
-- **The `## 6. Rewritten queries for RAG` table is the retrieval input** —
-  a downstream step parses it deterministically and runs one hybrid
-  search per row, using the `protocol`/`daemon`/`chunk_type` columns as
-  WHERE filters on `frr_docs`. Keep the header row
-  `| # | Rewritten query | protocol | daemon | suggested chunk_type |`
-  exactly as in the template, and keep values matching the real column
-  vocabulary.
+- **The `ragQueries` object is the retrieval input** — a downstream step
+  parses it deterministically and runs one hybrid search per entry, using
+  the `protocol`/`daemon`/`suggestedChunkType` fields as WHERE filters on
+  `frr_docs`. Keep the shape `{query, protocol, daemon,
+  suggestedChunkType}` exactly as in the template, and keep values
+  matching the real column vocabulary.
 - Output is always written in English, regardless of the language the
   user asked in, so every downstream step reads a consistent format. The
   **"Original query" field is the one exception**: keep it verbatim, in

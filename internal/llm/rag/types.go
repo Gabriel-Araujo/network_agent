@@ -53,9 +53,9 @@ type StackEntry struct {
 
 // -- Retriever Types -- //
 
-// ErrNoQueriesTable indica que o briefing não contém a seção
-// "Rewritten queries for RAG", obrigando o fallback por LLM.
-var ErrNoQueriesTable = errors.New("briefing sem seção 'Rewritten queries for RAG'")
+// ErrNoQueries indica que o briefing não contém o campo "ragQueries"
+// (ou veio vazio), obrigando o fallback por LLM.
+var ErrNoQueries = errors.New("briefing sem queries de RAG (campo 'ragQueries')")
 
 // QuerySuggestion é uma query reescrita para busca, com filtros
 // opcionais de metadados para a tabela frr_docs. ChunkType vazio

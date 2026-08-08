@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
@@ -12,20 +14,20 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 )
 
-// BuildQueries retorna as queries para o briefing. Se o briefing contiver
-// a seção "Rewritten queries for RAG", usa o parse determinístico; caso
-// contrário, delega ao generator (fallback LLM). Quando gen é nil e o
-// briefing não tem a tabela, retorna ErrNoQueriesTable.
+// BuildQueries retorna as queries para o briefing. Tenta o parse
+// determinístico do JSON (campo "ragQueries"); se o briefing não trouxer
+// queries, delega ao generator (fallback LLM). Quando gen é nil e não há
+// queries, retorna ErrNoQueries.
 func BuildQueries(ctx context.Context, content []byte, gen rag.QueryGenerator) ([]rag.QuerySuggestion, error) {
 	qs, err := ParseQueriesFromBriefing(content)
 	if err == nil {
 		return qs, nil
 	}
-	if !errors.Is(err, rag.ErrNoQueriesTable) {
+	if !errors.Is(err, rag.ErrNoQueries) {
 		return nil, err
 	}
 	if gen == nil {
-		return nil, rag.ErrNoQueriesTable
+		return nil, rag.ErrNoQueries
 	}
 	return gen.GenerateQueries(ctx, content)
 }
@@ -54,6 +56,85 @@ func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte
 		return nil, err
 	}
 	return ParseGeneratedQueries(resp.OutputText())
+}
+
+// ragQueryJSON espelha um item do map "ragQueries" do briefing JSON.
+type ragQueryJSON struct {
+	Query              string `json:"query"`
+	Protocol           string `json:"protocol"`
+	Daemon             string `json:"daemon"`
+	SuggestedChunkType string `json:"suggestedChunkType"`
+}
+
+// briefingJSON apresenta apenas os campos do briefing JSON que interessam
+// à geração de queries.
+type briefingJSON struct {
+	RagQueries map[string]ragQueryJSON `json:"ragQueries"`
+}
+
+// ParseQueriesFromBriefing extrai as queries de busca do briefing JSON
+// produzido pelo intent-analyser, lendo o campo "ragQueries"
+// (chave numérica -> sugestão {query, protocol, daemon,
+// suggestedChunkType}). A ordem é preservada pelas chaves numéricas
+// (1,2,3,…); chaves não-numéricas vêm depois, por ordem lexicográfica.
+// Retorna ErrNoQueries quando o briefing não é JSON, não tem "ragQueries"
+// ou todas as sugestões estão vazias.
+func ParseQueriesFromBriefing(content []byte) ([]rag.QuerySuggestion, error) {
+	var b briefingJSON
+	if err := json.Unmarshal(content, &b); err != nil {
+		return nil, rag.ErrNoQueries
+	}
+	if len(b.RagQueries) == 0 {
+		return nil, rag.ErrNoQueries
+	}
+
+	keys := make([]string, 0, len(b.RagQueries))
+	for k := range b.RagQueries {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keyLess(keys[i], keys[j]) })
+
+	qs := make([]rag.QuerySuggestion, 0, len(keys))
+	for _, k := range keys {
+		s := b.RagQueries[k]
+		q := strings.TrimSpace(s.Query)
+		if q == "" {
+			continue
+		}
+		ct := strings.ToLower(strings.TrimSpace(s.SuggestedChunkType))
+		switch ct {
+		case rag.ChunkTypeCommandReference, rag.ChunkTypeConcept:
+		default:
+			ct = ""
+		}
+		qs = append(qs, rag.QuerySuggestion{
+			Query:     q,
+			Protocol:  strings.ToLower(strings.TrimSpace(s.Protocol)),
+			Daemon:    strings.ToLower(strings.TrimSpace(s.Daemon)),
+			ChunkType: ct,
+		})
+	}
+	if len(qs) == 0 {
+		return nil, rag.ErrNoQueries
+	}
+	return qs, nil
+}
+
+// keyLess ordena chaves: numéricas primeiro (1,2,10…), demais por ordem
+// lexicográfica.
+func keyLess(a, b string) bool {
+	an, aerr := strconv.Atoi(a)
+	bn, berr := strconv.Atoi(b)
+	switch {
+	case aerr == nil && berr == nil:
+		return an < bn
+	case aerr == nil:
+		return true // numéricas antes
+	case berr == nil:
+		return false
+	default:
+		return a < b
+	}
 }
 
 var fenceRe = regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)```")

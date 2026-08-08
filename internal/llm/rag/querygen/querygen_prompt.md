@@ -4,9 +4,9 @@ Your job: turn the intent briefing below into search queries for an FRR
 documentation knowledge base stored in a PostgreSQL+pgvector table called
 `frr_docs`.
 
-The briefing may lack the "Rewritten queries for RAG" table (older format).
-When that happens, build the queries yourself from sections 1
-(Classification), 4 (Problem/goal summary) and 5 (Execution pipeline).
+The briefing (JSON) may lack the `ragQueries` field. When that happens,
+build the queries yourself from the fields `classification` (intentType,
+protocols, daemons), `problemAndGoalSummary` and `executionPipeline`.
 
 ## Rules
 
