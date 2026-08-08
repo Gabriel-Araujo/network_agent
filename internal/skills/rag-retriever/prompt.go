@@ -1,13 +1,13 @@
-package querygen
+package ragretriever
 
 import _ "embed"
 
-//go:embed querygen_prompt.md
-var queryGenPrompt string
+//go:embed prompt.md
+var skillPrompt string
 
-// queryGenSystemPrompt define a identidade do agente de reescrita de queries,
+// systemPrompt define a identidade do agente de reescrita de queries,
 // enviado como instrução de sistema a cada chamada de fallback.
-const queryGenSystemPrompt = `
+const systemPrompt = `
 # Identity
 
 You are a senior network engineer specialized in **FRRouting (FRR)**. Your

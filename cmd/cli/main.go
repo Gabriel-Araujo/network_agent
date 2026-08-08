@@ -12,9 +12,8 @@ import (
 	agentapi "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/env"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
 	intentanalyser "github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
+	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
 )
 
@@ -109,13 +108,13 @@ func runRetrieval(ctx context.Context, agent *agentapi.Agent, intentPath string)
 		DSN:            dsn,
 		EmbeddingModel: embAgent.ModelName,
 		Embedder:       embAgent.Client,
-		QueryGen: &querygen.LLMQueryGenerator{
+		QueryGen: &ragretriever.LLMQueryGenerator{
 			Client:    agent.Client,
 			ModelName: agent.ModelName,
 		},
 	}
 
-	return retriever.Do(ctx, intentPath, cfg)
+	return ragretriever.Do(ctx, intentPath, cfg)
 }
 
 // loadRetrievalJSON lê o JSON de retrieval gerado, se existir.

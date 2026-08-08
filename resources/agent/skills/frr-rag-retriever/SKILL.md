@@ -1,33 +1,33 @@
 ---
 name: frr-rag-retriever
-description: "Retrieves FRR documentation context for an intent briefing. Consumes the .md/.json file produced by the intent analyzer (frr-intent-analyzer / intent-analyser), generates search queries from its ragQueries field (or via LLM fallback), runs hybrid pgvector search on frr_docs, and returns structured JSON — a list of objects with a query string and a response string, where response is retrieved context (parent_content plus source/section), not a generated answer. Use after the intent briefing exists and before final answer generation."
+description: "Retrieves FRR documentation context for an intent briefing. Consumes the .md/.json file produced by the intent analyzer (frr-intent-analyzer / intent-analyser), generates search queries from its ragQueries field (or via LLM fallback), runs hybrid pgvector search on frr_docs, and returns structured JSON — a list of objects with query, protocol, daemon, chunk_type, and response fields, where response is retrieved context (parent_content plus source/section), not a generated answer. Use after the intent briefing exists and before final answer generation."
 ---
 
 # FRR RAG Retriever
 
-This skill turns a structured intent briefing (`.md`) into RAG search
+This skill turns a structured intent briefing (`.json`) into RAG search
 results in JSON. It does **not** answer the user's question — it fetches
 the documentation context that a later step will use to build the answer.
 
 ## Input
 
-Path to the briefing Markdown file saved by the intent analyzer, e.g.:
+Path to the briefing JSON file saved by the intent analyzer, e.g.:
 
 ```
-.agent/tmp/meu-ospf-nao-converge-entre-60becac1.md
+.agent/tmp/network_agent/meu-ospf-nao-converge-entre-60becac1.json
 ```
 
 The briefing contains (at minimum): Classification (protocol/daemon),
-Devices, Connections, Problem/goal summary, Execution pipeline, and
-usually `## 6. Rewritten queries for RAG` (a table with query, protocol,
-daemon, suggested chunk_type).
+Devices, Connections, Problem/goal summary, Execution pipeline, and a
+`ragQueries` object keyed by query number. Each value contains `query`,
+`protocol`, `daemon`, and `suggestedChunkType`.
 
 ## Steps
 
-1. **Locate the query table** — parse the briefing's
-   `## N. Rewritten queries for RAG` table deterministically. Each row
-   yields one search query plus optional filters.
-2. **Fallback** — if the briefing lacks the table (older format), have the
+1. **Locate `ragQueries`** — parse the briefing JSON deterministically. Sort
+   numeric keys (`1`, `2`, `10`) numerically; each value yields one search
+   query plus optional filters.
+2. **Fallback** — if the briefing lacks `ragQueries` (older format), have the
    LLM rewrite queries from sections 1/4/5 (Classification, summary,
    pipeline), respecting the `frr_docs` column vocabulary.
 3. **Embed** — batch-embed all queries with the SAME model used at ingest
@@ -38,7 +38,7 @@ daemon, suggested chunk_type).
    honoring `daemon`/`protocol`/`chunk_type` filters.
 5. **Fuse** — Reciprocal Rank Fusion (k=60) in Go; dedupe by chunk_id;
    cap at limit.
-6. **Output** — write `[{"query": string, "response": string}]` to
+6. **Output** — write `[{"query": string, "protocol": string, "daemon": string, "chunk_type": string, "response": string}]` to
    `.agent/tmp/retrieval/<briefing-name>.json` and load it as context for
    final answer generation.
 
@@ -48,12 +48,17 @@ daemon, suggested chunk_type).
 [
   {
     "query": "OSPF MTU mismatch neighbor adjacency",
+    "protocol": "ospf",
+    "daemon": "ospfd",
+    "chunk_type": "concept",
     "response": "<parent_content>\n\nSource: <source_url> (<section_path>)"
   }
 ]
 ```
 
 - `query` is the rewritten search query.
+- `protocol`, `daemon`, and `chunk_type` are the metadata filters used for the
+  query. An empty value means that filter was not specified.
 - `response` is **retrieved context**; never generate the answer here.
 
 ## Environment
@@ -67,7 +72,7 @@ daemon, suggested chunk_type).
 - No DB: unit tests pass, integration tests skip (`DATABASE_URL` gated).
 - With DB: `go test ./internal/llm/rag/ -run Retrieve -v` should pass;
   sanity probe reports `chunk_count > 0`.
-- E2E: CLI run → briefing `.md` → retrieval JSON in `.agent/tmp/retrieval/`.
+- E2E: CLI run → briefing `.json` → retrieval JSON in `.agent/tmp/retrieval/`.
 
 ## Design notes
 

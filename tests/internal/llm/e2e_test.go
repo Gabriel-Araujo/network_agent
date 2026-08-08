@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
+	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
 
 // TestE2EBriefingParsing roda o pipeline determinístico (parse do campo
 // "ragQueries" do JSON) contra um briefing de exemplo real gravado em
-// .agent/tmp, e valida o shape exato [{"query","response"}].
+// .agent/tmp, e valida o shape do resultado estruturado.
 func TestE2EBriefingParsing(t *testing.T) {
 	// go test roda a partir do diretório do pacote; subimos até a raiz do
 	// módulo (tests/internal/llm -> ../../..).
@@ -22,7 +22,7 @@ func TestE2EBriefingParsing(t *testing.T) {
 		t.Skipf("briefing de exemplo não está presente (%v); pulando", err)
 	}
 
-	qs, err := querygen.ParseQueriesFromBriefing(content)
+	qs, err := ragretriever.ParseQueriesFromBriefing(content)
 	if err != nil {
 		t.Fatalf("ParseQueriesFromBriefing: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestE2EBriefingParsing(t *testing.T) {
 		t.Errorf("filters[4] = %+v", qs[4])
 	}
 
-	// Garante o shape JSON mínimo especificado: [{"query":string,"response":string}].
+	// Garante o shape JSON mínimo especificado para o resultado estruturado.
 	// Sem DB, response fica vazio — mas o contrato de serialização deve valer.
 	out, err := json.Marshal([]rag.Result{{Query: qs[0].Query}})
 	if err != nil {

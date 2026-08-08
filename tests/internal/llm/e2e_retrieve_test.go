@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
+	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
 
-// TestE2EDoIntegration exercita o pipeline completo (parse do "ragQueries"
-// do JSON → embeddings LM Studio → busca híbrida → RRF → gravação do JSON)
+// TestE2EDoIntegration exercita o pipeline completo da skill (parse do
+// "ragQueries" do JSON → embeddings LM Studio → busca híbrida → RRF → gravação do JSON)
 // contra o banco real. Gated em DATABASE_URL.
 func TestE2EDoIntegration(t *testing.T) {
 	dsn := os.Getenv("DATABASE_URL")
@@ -32,7 +32,7 @@ func TestE2EDoIntegration(t *testing.T) {
 		Limit:          3,
 	}
 
-	outPath, err := retriever.Do(context.Background(), briefingPath, cfg)
+	outPath, err := ragretriever.Do(context.Background(), briefingPath, cfg)
 	if err != nil {
 		t.Fatalf("Do: %v", err)
 	}
@@ -54,6 +54,9 @@ func TestE2EDoIntegration(t *testing.T) {
 	for i, r := range results {
 		if r.Query == "" {
 			t.Errorf("result[%d]: query vazia", i)
+		}
+		if r.Protocol == "" || r.Daemon == "" || r.ChunkType == "" {
+			t.Errorf("result[%d]: metadados incompletos: %+v", i, r)
 		}
 		if r.Response == "" {
 			emptyResponses++

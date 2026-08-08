@@ -2,17 +2,12 @@ package retriever
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
 	"github.com/Gabriel-Araujo/network_agent/pkg/db"
-	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 )
 
 // VectorLiteral serializa um vetor para a literal textual aceita pelo
@@ -61,7 +56,7 @@ func FuseRRF(vec, fts map[string]int, k, limit int) []rag.ScoredChunk {
 
 // Retrieve executa a busca híbrida para cada query sugerida e devolve um
 // Result por query. Se a query não retornar nada, ainda assim o Result
-// aparece com Response vazio (preservando o shape [{"query","response"}]).
+// aparece com Response vazio, preservando seus metadados.
 func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion) ([]rag.Result, error) {
 	cfg = cfg.WithDefaults()
 
@@ -107,8 +102,11 @@ func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion
 		}
 
 		results = append(results, rag.Result{
-			Query:    q.Query,
-			Response: buildResponse(chunks),
+			Query:     q.Query,
+			Protocol:  q.Protocol,
+			Daemon:    q.Daemon,
+			ChunkType: q.ChunkType,
+			Response:  buildResponse(chunks),
 		})
 	}
 
@@ -135,62 +133,4 @@ func buildResponse(chunks []rag.Chunk) string {
 		}
 	}
 	return b.String()
-}
-
-// Do é o ponto de entrada do retriever: lê o arquivo de briefing gerado
-// pelo intent-analyser, gera/extrai as queries (parse determinístico da
-// seção 6 com fallback LLM), executa a busca híbrida e grava o JSON
-// [{"query","response"}] em.agent/tmp/retrieval/<arquivo-sem-ext>.json,
-// devolvendo o caminho absoluto.
-func Do(ctx context.Context, briefingPath string, cfg rag.Config) (string, error) {
-	content, err := os.ReadFile(briefingPath)
-	if err != nil {
-		return "", fmt.Errorf("lendo briefing %s: %w", briefingPath, err)
-	}
-
-	gen := cfg.QueryGen
-	queries, err := querygen.BuildQueries(ctx, content, gen)
-	if err != nil {
-		return "", fmt.Errorf("gerando queries do briefing: %w", err)
-	}
-
-	results, err := Retrieve(ctx, cfg, queries)
-	if err != nil {
-		return "", fmt.Errorf("buscando no pgvector: %w", err)
-	}
-
-	outPath, err := SaveResults(briefingPath, results)
-	if err != nil {
-		return "", err
-	}
-	return outPath, nil
-}
-
-// SaveResults grava o resultado JSON em retrievalDir, seguindo a mesma
-// convenção de nome do briefing (<arquivo-sem-ext>.json) e retornando o
-// caminho do arquivo criado.
-func SaveResults(briefingPath string, results []rag.Result) (string, error) {
-	base := filepath.Base(briefingPath)
-	base = strings.TrimSuffix(base, filepath.Ext(base))
-	name := base + ".json"
-
-	dir, err := util.SafePath(".", rag.RetrievalDir)
-	if err != nil {
-		return "", err
-	}
-
-	jsonPath := filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(jsonPath), 0o755); err != nil {
-		return "", err
-	}
-
-	data, err := json.MarshalIndent(results, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("serializando resultados: %w", err)
-	}
-
-	if err := os.WriteFile(jsonPath, data, 0o644); err != nil {
-		return "", fmt.Errorf("gravando %s: %w", jsonPath, err)
-	}
-	return jsonPath, nil
 }

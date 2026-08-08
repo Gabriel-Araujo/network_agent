@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
+	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
 
 const sampleBriefing = `{
@@ -27,7 +27,7 @@ const sampleBriefing = `{
 `
 
 func TestParseQueriesFromBriefing(t *testing.T) {
-	got, err := querygen.ParseQueriesFromBriefing([]byte(sampleBriefing))
+	got, err := ragretriever.ParseQueriesFromBriefing([]byte(sampleBriefing))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestParseQueriesFromBriefing(t *testing.T) {
 
 func TestParseQueriesFromBriefingNumericOrder(t *testing.T) {
 	// Ordem deve seguir as chaves numéricas (1,2,...), não a ordem do JSON.
-	qs, err := querygen.ParseQueriesFromBriefing([]byte(sampleBriefing))
+	qs, err := ragretriever.ParseQueriesFromBriefing([]byte(sampleBriefing))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestParseQueriesFromBriefingInvalidChunkType(t *testing.T) {
     "2": {"query": "OSPF cost", "protocol": "ospf", "daemon": "ospfd", "suggestedChunkType": "concept"}
   }
 }`
-	got, err := querygen.ParseQueriesFromBriefing([]byte(briefing))
+	got, err := ragretriever.ParseQueriesFromBriefing([]byte(briefing))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestParseQueriesFromBriefingMissingSection(t *testing.T) {
   "classification": {"intentType": "troubleshooting", "protocols": ["ospf"], "daemons": ["ospfd"]},
   "problemAndGoalSummary": "Nothing here about queries."
 }`
-	_, err := querygen.ParseQueriesFromBriefing([]byte(briefing))
+	_, err := ragretriever.ParseQueriesFromBriefing([]byte(briefing))
 	if !errors.Is(err, rag.ErrNoQueries) {
 		t.Fatalf("err = %v, want ErrNoQueries", err)
 	}
@@ -95,7 +95,7 @@ func TestParseQueriesFromBriefingMissingSection(t *testing.T) {
 
 func TestParseQueriesFromBriefingNotJSON(t *testing.T) {
 	// Conteúdo que não é JSON -> ErrNoQueries (cai no fallback LLM).
-	_, err := querygen.ParseQueriesFromBriefing([]byte("## 4. Problem/goal summary\nNot JSON."))
+	_, err := ragretriever.ParseQueriesFromBriefing([]byte("## 4. Problem/goal summary\nNot JSON."))
 	if !errors.Is(err, rag.ErrNoQueries) {
 		t.Fatalf("err = %v, want ErrNoQueries", err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
+	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -135,10 +136,22 @@ func TestSaveResults(t *testing.T) {
 	}
 
 	results := []rag.Result{
-		{Query: "OSPF MTU mismatch", Response: "contexto A\n\nSource: https://docs.example (OSPF)"},
-		{Query: "BGP session down", Response: "contexto B"},
+		{
+			Query:     "OSPF MTU mismatch",
+			Protocol:  "ospf",
+			Daemon:    "ospfd",
+			ChunkType: "concept",
+			Response:  "contexto A\n\nSource: https://docs.example (OSPF)",
+		},
+		{
+			Query:     "BGP session down",
+			Protocol:  "bgp",
+			Daemon:    "bgpd",
+			ChunkType: "command_reference",
+			Response:  "contexto B",
+		},
 	}
-	path, err := retriever.SaveResults(briefing, results)
+	path, err := ragretriever.SaveResults(briefing, results)
 	if err != nil {
 		t.Fatalf("saveResults: %v", err)
 	}
@@ -156,5 +169,11 @@ func TestSaveResults(t *testing.T) {
 	}
 	if len(got) != 2 || got[0].Query != "OSPF MTU mismatch" || got[1].Response != "contexto B" {
 		t.Fatalf("got = %+v", got)
+	}
+	if got[0].Protocol != "ospf" || got[0].Daemon != "ospfd" || got[0].ChunkType != "concept" {
+		t.Errorf("first result metadata = %+v, want protocol=ospf daemon=ospfd chunk_type=concept", got[0])
+	}
+	if got[1].Protocol != "bgp" || got[1].Daemon != "bgpd" || got[1].ChunkType != "command_reference" {
+		t.Errorf("second result metadata = %+v, want protocol=bgp daemon=bgpd chunk_type=command_reference", got[1])
 	}
 }

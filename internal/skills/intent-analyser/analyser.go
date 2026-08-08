@@ -21,7 +21,7 @@ import (
 const reportDir = ".agent/tmp"
 
 // Do analisa a intenção de uma pergunta de redes, transformando-a num
-// briefing estruturado em Markdown, salva o resultado em disco e retorna
+// briefing estruturado em JSON, salva o resultado em disco e retorna
 // o caminho absoluto do arquivo gerado.
 func Do(ctx context.Context, input string, agent *llm.Agent) (string, error) {
 	response, err := agent.Client.Responses.New(ctx, responses.ResponseNewParams{

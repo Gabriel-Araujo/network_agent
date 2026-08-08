@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
+	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
 
 // fakeGenerator permite testar o fallback sem rede.
@@ -28,7 +28,7 @@ func (panickingGenerator) GenerateQueries(ctx context.Context, briefing []byte) 
 }
 
 func TestBuildQueriesUsesParseNotLLM(t *testing.T) {
-	qs, err := querygen.BuildQueries(context.Background(), []byte(sampleBriefing), panickingGenerator{})
+	qs, err := ragretriever.BuildQueries(context.Background(), []byte(sampleBriefing), panickingGenerator{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestBuildQueriesFallsBackToLLM(t *testing.T) {
 	fake := &fakeGenerator{qs: []rag.QuerySuggestion{
 		{Query: "OSPF MTU mismatch", Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"},
 	}}
-	qs, err := querygen.BuildQueries(context.Background(), briefing, fake)
+	qs, err := ragretriever.BuildQueries(context.Background(), briefing, fake)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestBuildQueriesFallsBackToLLM(t *testing.T) {
 }
 
 func TestBuildQueriesNoTableNoGenerator(t *testing.T) {
-	_, err := querygen.BuildQueries(context.Background(), []byte(`{"classification":{"intentType":"conceptual"}}`), nil)
+	_, err := ragretriever.BuildQueries(context.Background(), []byte(`{"classification":{"intentType":"conceptual"}}`), nil)
 	if !errors.Is(err, rag.ErrNoQueries) {
 		t.Fatalf("err = %v, want ErrNoQueries", err)
 	}
@@ -64,7 +64,7 @@ func TestBuildQueriesNoTableNoGenerator(t *testing.T) {
 func TestParseGeneratedQueriesJSON(t *testing.T) {
 	// Sem code fence.
 	text := `[{"query":"OSPF MTU mismatch","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"},{"query":"show ip ospf neighbor","protocol":"ospf","daemon":"ospfd","chunk_type":"command_reference"}]`
-	qs, err := querygen.ParseGeneratedQueries(text)
+	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestParseGeneratedQueriesJSON(t *testing.T) {
 
 func TestParseGeneratedQueriesWithCodeFence(t *testing.T) {
 	text := "Aqui está o JSON:\n```json\n[{\"query\":\"OSPF neighbor stuck\",\"protocol\":\"ospf\",\"daemon\":\"ospfd\",\"chunk_type\":\"concept\"}]\n```\nFim."
-	qs, err := querygen.ParseGeneratedQueries(text)
+	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestParseGeneratedQueriesWithCodeFence(t *testing.T) {
 
 func TestParseGeneratedQueriesRejectsInvalidChunkType(t *testing.T) {
 	text := `[{"query":"x","protocol":"ospf","daemon":"ospfd","chunk_type":"bogus"}]`
-	qs, err := querygen.ParseGeneratedQueries(text)
+	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestParseGeneratedQueriesRejectsInvalidChunkType(t *testing.T) {
 
 func TestParseGeneratedQueriesSkipsEmptyQuery(t *testing.T) {
 	text := `[{"query":"","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"},{"query":"OSPF cost","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"}]`
-	qs, err := querygen.ParseGeneratedQueries(text)
+	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -2,6 +2,7 @@
 .idea
 .agent
 .junie
+.hermes
 .env
 
 .config.toml

@@ -97,12 +97,14 @@ type QueryGenerator interface {
 	GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error)
 }
 
-// Result é a saída estruturada pedida pelo usuário:
-// [{"query": string, "response": string}], onde response é o contexto
-// recuperado (parent_content + origem), não uma resposta gerada.
+// Result é a saída estruturada do retriever. Os metadados protocol, daemon e
+// chunk_type identificam os filtros usados para recuperar o contexto.
 type Result struct {
-	Query    string `json:"query"`
-	Response string `json:"response"`
+	Query     string `json:"query"`
+	Protocol  string `json:"protocol"`
+	Daemon    string `json:"daemon"`
+	ChunkType string `json:"chunk_type"`
+	Response  string `json:"response"`
 }
 
 // ScoredChunk é um resultado de uma única fonte (vetorial ou FTS),
