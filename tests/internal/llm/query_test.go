@@ -1,8 +1,11 @@
-package rag
+package llm
 
 import (
 	"errors"
 	"testing"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
 )
 
 const sampleBriefing = `# Intent Analysis — FRR RAG
@@ -42,7 +45,7 @@ The OSPF adjacency between R1 (core) and R2 (edge) isn't converging in area 0.
 `
 
 func TestParseQueriesFromBriefing(t *testing.T) {
-	got, err := ParseQueriesFromBriefing([]byte(sampleBriefing))
+	got, err := querygen.ParseQueriesFromBriefing([]byte(sampleBriefing))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,7 +53,7 @@ func TestParseQueriesFromBriefing(t *testing.T) {
 		t.Fatalf("len = %d, want 3: %+v", len(got), got)
 	}
 
-	want := []QuerySuggestion{
+	want := []rag.QuerySuggestion{
 		{Query: "OSPF neighbor stuck Exstart Exchange state", Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"},
 		{Query: "OSPF interface authentication area configuration", Protocol: "ospf", Daemon: "ospfd", ChunkType: "command_reference"},
 		{Query: "BGP OSPF redistribution interaction", Protocol: "bgp", Daemon: "bgpd", ChunkType: "concept"},
@@ -70,7 +73,7 @@ func TestParseQueriesFromBriefingQuotedQuery(t *testing.T) {
 | 1 | 'OSPF MTU mismatch' | ospf | ospfd | concept |
 | 2 | "show ip ospf neighbor" | ospf | ospfd | command_reference |
 `
-	got, err := ParseQueriesFromBriefing([]byte(briefing))
+	got, err := querygen.ParseQueriesFromBriefing([]byte(briefing))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +96,7 @@ func TestParseQueriesFromBriefingInvalidChunkType(t *testing.T) {
 | 1 | "OSPF MTU mismatch" | ospf | ospfd | bogus |
 | 2 | "OSPF cost" | ospf | ospfd | concept |
 `
-	got, err := ParseQueriesFromBriefing([]byte(briefing))
+	got, err := querygen.ParseQueriesFromBriefing([]byte(briefing))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,8 +112,8 @@ func TestParseQueriesFromBriefingMissingSection(t *testing.T) {
 	briefing := `## 4. Problem/goal summary
 Nothing here about queries.
 `
-	_, err := ParseQueriesFromBriefing([]byte(briefing))
-	if !errors.Is(err, ErrNoQueriesTable) {
+	_, err := querygen.ParseQueriesFromBriefing([]byte(briefing))
+	if !errors.Is(err, rag.ErrNoQueriesTable) {
 		t.Fatalf("err = %v, want ErrNoQueriesTable", err)
 	}
 }

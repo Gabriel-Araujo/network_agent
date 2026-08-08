@@ -1,4 +1,4 @@
-package rag
+package llm
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -21,7 +23,7 @@ func TestVectorLiteral(t *testing.T) {
 		{[]float64{0}, "[0.00000000]"},
 	}
 	for _, c := range cases {
-		if got := VectorLiteral(c.in); got != c.want {
+		if got := retriever.VectorLiteral(c.in); got != c.want {
 			t.Errorf("VectorLiteral(%v) = %q, want %q", c.in, got, c.want)
 		}
 	}
@@ -33,7 +35,7 @@ func TestFuseRRFDedupe(t *testing.T) {
 	vec := map[string]int{"a": 0, "b": 1, "c": 2}
 	fts := map[string]int{"b": 0, "d": 1, "a": 9}
 
-	got := fuseRRF(vec, fts, 60, 5)
+	got := retriever.FuseRRF(vec, fts, 60, 5)
 	if len(got) != 4 {
 		t.Fatalf("len = %d, want 4: %v", len(got), got)
 	}
@@ -53,14 +55,14 @@ func TestFuseRRFDedupe(t *testing.T) {
 }
 
 func TestFuseRRFEmpty(t *testing.T) {
-	if got := fuseRRF(nil, nil, 60, 5); len(got) != 0 {
+	if got := retriever.FuseRRF(nil, nil, 60, 5); len(got) != 0 {
 		t.Fatalf("expected empty result, got %v", got)
 	}
 }
 
 func TestFuseRRFRespectsLimit(t *testing.T) {
 	vec := map[string]int{"a": 0, "b": 1, "c": 2, "d": 3}
-	got := fuseRRF(vec, nil, 60, 2)
+	got := retriever.FuseRRF(vec, nil, 60, 2)
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2 (limit)", len(got))
 	}
@@ -68,7 +70,7 @@ func TestFuseRRFRespectsLimit(t *testing.T) {
 
 // --- helpers de teste ---
 
-func gotScore(rs []scoredChunk, id string) float64 {
+func gotScore(rs []rag.ScoredChunk, id string) float64 {
 	for _, r := range rs {
 		if r.ID == id {
 			return r.Score
@@ -87,18 +89,18 @@ func TestRetrieveIntegration(t *testing.T) {
 
 	client := testEmbedderClient()
 
-	cfg := Config{
+	cfg := rag.Config{
 		DSN:      dsn,
 		Embedder: client,
 		Limit:    3,
 	}
 
-	queries := []QuerySuggestion{
+	queries := []rag.QuerySuggestion{
 		{Query: "BGP neighbor session Active state", Protocol: "bgp", Daemon: "bgpd"},
 		{Query: "OSPF stuck Exstart MTU mismatch", Protocol: "ospf", Daemon: "ospfd"},
 	}
 
-	results, err := Retrieve(context.Background(), cfg, queries)
+	results, err := retriever.Retrieve(context.Background(), cfg, queries)
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
@@ -132,11 +134,11 @@ func TestSaveResults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := []Result{
+	results := []rag.Result{
 		{Query: "OSPF MTU mismatch", Response: "contexto A\n\nSource: https://docs.example (OSPF)"},
 		{Query: "BGP session down", Response: "contexto B"},
 	}
-	path, err := saveResults(briefing, results)
+	path, err := retriever.SaveResults(briefing, results)
 	if err != nil {
 		t.Fatalf("saveResults: %v", err)
 	}
@@ -148,7 +150,7 @@ func TestSaveResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []Result
+	var got []rag.Result
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("JSON inválido: %v", err)
 	}
@@ -156,4 +158,3 @@ func TestSaveResults(t *testing.T) {
 		t.Fatalf("got = %+v", got)
 	}
 }
-

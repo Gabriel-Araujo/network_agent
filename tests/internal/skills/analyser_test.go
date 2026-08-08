@@ -1,4 +1,4 @@
-package intentanalyser
+package skills
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm"
+	"github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 )
 
 func TestSlugify(t *testing.T) {
@@ -17,18 +18,18 @@ func TestSlugify(t *testing.T) {
 		{"alô, mundo", "alo-mundo"},
 	}
 	for _, c := range cases {
-		if got := slugify(c.in); got != c.want {
+		if got := intentanalyser.Slugify(c.in); got != c.want {
 			t.Errorf("slugify(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 }
 
 func TestHash8(t *testing.T) {
-	h := hash8("x")
+	h := intentanalyser.Hash8("x")
 	if len(h) != 8 {
 		t.Errorf("[ANALYSER TEST] hash8 len = %d, want 8", len(h))
 	}
-	if hash8("x") == hash8("y") {
+	if intentanalyser.Hash8("x") == intentanalyser.Hash8("y") {
 		t.Errorf("[ANALYSER TEST] hash8 colidiu para entradas diferentes")
 	}
 }
@@ -36,7 +37,7 @@ func TestHash8(t *testing.T) {
 func TestAgent(t *testing.T) {
 	agent := llm.LoadTestAgent()
 
-	path, err := Do(context.TODO(), "Gere um teste bgp", agent)
+	path, err := intentanalyser.Do(context.TODO(), "Gere um teste bgp", agent)
 	if err != nil {
 		panic(err)
 	}

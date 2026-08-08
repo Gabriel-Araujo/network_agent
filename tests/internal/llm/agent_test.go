@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	llm2 "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -78,7 +79,7 @@ func TestToolCallReadsFileFromRepoRoot(t *testing.T) {
 	root := repoRoot(t)
 	t.Chdir(root)
 
-	a := &Agent{}
+	a := &llm2.Agent{}
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_1",
 		Name:   "ReadFile",
@@ -87,7 +88,7 @@ func TestToolCallReadsFileFromRepoRoot(t *testing.T) {
 		}`,
 	}
 
-	res := a.toolCall(context.Background(), call)
+	res := a.ToolCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" {
@@ -98,7 +99,7 @@ func TestToolCallReadsFileFromRepoRoot(t *testing.T) {
 func TestToolCallInvalidFunction(t *testing.T) {
 	t.Chdir(repoRoot(t))
 
-	a := &Agent{}
+	a := &llm2.Agent{}
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_x",
 		Name:   "NaoExiste",
@@ -107,7 +108,7 @@ func TestToolCallInvalidFunction(t *testing.T) {
 		}`,
 	}
 
-	res := a.toolCall(context.Background(), call)
+	res := a.ToolCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != "Error: Called invalid function" {
@@ -120,7 +121,7 @@ func TestSkillCallUseExistingSkill(t *testing.T) {
 	root := repoRoot(t)
 	t.Chdir(root)
 
-	a := &Agent{}
+	a := &llm2.Agent{}
 
 	// existe e tem body conhecido na raiz do repo
 	reg := skills.LoadSkills()
@@ -137,7 +138,7 @@ func TestSkillCallUseExistingSkill(t *testing.T) {
 		}`,
 	}
 
-	res := a.skillCall(context.Background(), call)
+	res := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != sk.Body {
@@ -148,7 +149,7 @@ func TestSkillCallUseExistingSkill(t *testing.T) {
 func TestSkillCallUnknownSkill(t *testing.T) {
 	t.Chdir(repoRoot(t))
 
-	a := &Agent{}
+	a := &llm2.Agent{}
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_skill",
 		Name:   skills.ToolUseSkill,
@@ -157,7 +158,7 @@ func TestSkillCallUnknownSkill(t *testing.T) {
 		}`,
 	}
 
-	res := a.skillCall(context.Background(), call)
+	res := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != `erro: skill "nao-existe" não encontrada` {
@@ -169,7 +170,7 @@ func TestSkillCallInvalidArguments(t *testing.T) {
 	// skillCall -> HandleSkillCall -> LoadSkills() usa caminho relativo.
 	t.Chdir(repoRoot(t))
 
-	a := &Agent{}
+	a := &llm2.Agent{}
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_skill",
 		Name:   skills.ToolUseSkill,
@@ -178,7 +179,7 @@ func TestSkillCallInvalidArguments(t *testing.T) {
 		}`,
 	}
 
-	res := a.skillCall(context.Background(), call)
+	res := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" || got[0:len("erro: argumentos inválidos")] != "erro: argumentos inválidos" {
@@ -190,7 +191,7 @@ func TestSkillCallReadSkillFile(t *testing.T) {
 	root := repoRoot(t)
 	t.Chdir(root)
 
-	a := &Agent{}
+	a := &llm2.Agent{}
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_read",
 		Name:   skills.ToolReadSkillFile,
@@ -200,7 +201,7 @@ func TestSkillCallReadSkillFile(t *testing.T) {
 		}`,
 	}
 
-	res := a.skillCall(context.Background(), call)
+	res := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" {
@@ -221,7 +222,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 		option.WithAPIKey("test-key"),
 	)
 
-	a := &Agent{
+	a := &llm2.Agent{
 		Client:       client,
 		ModelName:    "test-model",
 		SystemPrompt: "você é um assistente",
@@ -235,7 +236,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 		}`,
 	}
 
-	res := a.subAgentCall(context.Background(), call)
+	res := a.SubAgentCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != reply {
@@ -249,7 +250,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 }
 
 func TestSubAgentCallInvalidArguments(t *testing.T) {
-	a := &Agent{}
+	a := &llm2.Agent{}
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_sub",
 		Name:   "sub_agent",
@@ -258,7 +259,7 @@ func TestSubAgentCallInvalidArguments(t *testing.T) {
 		}`,
 	}
 
-	res := a.subAgentCall(context.Background(), call)
+	res := a.SubAgentCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" || got[0:len("erro: argumentos inválidos")] != "erro: argumentos inválidos" {

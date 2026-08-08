@@ -1,10 +1,13 @@
-package rag
+package llm
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
 )
 
 // TestE2EBriefingParsing roda o pipeline determinístico (parse da seção 6)
@@ -19,7 +22,7 @@ func TestE2EBriefingParsing(t *testing.T) {
 		t.Skipf("briefing de exemplo não está presente (%v); pulando", err)
 	}
 
-	qs, err := ParseQueriesFromBriefing(content)
+	qs, err := querygen.ParseQueriesFromBriefing(content)
 	if err != nil {
 		t.Fatalf("ParseQueriesFromBriefing: %v", err)
 	}
@@ -38,7 +41,7 @@ func TestE2EBriefingParsing(t *testing.T) {
 
 	// Garante o shape JSON mínimo especificado: [{"query":string,"response":string}].
 	// Sem DB, response fica vazio — mas o contrato de serialização deve valer.
-	out, err := json.Marshal([]Result{{Query: qs[0].Query}})
+	out, err := json.Marshal([]rag.Result{{Query: qs[0].Query}})
 	if err != nil {
 		t.Fatal(err)
 	}

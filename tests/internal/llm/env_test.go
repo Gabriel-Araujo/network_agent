@@ -1,9 +1,11 @@
-package rag
+package llm
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/env"
 )
 
 func writeEnvFile(t *testing.T, content string) string {
@@ -33,7 +35,7 @@ LINHA_SEM_IGUAL
 		{"NAO_EXISTE", ""},
 	}
 	for _, c := range cases {
-		if got := ReadEnvKey(path, c.key); got != c.want {
+		if got := env.ReadEnvKey(path, c.key); got != c.want {
 			t.Errorf("ReadEnvKey(%q) = %q, want %q", c.key, got, c.want)
 		}
 	}
@@ -43,7 +45,7 @@ func TestLoadEnvFallsBackToDefaultModel(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("EMBEDDING_MODEL", "")
 
-	dsn, model := LoadEnv()
+	dsn, model := env.LoadEnv()
 	// DSN pode vir do .env real do repo; o que importa aqui é o default do
 	// modelo quando nada está configurado.
 	if dsn == "" && model == "" {
@@ -59,7 +61,7 @@ func TestProbeSkippedWithoutDB(t *testing.T) {
 		t.Skip("DATABASE_URL não definido")
 	}
 	dsn := os.Getenv("DATABASE_URL")
-	p, err := Probe(t.Context(), dsn)
+	p, err := env.Probe(t.Context(), dsn)
 	if err != nil {
 		t.Fatalf("Probe: %v", err)
 	}

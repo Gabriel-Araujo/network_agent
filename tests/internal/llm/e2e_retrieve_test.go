@@ -1,4 +1,4 @@
-package rag
+package llm
 
 import (
 	"context"
@@ -6,10 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
 )
 
-// TestE2EDoIntegration exercita o pipeline completo (parse da seção 6 ->
-// embeddings LM Studio -> busca híbrida -> RRF -> gravação do JSON) contra
+// TestE2EDoIntegration exercita o pipeline completo (parse da seção 6 →
+// embeddings LM Studio → busca híbrida → RRF → gravação do JSON) contra
 // o banco real. Gated em DATABASE_URL.
 func TestE2EDoIntegration(t *testing.T) {
 	dsn := os.Getenv("DATABASE_URL")
@@ -22,14 +25,14 @@ func TestE2EDoIntegration(t *testing.T) {
 		t.Skipf("briefing de exemplo ausente (%v); pulando", err)
 	}
 
-	cfg := Config{
+	cfg := rag.Config{
 		DSN:            dsn,
-		EmbeddingModel: DefaultEmbeddingModel,
+		EmbeddingModel: rag.DefaultEmbeddingModel,
 		Embedder:       testEmbedderClient(),
 		Limit:          3,
 	}
 
-	outPath, err := Do(context.Background(), briefingPath, cfg)
+	outPath, err := retriever.Do(context.Background(), briefingPath, cfg)
 	if err != nil {
 		t.Fatalf("Do: %v", err)
 	}
@@ -38,7 +41,7 @@ func TestE2EDoIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lendo JSON de saída: %v", err)
 	}
-	var results []Result
+	var results []rag.Result
 	if err := json.Unmarshal(data, &results); err != nil {
 		t.Fatalf("JSON inválido em %s: %v", outPath, err)
 	}

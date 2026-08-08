@@ -1,31 +1,34 @@
-package rag
+package llm
 
 import (
 	"context"
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/querygen"
 )
 
 // fakeGenerator permite testar o fallback sem rede.
 type fakeGenerator struct {
-	qs  []QuerySuggestion
+	qs  []rag.QuerySuggestion
 	err error
 }
 
-func (f *fakeGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error) {
+func (f *fakeGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
 	return f.qs, f.err
 }
 
 // panickingGenerator prova que o caminho determinístico NÃO chama o LLM.
 type panickingGenerator struct{}
 
-func (panickingGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error) {
+func (panickingGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
 	panic("LLM should not be called when briefing has the query table")
 }
 
 func TestBuildQueriesUsesParseNotLLM(t *testing.T) {
-	qs, err := BuildQueries(context.Background(), []byte(sampleBriefing), panickingGenerator{})
+	qs, err := querygen.BuildQueries(context.Background(), []byte(sampleBriefing), panickingGenerator{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,10 +42,10 @@ func TestBuildQueriesUsesParseNotLLM(t *testing.T) {
 
 func TestBuildQueriesFallsBackToLLM(t *testing.T) {
 	briefing := []byte("## 4. Problem/goal summary\nNo query table here.\n")
-	fake := &fakeGenerator{qs: []QuerySuggestion{
+	fake := &fakeGenerator{qs: []rag.QuerySuggestion{
 		{Query: "OSPF MTU mismatch", Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"},
 	}}
-	qs, err := BuildQueries(context.Background(), briefing, fake)
+	qs, err := querygen.BuildQueries(context.Background(), briefing, fake)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,8 +55,8 @@ func TestBuildQueriesFallsBackToLLM(t *testing.T) {
 }
 
 func TestBuildQueriesNoTableNoGenerator(t *testing.T) {
-	_, err := BuildQueries(context.Background(), []byte("## 4. Nothing"), nil)
-	if !errors.Is(err, ErrNoQueriesTable) {
+	_, err := querygen.BuildQueries(context.Background(), []byte("## 4. Nothing"), nil)
+	if !errors.Is(err, rag.ErrNoQueriesTable) {
 		t.Fatalf("err = %v, want ErrNoQueriesTable", err)
 	}
 }
@@ -61,7 +64,7 @@ func TestBuildQueriesNoTableNoGenerator(t *testing.T) {
 func TestParseGeneratedQueriesJSON(t *testing.T) {
 	// Sem code fence.
 	text := `[{"query":"OSPF MTU mismatch","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"},{"query":"show ip ospf neighbor","protocol":"ospf","daemon":"ospfd","chunk_type":"command_reference"}]`
-	qs, err := parseGeneratedQueries(text)
+	qs, err := querygen.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +78,7 @@ func TestParseGeneratedQueriesJSON(t *testing.T) {
 
 func TestParseGeneratedQueriesWithCodeFence(t *testing.T) {
 	text := "Aqui está o JSON:\n```json\n[{\"query\":\"OSPF neighbor stuck\",\"protocol\":\"ospf\",\"daemon\":\"ospfd\",\"chunk_type\":\"concept\"}]\n```\nFim."
-	qs, err := parseGeneratedQueries(text)
+	qs, err := querygen.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +89,7 @@ func TestParseGeneratedQueriesWithCodeFence(t *testing.T) {
 
 func TestParseGeneratedQueriesRejectsInvalidChunkType(t *testing.T) {
 	text := `[{"query":"x","protocol":"ospf","daemon":"ospfd","chunk_type":"bogus"}]`
-	qs, err := parseGeneratedQueries(text)
+	qs, err := querygen.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,7 +100,7 @@ func TestParseGeneratedQueriesRejectsInvalidChunkType(t *testing.T) {
 
 func TestParseGeneratedQueriesSkipsEmptyQuery(t *testing.T) {
 	text := `[{"query":"","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"},{"query":"OSPF cost","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"}]`
-	qs, err := parseGeneratedQueries(text)
+	qs, err := querygen.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
