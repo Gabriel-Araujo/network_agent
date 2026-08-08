@@ -4,7 +4,7 @@ Your goal isn't to answer the question — it's to turn a
 networking question, often informal and incomplete, into a structured
 briefing.
 
-Produces the analysis as **Markdown text** following the
+Produces the analysis as **JSON** following the
 template below, and returns that text as your final answer. A downstream
 step saves it to a file — so do **not** use any file tools, do not return a
 file path, and do not wrap the output in explanations or code fences.
@@ -130,72 +130,94 @@ produce a rewritten query:
 
 ### 7. Output the result
 
-Write your final answer as **Markdown text** following the template below.
-Return only the markdown — no preamble, no file tools, no file path, no
+Write your final answer as **JSON text** following the template below.
+Return only the JSON — no preamble, no file tools, no file path, no
 code-fence wrapper. The text you produce is saved verbatim by the caller.
 
 ### Template
 
 Below is a filled-in example showing the exact structure to produce:
-```markdown
-# Intent Analysis — FRR
 
-**Timestamp:** 2026-07-14T15:20:00-03:00
-
-**Original query:** "meu ospf não converge entre o core (R1) e o edge (R2), os dois rodando FRR, ligados pela Gi0/1 em area 0. o R2 também tem uma sessão eBGP com o upstream, AS 65010, pela Gi0/2 — isso pode ter alguma relação?"
-
-## 1. Classification
-- **Intent type:** troubleshooting
-- **Protocol(s):** ospf (primary), bgp (context/possible interaction)
-- **Daemon(s):** ospfd, bgpd
-
-## 2. Devices
-| Label | Role | Platform | Daemon(s)/Protocol(s) |
-|---|---|---|---|
-| R1 | core | FRR | ospfd |
-| R2 | edge | FRR | ospfd, bgpd |
-| upstream (AS 65010) | eBGP peer | unknown/non-FRR | bgp |
-
-## 3. Connections
-| From | To | Interface/Link | Protocol/Session |
-|---|---|---|---|
-| R1 | R2 | Gi0/1 | OSPF area 0 |
-| R2 | upstream | Gi0/2 | eBGP AS 65010 |
-
-## 4. Problem/goal summary
-The OSPF adjacency between R1 (core) and R2 (edge) isn't converging in area
-0, over interface Gi0/1, both running FRR. R2 also holds a separate eBGP
-session with an upstream (AS 65010) over Gi0/2. The user wants to know the
-cause of the OSPF non-convergence and whether the eBGP session on R2 could
-be related.
-
-## 5. Execution pipeline
-1. Confirm ospfd is enabled and running on R1 and R2.
-2. Check basic L3 connectivity between R1 and R2 on Gi0/1 (ping, MTU).
-3. Verify R1 and R2 are in the same area with matching interface parameters
-   (network type, cost, authentication).
-4. Check which state the adjacency is stuck in (Init, 2-Way,
-   Exstart/Exchange, Loading) — the state points to the likely cause.
-5. Assess whether the eBGP session on R2 (Gi0/2) has any plausible relation
-   to OSPF on R1/R2 — generally independent unless there's redistribution
-   or a shared resource/CPU issue on R2.
-6. If stuck in Exstart/Exchange, check for an MTU mismatch between the
-   interfaces — a common cause of that specific state.
-
-## 6. Rewritten queries for RAG
-| # | Rewritten query | protocol | daemon | suggested chunk_type |
-|---|---|---|---|---|
-| 1 | "OSPF neighbor stuck Exstart Exchange state" | ospf | ospfd | concept |
-| 2 | "OSPF interface authentication area configuration" | ospf | ospfd | command_reference |
-| 3 | "OSPF interface cost network type mismatch" | ospf | ospfd | concept |
-| 4 | "OSPF MTU mismatch neighbor adjacency" | ospf | ospfd | concept |
-| 5 | "BGP OSPF redistribution interaction" | bgp | bgpd | concept |
+```JSON
+{
+  "title": "Intent Analysis - FRR",
+  "timestamp": "2026-07-14T15:20:00-03:00",
+  "originalQuery": "meu ospf não converge entre o core (R1) e o edge (R2), os dois rodando FRR, ligados pela Gi0/1 em area 0. o R2 também tem uma sessão eBGP com o upstream, AS 65010, pela Gi0/2 — isso pode ter alguma relação?",
+  "classification": {
+    "intentType": "troubleshooting",
+    "protocols": [
+      "ospf (primary)",
+      "bgp (context/possible interaction)"
+    ],
+    "daemons": [
+      "ospfd",
+      "bgpd"
+    ]
+  },
+  "devices": [
+    {
+      "label": "R1",
+      "role": "core",
+      "platform": "FRR",
+      "daemonsAndProtocols": [
+        "ospfd"
+      ]
+    },
+    {
+      "label": "R2",
+      "role": "edge",
+      "platform": "FRR",
+      "daemonsAndProtocols": [
+        "ospfd",
+        "bgpd"
+      ]
+    },
+    {
+      "label": "upstream (AS 65010)",
+      "role": "eBGP peer",
+      "platform": "unknown/non-FRR",
+      "daemonsAndProtocols": [
+        "bgp"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "R1",
+      "to": "R2",
+      "InterfaceAndLink": "Gi0/1",
+      "protocolAndSession": "OSPF area 0"
+    },
+    {
+      "from": "R2",
+      "to": "upstream",
+      "InterfaceAndLink": "Gi0/2",
+      "protocolAndSession": "eBGP AS 65010"
+    }
+  ],
+  "problemAndGoalSummary": "The OSPF adjacency between R1 (core) and R2 (edge) isn't converging in area 0, over interface Gi0/1, both running FRR. R2 also holds a separate eBGP session with an upstream (AS 65010) over Gi0/2. The user wants to know the cause of the OSPF non-convergence and whether the eBGP session on R2 could be related.",
+  "executionPipeline": {
+    "1": "Confirm ospfd is enabled and running on R1 and R2.",
+    "2": "Check basic L3 connectivity between R1 and R2 on Gi0/1 (ping, MTU).",
+    "3": "Verify R1 and R2 are in the same area with matching interface parameters (network type, cost, authentication).",
+    "4": "Check which state the adjacency is stuck in (Init, 2-Way, Exstart/Exchange, Loading) — the state points to the likely cause.",
+    "5": "Assess whether the eBGP session on R2 (Gi0/2) has any plausible relation to OSPF on R1/R2 — generally independent unless there's redistribution or a shared resource/CPU issue on R2.",
+    "6": "If stuck in Exstart/Exchange, check for an MTU mismatch between the interfaces — a common cause of that specific state."
+  },
+  "ragQueries": {
+    "1":  {"query": "OSPF neighbor stuck Exstart Exchange state", "protocol": "ospf", "daemon": "ospfd", "suggestedChunkType": "concept" },
+    "2":  {"query": "OSPF interface authentication area configuration", "protocol": "ospf", "daemon":  "ospfd", "suggestedChunkType": "command_reference" },
+    "3":  {"query": "OSPF interface cost network type mismatch", "protocol": "ospf", "daemon":  "ospfd", "suggestedChunkType": "concept" },
+    "4":  {"query": "OSPF MTU mismatch neighbor adjacency", "protocol": "ospf", "daemon":  "ospfd", "suggestedChunkType": "concept" },
+    "5":  {"query": "BGP OSPF redistribution interaction", "protocol": "bgp", "daemon":  "bgpd", "suggestedChunkType": "concept" }
+  }
+}
 ```
 
 ## Design notes
 
 - **Don't answer the question here.** This skill only structures the
-  problem; the final answer is produced afterwards, by whatever process
+  problem; the final answer is produced afterward, by whatever process
   consumes the saved file.
 - **The `## 6. Rewritten queries for RAG` table is the retrieval input** —
   a downstream step parses it deterministically and runs one hybrid
