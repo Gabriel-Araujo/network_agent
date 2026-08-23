@@ -75,7 +75,7 @@ func (r *Registry) BuildTools() []responses.ToolUnionParam {
 
 func LoadSkills() *Registry {
 
-	root, err := paths.RepoFile("resources/agent/skills")
+	root, err := paths.RepoFile("resources/agents/skills")
 	if err != nil {
 		log.Panicf("carregando skills: %v", err)
 	}
