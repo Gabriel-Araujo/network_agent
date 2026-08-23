@@ -4,12 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
-	"log"
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 )
 
+var log = logger.Named("CHUCKER")
+
 func main() {
+	// Utilitário curto: console basta. LOG_FILE liga o arquivo sob demanda.
+	logger.Init(logger.ConfigFromEnv())
+
 	path := flag.String("path", "", ".rst file path")
 	protocol := flag.String("protocol", "", "protocol")
 	daemon := flag.String("daemon", "", "frrounting daemon")
@@ -17,15 +24,15 @@ func main() {
 	flag.Parse()
 
 	if *path == "" || *daemon == "" || *protocol == "" {
-		log.Println("the following required flags are not set:")
+		fmt.Fprintln(os.Stderr, "the following required flags are not set:")
 		if *path == "" {
-			log.Println("- path")
+			fmt.Fprintln(os.Stderr, "- path")
 		}
 		if *daemon == "" {
-			log.Println("- daemon")
+			fmt.Fprintln(os.Stderr, "- daemon")
 		}
 		if *protocol == "" {
-			log.Println("- protocol")
+			fmt.Fprintln(os.Stderr, "- protocol")
 		}
 		os.Exit(1)
 	}
@@ -36,7 +43,7 @@ func main() {
 	)
 
 	if err != nil {
-		log.Panicf("Error while reading %s:\n%s", *path, err)
+		log.Fatalf("erro ao ler %s: %v", *path, err)
 	}
 
 	var buf bytes.Buffer
@@ -44,19 +51,18 @@ func main() {
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(chunks); err != nil {
-		log.Panicf("erro ao gerar JSON: %s", err)
-		os.Exit(1)
+		log.Fatalf("erro ao gerar JSON: %v", err)
 	}
 
 	targetDir := filepath.Dir(*path) + "/chunks"
 
 	err = os.MkdirAll(targetDir, 0755)
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("erro ao criar %s: %v", targetDir, err)
 	}
 
 	if err := os.WriteFile(targetDir+"/"+*protocol+".json", bytes.TrimRight(buf.Bytes(), "\n"), 0644); err != nil {
-		log.Fatalf("erro ao escrever %s.json:\n%s", targetDir+"/"+*protocol, err)
+		log.Fatalf("erro ao escrever %s.json: %v", targetDir+"/"+*protocol, err)
 	}
 
 	nCmd, nConcept := 0, 0
@@ -71,7 +77,7 @@ func main() {
 		tokens = append(tokens, c.TokenCount)
 	}
 
-	log.Printf("Total chunks: %d  (command_reference=%d, concept=%d)\n", len(chunks), nCmd, nConcept)
+	log.Info("chunks gerados", "total", len(chunks), "command_reference", nCmd, "concept", nConcept)
 
 	if len(tokens) > 0 {
 		minT, maxT, sum := tokens[0], tokens[0], 0
@@ -85,7 +91,7 @@ func main() {
 			sum += t
 		}
 		avg := float64(sum) / float64(len(tokens))
-		log.Printf("Tokens por chunk — min=%d max=%d média=%.0f\n", minT, maxT, avg)
+		log.Infof("tokens por chunk — min=%d max=%d média=%.0f", minT, maxT, avg)
 	}
 
 }

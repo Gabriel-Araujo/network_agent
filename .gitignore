@@ -13,3 +13,4 @@ network_agent
 # generated
 generated/
 
+logs/

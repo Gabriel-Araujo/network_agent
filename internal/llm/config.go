@@ -2,7 +2,6 @@ package llm
 
 import (
 	"bufio"
-	"log"
 	"os"
 	"strings"
 
@@ -21,12 +20,12 @@ type Config struct {
 func envConfig() Config {
 	envPath, err := paths.RepoFile(".env")
 	if err != nil {
-		log.Panic("Failed to resolve .env path: ", err)
+		log.Panicf("falha ao resolver o caminho do .env: %v", err)
 	}
 
 	f, err := os.Open(envPath)
 	if err != nil {
-		log.Panic("Failed to open .env: ", err)
+		log.Panicf("falha ao abrir o .env: %v", err)
 	}
 	defer f.Close()
 

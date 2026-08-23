@@ -2,7 +2,6 @@ package skills
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,11 +65,12 @@ func LoadDir(root string) (*Registry, error) {
 
 		sk, err := ParseSkillFile(skillPath)
 		if err != nil {
-			log.Printf("aviso: ignorando skill inválida em %s: %v", skillPath, err)
+			log.Warn("ignorando skill inválida", "path", skillPath, "err", err)
 			continue
 		}
 		if sk.Name != e.Name() {
-			log.Printf("aviso: %s: 'name' (%q) difere do nome da pasta (%q)", skillPath, sk.Name, e.Name())
+			log.Warn("'name' difere do nome da pasta",
+				"path", skillPath, "name", sk.Name, "dir", e.Name())
 		}
 		reg.skills[sk.Name] = sk
 	}

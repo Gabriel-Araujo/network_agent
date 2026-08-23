@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -12,15 +11,26 @@ import (
 	agentapi "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/env"
+	"github.com/Gabriel-Araujo/network_agent/internal/loaders"
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	intentanalyser "github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
-	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
 )
 
+var log = logger.Named("MAIN")
+
 func main() {
-	llmConfig, err := config.Load()
+	// O cli roda como sessão: ganha arquivo de log por default. O if preserva
+	// o override — sem ele, o main sobrescreveria LOG_FILE.
+	cfg := logger.ConfigFromEnv()
+	if cfg.File == "" {
+		cfg.File = "logs"
+	}
+	logger.Init(cfg)
+
+	llmConfig, err := loaders.Load()
 	if err != nil {
-		log.Fatalf("Error loading configuration: %v\n", err)
+		log.Fatalf("erro carregando configuração: %v", err)
 	}
 
 	// Mapeamento explícito para evitar erros de tipos de pacotes diferentes
@@ -32,7 +42,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Fatalf("Failed to connect to LLM: %v\n", err)
+		log.Fatalf("falha ao conectar ao LLM: %v", err)
 	}
 
 	ctx := context.Background()
@@ -45,7 +55,7 @@ func main() {
 		fmt.Print("\nUser: ")
 		userInput, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Printf("Error reading input: %v\n", err)
+			log.Error("falha ao ler a entrada", "err", err)
 			continue
 		}
 
@@ -63,17 +73,17 @@ func main() {
 			return
 		}
 
-		log.Println("MAIN - intent saved at: " + intentPath)
+		log.Info("intent salvo", "path", intentPath)
 
 		// Retrieval RAG: gera/extrai queries do briefing, busca no
 		// vector híbrido e grava o JSON em.agent/tmp/retrieval.
 		retrievalOut, err := runRetrieval(ctx, agent, intentPath)
 		if err != nil {
-			log.Printf("MAIN - retrieval falhou (seguindo sem contexto RAG): %v\n", err)
+			log.Warn("retrieval falhou, seguindo sem contexto RAG", "err", err)
 			retrievalOut = ""
 		}
 		if retrievalOut != "" {
-			log.Println("MAIN - retrieval saved at: " + retrievalOut)
+			log.Info("retrieval salvo", "path", retrievalOut)
 		}
 
 		prompt := userInput
@@ -84,7 +94,7 @@ func main() {
 		out, err := agent.Chat(ctx, prompt)
 
 		if err != nil {
-			fmt.Printf("Error calling LLM: %v\n", err)
+			log.Error("falha ao chamar o LLM", "err", err)
 			continue
 		}
 

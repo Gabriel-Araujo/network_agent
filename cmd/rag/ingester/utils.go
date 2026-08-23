@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/pkg/util/config"
+	"github.com/Gabriel-Araujo/network_agent/internal/loaders"
 	"github.com/jackc/pgx/v5"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -151,16 +150,16 @@ DO UPDATE SET
 
 		results.Close()
 
-		fmt.Printf("  %d/%d chunks processados\n", end, total)
+		log.Info("progresso", "processados", end, "total", total)
 	}
 
 	return tx.Commit(ctx)
 }
 
 func getOpenaiClient() openai.Client {
-	_config, err := config.Load()
+	_config, err := loaders.Load()
 	if err != nil {
-		log.Fatalf("Error loading configuration: %v\n", err)
+		log.Fatalf("erro carregando configuração: %v", err)
 	}
 	return openai.NewClient(
 		option.WithBaseURL(_config.Url),

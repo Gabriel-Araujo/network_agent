@@ -2,7 +2,6 @@ package filetools
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -24,7 +23,7 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 
 	rel, err := util.SafePath(workingDirectory, path)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("caminho fora do diretório de trabalho", "path", path, "err", err)
 		return "Error: Path outside the permitted working directory"
 	}
 
@@ -68,7 +67,7 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 			return nil
 		})
 		if err != nil {
-			log.Default().Print(err)
+			log.Error("falha ao percorrer diretório", "root", rel, "pattern", pat, "err", err)
 		}
 	}
 

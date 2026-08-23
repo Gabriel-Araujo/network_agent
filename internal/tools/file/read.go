@@ -1,7 +1,6 @@
 package filetools
 
 import (
-	"log"
 	"os"
 	"strings"
 
@@ -11,14 +10,14 @@ import (
 func ReadFile(workingDirectory string, filePath string) string {
 	rel, err := util.SafePath(workingDirectory, filePath)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		log.Default().Print(err)
+		log.Error("caminho fora do diretório de trabalho", "path", filePath, "err", err)
 		return "Error: Filepath outside the permitted working directory"
 	}
 
-	log.Default().Print("Reading file: ", rel)
+	log.Trace("lendo arquivo", "path", rel)
 	file, err := os.ReadFile(rel)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("falha ao ler arquivo", "path", rel, "err", err)
 		return "Error: failed to read File content"
 	}
 

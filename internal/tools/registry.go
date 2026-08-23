@@ -3,12 +3,15 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"log"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3/responses"
 )
+
+// log é o handle do pacote (uma declaração por pacote, não por arquivo).
+var log = logger.Named("TOOLS")
 
 const DEFAULT_ROOT_DIRECTORY = "."
 
@@ -26,13 +29,13 @@ func CallFunction(
 	ctx context.Context,
 	call responses.ResponseFunctionToolCall,
 ) responses.ResponseInputItemUnionParam {
-	log.Printf("function '%s' called with arguments: [%s]\n", call.Name, call.Arguments)
+	log.Debugf("function '%s' called with arguments: [%s]\n", call.Name, call.Arguments)
 
 	args := make(map[string]string)
 
 	err := json.Unmarshal([]byte(call.Arguments), &args)
 	if err != nil {
-		log.Default().Println(err)
+		log.Error("argumentos inválidos na chamada de função", "name", call.Name, "err", err)
 		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, "Error: Failed to get args from function call object.")
 	}
 

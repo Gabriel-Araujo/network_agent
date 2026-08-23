@@ -1,6 +1,12 @@
 package filetools
 
-import "github.com/openai/openai-go/v3"
+import (
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
+	"github.com/openai/openai-go/v3"
+)
+
+// log é o handle do pacote (uma declaração por pacote, não por arquivo).
+var log = logger.Named("TOOLS")
 
 // READ TOOL CONSTANTS
 const (

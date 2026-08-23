@@ -2,7 +2,6 @@ package filetools
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -13,7 +12,7 @@ func WriteFile(workingDirectory string, filePath string, content string) string 
 	path, err := util.SafePath(workingDirectory, filePath)
 
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("caminho inválido", "path", filePath, "err", err)
 		return fmt.Sprintf("Error %s", err)
 	}
 
@@ -29,13 +28,13 @@ func WriteFile(workingDirectory string, filePath string, content string) string 
 	dir := filepath.Dir(path)
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("falha ao criar diretório", "dir", dir, "err", err)
 		return "Error: failed to create directory"
 	}
 
 	err = os.WriteFile(path, []byte(content), 0644)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("falha ao escrever arquivo", "path", path, "err", err)
 		return "Error: failed to write File content"
 	}
 

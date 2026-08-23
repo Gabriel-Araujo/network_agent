@@ -2,7 +2,6 @@ package filetools
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -13,7 +12,7 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 	rel, err := util.SafePath(workingDirectory, filePath)
 
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("caminho inválido", "path", filePath, "err", err)
 		return fmt.Sprintf("Error %s", err)
 	}
 
@@ -28,7 +27,7 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 
 	content, err := os.ReadFile(rel)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("falha ao ler arquivo", "path", rel, "err", err)
 		return "Error: failed to read File content"
 	}
 
@@ -39,7 +38,7 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 
 	statsAfterRead, err := os.Stat(rel)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("falha ao checar modificação do arquivo", "path", rel, "err", err)
 		return "Error: failed to check file staleness"
 	}
 
@@ -50,7 +49,7 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 	newContentStr := strings.ReplaceAll(contentStr, oldText, newText)
 	err = os.WriteFile(rel, []byte(newContentStr), 0644)
 	if err != nil {
-		log.Default().Print(err)
+		log.Error("falha ao escrever arquivo", "path", rel, "err", err)
 		return "Error: failed to write File content"
 	}
 

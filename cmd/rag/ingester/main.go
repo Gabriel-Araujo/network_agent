@@ -3,29 +3,34 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/jackc/pgx/v5"
 )
 
+var log = logger.Named("INGESTER")
+
 func main() {
-	log.Println("Starting ingest of embedding values.")
+	// Utilitário curto: console basta. LOG_FILE liga o arquivo sob demanda.
+	logger.Init(logger.ConfigFromEnv())
+
+	log.Info("iniciando ingestão de embeddings")
 	dsn := flag.String("dsn", "postgres://postgres:pass@localhost:5432/frr_rag", "postgres://postgres:pass@localhost:5432/frr_rag")
 	dir := flag.String("dir", "", "./resources/frrounting/chunks")
 	flag.Parse()
 
 	if *dir == "" {
-		log.Fatalln("No dir path was given.")
+		log.Fatal("nenhum diretório foi informado (-dir)")
 	}
 
 	entries, err := os.ReadDir(*dir)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("erro ao ler %s: %v", *dir, err)
 	}
-	log.Printf("Read files from %s\n", *dir)
+	log.Info("diretório lido", "dir", *dir, "entries", len(entries))
 
 	ctx := context.Background()
 
@@ -35,10 +40,10 @@ func main() {
 		// Filter out subdirectories if you only want files
 		if !entry.IsDir() {
 			fp := filepath.Join(*dir, entry.Name())
-			log.Printf("Loading chunks from %s", fp)
+			log.Info("carregando chunks", "path", fp)
 			c, err := LoadChunks(fp)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("erro ao carregar chunks de %s: %v", fp, err)
 			}
 			chunks = append(chunks, c...)
 		}
@@ -49,19 +54,15 @@ func main() {
 		*dsn,
 	)
 	if err != nil {
-		log.Println("Failed to connect to database.")
-		log.Fatal(err)
+		log.Fatalf("falha ao conectar ao banco: %v", err)
 	}
 
-	log.Println("Connected to database.")
+	log.Info("conectado ao banco")
 	defer conn.Close(ctx)
 
 	if err := Upsert(ctx, conn, chunks, 64); err != nil {
-		log.Fatal(err)
+		log.Fatalf("erro no upsert: %v", err)
 	}
 
-	log.Printf(
-		"OK — %d chunks carregados/atualizados em frr_docs.\n",
-		len(chunks),
-	)
+	log.Info("ingestão concluída", "chunks", len(chunks), "table", "frr_docs")
 }
