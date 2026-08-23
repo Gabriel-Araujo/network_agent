@@ -24,14 +24,19 @@ const reportDir = ".agent/tmp"
 // briefing estruturado em JSON, salva o resultado em disco e retorna
 // o caminho absoluto do arquivo gerado.
 func Do(ctx context.Context, input string, agent *llm.Agent) (string, error) {
+	// O template de chat do modelo só aceita mensagem de sistema na primeira
+	// posição. Instructions já vira uma, então o skillPrompt vai junto dela em
+	// vez de virar um segundo system no meio do input (e o timestamp vai no
+	// turno do usuário, em vez de num turno de assistant antes dele).
 	response, err := agent.Client.Responses.New(ctx, responses.ResponseNewParams{
 		Model:        agent.ModelName,
-		Instructions: openai.String(systemPrompt),
+		Instructions: openai.String(systemPrompt + "\n\n" + skillPrompt),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
-				responses.ResponseInputItemParamOfMessage(skillPrompt, responses.EasyInputMessageRoleDeveloper),
-				responses.ResponseInputItemParamOfMessage("Current timestamp="+time.Now().Format(time.RFC3339), responses.EasyInputMessageRoleSystem),
-				responses.ResponseInputItemParamOfMessage(input, responses.EasyInputMessageRoleUser),
+				responses.ResponseInputItemParamOfMessage(
+					"Current timestamp="+time.Now().Format(time.RFC3339)+"\n\n"+input,
+					responses.EasyInputMessageRoleUser,
+				),
 			},
 		},
 	})

@@ -70,10 +70,11 @@ func main() {
 
 		intentPath, err := intentanalyser.Do(ctx, userInput, agent)
 		if err != nil {
-			return
+			log.Error("falha ao analisar a intenção", "err", err)
+			continue
 		}
 
-		log.Info("intent salvo", "path", intentPath)
+		log.Debug("intent salvo", "path", intentPath)
 
 		// Retrieval RAG: gera/extrai queries do briefing, busca no
 		// vector híbrido e grava o JSON em.agent/tmp/retrieval.

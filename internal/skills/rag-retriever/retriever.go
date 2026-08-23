@@ -98,11 +98,12 @@ type LLMQueryGenerator struct {
 // para a tabela frr_docs e interpreta a resposta como JSON.
 func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
 	resp, err := g.Client.Responses.New(ctx, responses.ResponseNewParams{
-		Model:        g.ModelName,
-		Instructions: openai.String(systemPrompt),
+		Model: g.ModelName,
+		// Mesma restrição do intent-analyser: só pode haver system na primeira
+		// posição, e o servidor mapeia developer para system.
+		Instructions: openai.String(systemPrompt + "\n\n" + skillPrompt),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
-				responses.ResponseInputItemParamOfMessage(skillPrompt, responses.EasyInputMessageRoleDeveloper),
 				responses.ResponseInputItemParamOfMessage(string(briefing), responses.EasyInputMessageRoleUser),
 			},
 		},

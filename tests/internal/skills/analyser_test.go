@@ -2,7 +2,6 @@ package skills
 
 import (
 	"context"
-	"log"
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/llm"
@@ -41,5 +40,5 @@ func TestAgent(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	log.Println("[ANALYSER TEST] Saved on: " + path)
+	t.Log("saved on: " + path)
 }
