@@ -15,9 +15,10 @@ hands the operator what to run.
 |--------|--------------|---------------|-----|
 | Shared | `../../shared/execution-rules.md` | Full file | Boundaries and register |
 | Tech pack | `../../tech-packs/{{TECH}}/checklist.md` | Full file | The pass/fail questions |
-| Previous stage | `../04-render/` | All emitted files | What is being judged |
+| Previous stage | `../04-render/` | All files | What is being judged |
 | Previous stage | `../05-validate/report.json` | `findings[]` | What the mechanical pass already caught |
 | Previous stage | `../03-plan/plan.md` | "Blocks" and "Rollback" | Conformance and the rollback path to publish |
+| Previous stage | `../03-plan/example.md` | Full file | The shape the render was told to follow, and why |
 
 ## Process
 

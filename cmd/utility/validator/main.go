@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/Gabriel-Araujo/network_agent/internal/frr/validate"
 )
 
 func main() {
@@ -29,10 +31,10 @@ func main() {
 
 	config := string(data)
 	if *protocol != "" {
-		config = WrapSnippet(*protocol, config)
+		config = validate.WrapSnippet(*protocol, config)
 	}
 
-	result, err := ValidateConfig(context.Background(), config)
+	result, err := validate.ValidateConfig(context.Background(), config)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "validation error:", err)
 		os.Exit(1)

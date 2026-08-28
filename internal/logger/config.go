@@ -43,7 +43,7 @@ type Config struct {
 // própria configuração.
 func ConfigFromEnv() Config {
 	cfg := Config{
-		Level:    LevelInfo,
+		Level:    LevelTrace,
 		Console:  true,
 		Color:    ColorAuto,
 		MaxValue: defaultMaxValue,

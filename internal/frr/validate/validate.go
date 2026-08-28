@@ -7,7 +7,7 @@
 // require any FRR daemon to be running: vtysh validates against its own
 // compiled-in command grammar, so a bare `vtysh` binary is enough — no
 // zebra/bgpd/ospfd process, no container, no socket to manage.
-package main
+package validate
 
 import (
 	"bufio"

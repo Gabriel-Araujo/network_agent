@@ -46,8 +46,8 @@ is authoritative.
 |-------|-----------|-------------|
 | 01-intent | `shared/execution-rules.md`, tech pack `TECH.md`, `references/required-facts.md` | syntax, examples, checklist: this stage writes no config |
 | 02-evidence | nothing, script stage | anything, no model runs here |
-| 03-plan | `shared/execution-rules.md`, tech pack `TECH.md` and `doctrine.md` | syntax, examples: the plan names blocks, not commands |
-| 04-render | `shared/execution-rules.md`, tech pack `syntax.md` and `examples/` | doctrine, questionnaire: those were settled in stage 03 |
+| 03-plan | `shared/execution-rules.md`, tech pack `TECH.md` and `doctrine.md`, the `examples/` title list | syntax, example bodies: the plan names blocks and one shape, not commands |
+| 04-render | `shared/execution-rules.md`, tech pack `syntax.md`, the one example named by stage 03 | doctrine, questionnaire, every other example: those were settled in stage 03 |
 | 05-validate | nothing, script stage | anything, no model runs here |
 | 06-review | `shared/execution-rules.md`, tech pack `checklist.md` | syntax, examples: the checklist is self-contained |
 
@@ -91,3 +91,28 @@ becomes the turn.
 Layer 3 is stable across runs and belongs in the system prompt, where it reads
 as constraint. Layer 4 changes every run and belongs in the turn, where it
 reads as material to work on.
+
+## Input Scopes
+
+The Section/Scope column is a closed vocabulary. The walker rejects an
+unrecognized value when it loads the workspace, so a typo or a scope written
+as prose fails before any model call instead of silently dropping an input.
+
+| Scope | Target | Means |
+|-------|--------|-------|
+| `Full file` | a file | the whole file |
+| `Full text` | not a file | the live user turn |
+| `All files` | a directory | every file in it |
+| `Titles only` | a directory | the first heading of each file, as a list |
+| `Named in <path>` | a directory | the one file named by an artifact of an earlier stage |
+| `"A" and "B"` | markdown | the named headings, in double quotes |
+| `field` | JSON | the named field, in backticks |
+| `Read by the script` | anything | a script stage reads it, nothing is assembled |
+
+Double quotes mean a markdown heading, backticks mean a JSON field. Nothing
+else parses.
+
+A `Named in` scope resolves inside the directory on its own row. A value that
+escapes that directory, or names a file that is not there, stops the run and
+lists the valid names. A missing artifact counts as no selection, and the run
+continues without that input.

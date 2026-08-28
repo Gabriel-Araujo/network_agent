@@ -15,7 +15,7 @@ Implementation: `internal/skills/rag-retriever`.
 
 | Source | File/Location | Section/Scope | Why |
 |--------|--------------|---------------|-----|
-| Previous stage | `../01-intent/brief.json` | `objective`, `sessions`, daemons | The topics to search for |
+| Previous stage | `../01-intent/brief.json` | Read by the script | The topics to search for |
 
 ## Process
 

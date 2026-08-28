@@ -9,13 +9,13 @@ description: Mechanical validation of the rendered artifacts, syntax and referen
 Deterministic checks only. Says whether the file is valid, not whether it is
 good. Judgment belongs to stage 06.
 
-Implementation: `cmd/utility/validator`.
+Implementation: `internal/frr/validate`.
 
 ## Inputs
 
 | Source | File/Location | Section/Scope | Why |
 |--------|--------------|---------------|-----|
-| Previous stage | `../04-render/` | All emitted files | The artifacts under test |
+| Previous stage | `../04-render/` | Read by the script | The artifacts under test |
 
 ## Process
 

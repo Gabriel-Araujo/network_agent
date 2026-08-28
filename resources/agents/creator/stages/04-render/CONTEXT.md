@@ -15,9 +15,9 @@ so this stage executes it rather than reconsidering it.
 |--------|--------------|---------------|-----|
 | Shared | `../../shared/execution-rules.md` | Full file | Boundaries and register |
 | Tech pack | `../../tech-packs/{{TECH}}/syntax.md` | Full file | Block order and version gated list |
-| Tech pack | `../../tech-packs/{{TECH}}/examples/` | The example matching the session type | Canonical shape |
+| Tech pack | `../../tech-packs/{{TECH}}/examples/` | Named in `../03-plan/example.md` | Canonical shape |
 | Previous stage | `../03-plan/plan.md` | Full file | What to emit |
-| Previous stage | `../02-evidence/evidence.json` | Passages for the blocks being emitted | Syntax for the version of record |
+| Previous stage | `../02-evidence/evidence.json` | Full file | Syntax for the version of record |
 | Retry only | `../05-validate/report.json` | `findings[]` | What failed, on a second pass |
 
 ## Process

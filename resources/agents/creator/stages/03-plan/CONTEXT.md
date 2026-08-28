@@ -16,6 +16,7 @@ of here: the plan names blocks, not commands.
 | Shared | `../../shared/execution-rules.md` | Full file | Boundaries and register |
 | Tech pack | `../../tech-packs/{{TECH}}/TECH.md` | "Daemons" and "Run vocabulary" | Which daemons are defensible |
 | Tech pack | `../../tech-packs/{{TECH}}/doctrine.md` | Full file | The posture the plan must declare against |
+| Tech pack | `../../tech-packs/{{TECH}}/examples/` | Titles only | The canonical shapes available to name |
 | Previous stage | `../01-intent/brief.json` | Full file | What the user asked for |
 | Previous stage | `../02-evidence/evidence.json` | Full file | What the version of record supports |
 
@@ -37,17 +38,22 @@ of here: the plan names blocks, not commands.
    impact here, not only at delivery.
 7. Version notes: each version gated feature the plan uses, with the evidence
    that confirms it.
-8. Save to the stage folder.
+8. Canonical shape: name the one example from the title list whose shape
+   this plan follows, and say why in one line. Nothing fits is a valid
+   answer: leave the name out and let the `why:` line say what the pack does
+   not cover.
+9. Save to the stage folder.
 
 ## Checkpoints
 
 | After Step | Agent Presents | Human Decides |
 |------------|----------------|---------------|
 | 4 | `SECURITY WARNING` banner, if any item came out a regression | Whether to accept the regression |
-| 8 | `plan.md` in full | Approve, or edit the file directly |
+| 9 | `plan.md` in full, plus `example.md` | Approve, or edit either file directly |
 
-The run always stops at step 8. Stage 04 consumes whatever is on disk at
-resume, so a human edit becomes the plan.
+The run always stops at step 9. Stage 04 consumes whatever is on disk at
+resume, so a human edit becomes the plan. A name in `example.md` that no file
+in `examples/` matches stops the run at resume and lists the valid names.
 
 ## Audit
 
@@ -57,9 +63,11 @@ resume, so a human edit becomes the plan.
 | No syntax | No FRR command appears anywhere in `plan.md` |
 | Numbers justified | Every timer or threshold states its effect and why that value |
 | Rollback impact | The rollback section names session loss explicitly when daemons change |
+| Example justified | `example.md` carries a `why:` line, with or without a name |
 
 ## Outputs
 
 | Artifact | Location | Format |
 |----------|----------|--------|
 | Plan | `plan.md` | The seven sections above, in that order |
+| Shape | `example.md` | The example filename, or nothing, plus one `why:` line |
