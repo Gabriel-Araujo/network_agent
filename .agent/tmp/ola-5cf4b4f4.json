@@ -1,0 +1,18 @@
+{
+  "title": "Intent Analysis - FRR",
+  "timestamp": "2026-08-23T17:39:01-03:00",
+  "originalQuery": "ola",
+  "classification": {
+    "intentType": "conceptual",
+    "protocols": [],
+    "daemons": []
+  },
+  "devices": [],
+  "connections": [],
+  "problemAndGoalSummary": "The user submitted only a greeting ('ola') with no technical networking query, protocol references, device labels, or troubleshooting details. No FRR configuration, diagnostic issue, or conceptual question was stated.",
+  "executionPipeline": {
+    "1": "Acknowledge the greeting and wait for a specific technical inquiry regarding routing, switching, or FRR configuration.",
+    "2": "Prompt the user to specify the target protocol(s) (e.g., BGP, OSPF, IS-IS), device labels, and the exact nature of the issue or question."
+  },
+  "ragQueries": {}
+}

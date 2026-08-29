@@ -69,8 +69,8 @@ definition: versioned, read only. Artifacts go to
 `.agent/workspace/creator/01-intent/brief.json`, and an Outputs row naming
 `plan.md` is written to `.agent/workspace/creator/03-plan/plan.md`.
 
-One workspace per agent, one active pipeline at a time. A new request reuses
-the same folders, so check `status` first if the previous pipeline still
+One workspace per agent, one active run at a time. A new request reuses
+the same folders, so check `status` first if the previous run still
 matters.
 
 ## Input Sources
@@ -95,7 +95,7 @@ reads as material to work on.
 ## Input Scopes
 
 The Section/Scope column is a closed vocabulary. The walker rejects an
-unrecognized value when it loads the workspace, so a typo or a scope written
+unrecognized value when it loads the agent, so a typo or a scope written
 as prose fails before any model call instead of silently dropping an input.
 
 | Scope | Target | Means |

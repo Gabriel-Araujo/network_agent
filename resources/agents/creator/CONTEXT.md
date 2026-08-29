@@ -31,7 +31,7 @@ Do not guess.
 |----------|----------|----------|
 | Execution rules | `shared/execution-rules.md` | Boundaries, version of record, output register. Every LLM stage loads it |
 | Tech packs | `tech-packs/CONTEXT.md` | Routing into the per-technology reference collection |
-| Onboarding | `setup/questionnaire.md` | Workspace level defaults, asked once, never per run |
+| Onboarding | `setup/questionnaire.md` | Agent level defaults, asked once, never per run |
 | Skills | `../skills/*/SKILL.md` | Executable procedures the script stages call |
 
 ## Context Rule

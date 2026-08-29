@@ -14,7 +14,7 @@ never guessed; an operational preference may take a default.
 | Authentication | Does the session use a password or keychain? Under what name? | Doctrine requires authentication, and the name is a reference, not the value |
 | FRR version | Which version runs in production? | Governs version gated features |
 
-Skip a row when `setup/questionnaire.md` already answered it at the workspace
+Skip a row when `setup/questionnaire.md` already answered it at the agent
 level. Ask only for what is still unknown at run time.
 
 ## Ask When the Request Implies It

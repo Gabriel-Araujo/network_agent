@@ -1,6 +1,6 @@
 # Tech Packs
 
-Per-technology reference material for this workspace. One folder per routing
+Per-technology reference material for this agent. One folder per routing
 technology, the same files in each, so a stage contract can name a file
 without knowing which technology the run picked.
 
@@ -27,7 +27,7 @@ folder defines its own in its own `CONTEXT.md`.
 ## Adding a Pack
 
 Create `tech-packs/<slug>/` with all four files plus `examples/`. Add a row to
-the table above and to the selection table in the workspace `CONTEXT.md`. No
+the table above and to the selection table in the agent `CONTEXT.md`. No
 stage contract changes: they address the pack through `{{TECH}}`.
 
 `reference/` is optional. Create it only when the pack has material worth

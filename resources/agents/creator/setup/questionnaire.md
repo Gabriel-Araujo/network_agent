@@ -1,6 +1,6 @@
 # Onboarding
 
-Answers configure the workspace, not a run. Asked once. Per run facts (ASNs,
+Answers configure the agent, not a run. Asked once. Per run facts (ASNs,
 prefixes, peers) are collected by stage 01, never here.
 
 Answer everything in one message. Skip anything you do not care about and the
@@ -35,4 +35,4 @@ default applies.
 
 8. Should stage 03 always pause for approval, even for single parameter
    changes?
-   Default: yes. Turning this off removes the only human gate in the pipeline.
+   Default: yes. Turning this off removes the only human checkpoint in the pipeline.

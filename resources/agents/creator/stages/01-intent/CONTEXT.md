@@ -1,7 +1,7 @@
 ---
 name: 01-intent
 executor: llm
-gate_when: questions.md
+checkpoint_when: questions.md
 description: Turns the request into a structured briefing and lists what must be asked.
 ---
 

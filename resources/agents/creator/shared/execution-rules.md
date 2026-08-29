@@ -3,7 +3,7 @@
 Constraints that hold in every stage of every run. Loaded by every LLM stage.
 This is the canonical home for these rules; no stage restates them.
 
-## What This Workspace Produces
+## What This Agent Produces
 
 An integrated `frr.conf`, always the single authoritative configuration. Plus
 `daemons` and `vtysh.conf`, only when daemon enablement changes. Never

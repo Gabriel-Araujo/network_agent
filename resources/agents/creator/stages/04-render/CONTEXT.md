@@ -6,7 +6,7 @@ description: Emits frr.conf and daemons from the approved plan.
 
 # Render
 
-Turns the approved plan into artifacts. The plan already passed a human gate,
+Turns the approved plan into artifacts. The plan already passed a human checkpoint,
 so this stage executes it rather than reconsidering it.
 
 ## Inputs
@@ -24,7 +24,7 @@ so this stage executes it rather than reconsidering it.
 
 1. Emit one section of `frr.conf` per block in the plan, in the plan's order.
 2. Introduce nothing the plan does not list. Noticing a missing block, stop
-   and name it. A render that invents invalidates the approval gate.
+   and name it. A render that invents invalidates the approval checkpoint.
 3. Give every line carrying a timer, limit, or threshold a `!` comment with
    its expected effect.
 4. Reference secrets by keychain or password name, never by value.

@@ -1,0 +1,21 @@
+```json
+{
+  "title": "Intent Analysis - FRR",
+  "timestamp": "2026-08-23T17:41:02-03:00",
+  "originalQuery": "ola",
+  "classification": {
+    "intentType": "conceptual",
+    "protocols": [],
+    "daemons": []
+  },
+  "devices": [],
+  "connections": [],
+  "problemAndGoalSummary": "The user sent a greeting without providing any technical networking details, protocols, device names, interfaces, or configuration context. No specific FRR troubleshooting, configuration, or operational task is described.",
+  "executionPipeline": {
+    "1": "Request the user to specify the target protocol (e.g., OSPF, BGP, IS-IS) and the exact goal (configuration from scratch, debugging non-convergence, or general overview).",
+    "2": "Ask for device topology, roles, FRR version, and any error logs or symptoms to scope the documentation retrieval.",
+    "3": "Once protocol is identified, retrieve relevant daemon architecture guides, configuration syntax references, and troubleshooting decision trees."
+  },
+  "ragQueries": {}
+}
+```
