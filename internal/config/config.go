@@ -37,16 +37,18 @@ func CreateModel() types.Model {
 func Load() types.Config {
 	raw, err := os.ReadFile(fileLocation)
 	if err != nil {
-		log.Info("No config file detected. Starting config creator.")
+		log.Warn("No config file detected. Starting config creator.")
 		return CreateConfig()
 	}
 
 	var config types.Config
 	err = json.Unmarshal(raw, &config)
 	if err != nil {
-		log.Info("Failed to load existing config. Starting config creator.")
+		log.Warn("Failed to load existing config. Starting config creator.")
 		return CreateConfig()
 	}
+
+	log.Infof("Loaded config from: %s\n", fileLocation)
 
 	return config
 }
