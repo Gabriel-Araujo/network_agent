@@ -19,14 +19,14 @@ func HandleSkillCall(call responses.ResponseFunctionToolCall) responses.Response
 			SkillName string `json:"skill_name"`
 		}
 		if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
-			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: argumentos inválidos: %v", err))
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err))
 		}
 
 		sk, ok := reg.Get(args.SkillName)
 		if !ok {
-			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: skill %q não encontrada", args.SkillName))
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: skill %q não encontrada", args.SkillName))
 		}
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, sk.Body)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(sk.Body)
 
 	case ToolReadSkillFile:
 		var args struct {
@@ -34,16 +34,16 @@ func HandleSkillCall(call responses.ResponseFunctionToolCall) responses.Response
 			RelativePath string `json:"relative_path"`
 		}
 		if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
-			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: argumentos inválidos: %v", err))
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err))
 		}
 
 		content, err := reg.ReadFile(args.SkillName, args.RelativePath)
 		if err != nil {
-			return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: %v", err))
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: %v", err))
 		}
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, content)
+		return responses.ResponseInputItemParamOfFunctionCallOutput(content)
 
 	default:
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, "Error: Called invalid skill function")
+		return responses.ResponseInputItemParamOfFunctionCallOutput("Error: Called invalid skill function")
 	}
 }

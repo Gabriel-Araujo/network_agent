@@ -67,7 +67,7 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 
 		a.previousResponseID = resp.ID
 
-		outputs := []responses.ResponseInputItemUnionParam{}
+		var outputs []responses.ResponseInputItemUnionParam
 
 		finished := true
 
@@ -134,7 +134,7 @@ func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctio
 		Task string `json:"task"`
 	}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro: argumentos inválidos: %v", err))
+		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err))
 	}
 
 	sub := &Agent{
@@ -146,8 +146,8 @@ func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctio
 
 	out, err := sub.Chat(ctx, args.Task)
 	if err != nil {
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, fmt.Sprintf("erro no sub-agente: %v", err))
+		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro no sub-agente: %v", err))
 	}
 
-	return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, out)
+	return responses.ResponseInputItemParamOfFunctionCallOutput(out)
 }

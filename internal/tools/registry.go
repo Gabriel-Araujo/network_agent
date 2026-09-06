@@ -36,32 +36,32 @@ func CallFunction(
 	err := json.Unmarshal([]byte(call.Arguments), &args)
 	if err != nil {
 		log.Error("argumentos inválidos na chamada de função", "name", call.Name, "err", err)
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, "Error: Failed to get args from function call object.")
+		return responses.ResponseInputItemParamOfFunctionCallOutput("Error: Failed to get args from function call object.")
 	}
 
 	args["workingDirectory"] = DEFAULT_ROOT_DIRECTORY
 
 	switch call.Name {
 	case filetools.READ_TOOL_NAME:
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.ReadFile(args["workingDirectory"], args["filePath"]))
+		return responses.ResponseInputItemParamOfFunctionCallOutput(filetools.ReadFile(args["workingDirectory"], args["filePath"]))
 	case filetools.EDIT_TOOL_NAME:
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.EditFile(
+		return responses.ResponseInputItemParamOfFunctionCallOutput(filetools.EditFile(
 			args["workingDirectory"],
 			args["filePath"],
 			args["oldText"],
 			args["newText"]))
 	case filetools.WRITE_TOOL_NAME:
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.WriteFile(
+		return responses.ResponseInputItemParamOfFunctionCallOutput(filetools.WriteFile(
 			args["workingDirectory"],
 			args["filePath"],
 			args["content"]))
 	case filetools.SEARCH_TOOL_NAME:
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, filetools.SearchPattern(
+		return responses.ResponseInputItemParamOfFunctionCallOutput(filetools.SearchPattern(
 			args["workingDirectory"],
 			args["path"],
 			args["pattern"]))
 
 	default:
-		return responses.ResponseInputItemParamOfFunctionCallOutput(call.CallID, "Error: Called invalid function")
+		return responses.ResponseInputItemParamOfFunctionCallOutput("Error: Called invalid function")
 	}
 }
