@@ -1,11 +1,10 @@
 module github.com/Gabriel-Araujo/network_agent
 
-go 1.26.3
+go 1.27.1
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/openai/openai-go/v3 v3.50.0
-	github.com/pelletier/go-toml/v2 v2.4.3
+	github.com/openai/openai-go/v3 v3.56.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -20,7 +19,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )
 
 replace github.com/Gabriel-Araujo/network_agent => ./

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/loaders"
 	"github.com/jackc/pgx/v5"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -157,13 +157,12 @@ DO UPDATE SET
 }
 
 func getOpenaiClient() openai.Client {
-	_config, err := loaders.Load()
-	if err != nil {
-		log.Fatalf("erro carregando configuração: %v", err)
-	}
+	_config := config.Load()
+	provider := _config.Providers[_config.Selected]
+
 	return openai.NewClient(
-		option.WithBaseURL(_config.Url),
-		option.WithAPIKey(_config.ApiKey),
+		option.WithBaseURL(provider.Url),
+		option.WithAPIKey(provider.ApiKey),
 	)
 
 }

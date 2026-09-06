@@ -22,7 +22,7 @@ func loadAgent() string {
 }
 
 func LoadTestAgent() *llm.Agent {
-	_agent, err := Connect(envConfig())
+	_agent, err := Connect(getTestConfig())
 
 	if err != nil {
 		log.Panicf("falha ao carregar o agente de teste: %v", err)
@@ -32,12 +32,7 @@ func LoadTestAgent() *llm.Agent {
 }
 
 func LoadEmbbedAgent() *llm.Agent {
-	_agent, err := Connect(Config{
-		ModelName:    "fastiraz/text-embedding-qwen3-embedding-8b",
-		Url:          "http://localhost:1234/v1",
-		ApiKey:       "none",
-		ProviderName: "LM Studio",
-	})
+	_agent, err := Connect(getEmbedConfig())
 
 	if err != nil {
 		log.Panicf("falha ao carregar o agente de embedding: %v", err)

@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm"
 	agentapi "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/env"
-	"github.com/Gabriel-Araujo/network_agent/internal/loaders"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	intentanalyser "github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
@@ -28,18 +28,10 @@ func main() {
 	}
 	logger.Init(cfg)
 
-	llmConfig, err := loaders.Load()
-	if err != nil {
-		log.Fatalf("erro carregando configuração: %v", err)
-	}
+	llmConfig := config.Load()
 
 	// Mapeamento explícito para evitar erros de tipos de pacotes diferentes
-	agent, err := llm.Connect(llm.Config{
-		ModelName:    llmConfig.ModelName,
-		Url:          llmConfig.Url,
-		ApiKey:       llmConfig.ApiKey,
-		ProviderName: llmConfig.ProviderName,
-	})
+	agent, err := llm.Connect(llmConfig)
 
 	if err != nil {
 		log.Fatalf("falha ao conectar ao LLM: %v", err)

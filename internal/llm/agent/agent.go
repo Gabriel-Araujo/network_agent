@@ -14,9 +14,21 @@ import (
 type Agent struct {
 	Client             openai.Client
 	ModelName          string
-	AvailableTools     []responses.ToolUnionParam
-	SystemPrompt       string
+	modelContextSize   int64
+	availableTools     []responses.ToolUnionParam
+	systemPrompt       string
 	previousResponseID string
+}
+
+func Init(client openai.Client, modelName string, modelContextSize int64, tools []responses.ToolUnionParam, systemPrompt string) *Agent {
+	return &Agent{
+		client,
+		modelName,
+		modelContextSize,
+		tools,
+		systemPrompt,
+		"",
+	}
 }
 
 func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
@@ -25,7 +37,7 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 	if a.previousResponseID == "" {
 		input = responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
-				responses.ResponseInputItemParamOfMessage(a.SystemPrompt, responses.EasyInputMessageRoleSystem),
+				responses.ResponseInputItemParamOfMessage(a.systemPrompt, responses.EasyInputMessageRoleSystem),
 				responses.ResponseInputItemParamOfMessage(userMessage, responses.EasyInputMessageRoleUser),
 			},
 		}
@@ -39,7 +51,7 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 	params := responses.ResponseNewParams{
 		Model: a.ModelName,
 		Input: input,
-		Tools: a.AvailableTools,
+		Tools: a.availableTools,
 	}
 
 	if a.previousResponseID != "" {
@@ -98,7 +110,7 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 			Model:              a.ModelName,
 			PreviousResponseID: openai.String(resp.ID),
 			Input:              responses.ResponseNewParamsInputUnion{OfInputItemList: outputs},
-			Tools:              a.AvailableTools,
+			Tools:              a.availableTools,
 		}
 	}
 }
@@ -128,8 +140,8 @@ func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctio
 	sub := &Agent{
 		Client:         a.Client,
 		ModelName:      a.ModelName,
-		AvailableTools: a.AvailableTools,
-		SystemPrompt:   a.SystemPrompt,
+		availableTools: a.availableTools,
+		systemPrompt:   a.systemPrompt,
 	}
 
 	out, err := sub.Chat(ctx, args.Task)

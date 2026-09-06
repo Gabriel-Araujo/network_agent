@@ -60,6 +60,16 @@ func ConfigFromEnv() Config {
 	return cfg
 }
 
+func DefaultConfig() Config {
+	return Config{
+		Level:    LevelTrace,
+		Console:  true,
+		Color:    ColorAuto,
+		MaxValue: defaultMaxValue,
+		MaxFiles: defaultMaxFiles,
+	}
+}
+
 func envLevel(key string, def slog.Level) slog.Level {
 	switch strings.ToLower(os.Getenv(key)) {
 	case "trace":
