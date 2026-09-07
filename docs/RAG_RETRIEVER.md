@@ -101,7 +101,7 @@ resultado robusto a variações de vocabulário — o ponto central do RAG.
 A lógica foi **extraída para a skill** `internal/skills/rag-retriever/`
 (espelhando o `internal/skills/intent-analyser/`), que orquestra o fluxo e
 carrega **seus próprios prompts** (`prompt.md` via `//go:embed`). O mecanismo
-puro de busca permanece em `internal/llm/rag/retriever/`:
+puro de busca permanece em `../internal/agent/rag`:
 
 ```
 cmd/cli/main.go
@@ -178,7 +178,7 @@ O fallback nunca é o caminho normal — é um **seguro contra briefings
 legados**. Isso honra o princípio "determinístico primeiro, LLM segundo":
 chamadas de modelo são lentas, não-determinísticas e custosas.
 
-### 4.4 `internal/llm/rag/retriever/embed.go` — embeddings e consistência de dimensão
+### 4.4 `../internal/agent/rag` — embeddings e consistência de dimensão
 
 `embedTexts` usa `client.Embeddings.New(...)` com o **mesmo modelo do
 ingester** (`text-embedding-qwen3-embedding-8b`). Isso é um requisito físico:
@@ -190,7 +190,7 @@ diferentes).
 `len == 4096`. Se o modelo trocar, o erro é claro ("dimensão X, esperava
 4096") em vez de uma busca silenciosamente sem sentido.
 
-### 4.5 `internal/llm/rag/retriever/db.go` — SQL híbrido
+### 4.5 `../internal/agent/rag` — SQL híbrido
 
 Duas queries parametrizadas com filtros opcionais como `*string` (nil = sem
 filtro):
@@ -230,7 +230,7 @@ decorativos, aproveitando o índice btree `(daemon, protocol, chunk_type)`.
 a cada busca seria caro; o singleton evita essa recriação. Um `Ping` no
 primeiro uso valida a conexão cedo (fail-fast).
 
-### 4.7 `internal/llm/rag/env/env.go` — configuração via ambiente
+### 4.7 `../internal/agent/rag` — configuração via ambiente
 
 `LoadEnv()` lê `DATABASE_URL`/`EMBEDDING_MODEL` de variáveis de ambiente com
 fallback para o `.env` na raiz do repo (`paths.RepoFile`), preservando a
@@ -329,7 +329,7 @@ interrompida pela ausência de banco.
 | Decisão | Por quê |
 |---|---|
 | **Skill Go determinística** (não tool do agente) | O agente deserializa args de tool em `map[string]string`; args aninhados (array de queries) quebrariam. Uma skill que consome o arquivo evita o gotcha e mantém o pipeline testável fora do loop de tools. |
-| **Retriever como skill (`internal/skills/rag-retriever`)** | Espelha o `intent-analyser`: orquestração (Do/SaveResults), parse e prompts embutidos (`prompt.md`) vivem na skill; o mecanismo de busca fica em `internal/llm/rag/retriever`. |
+| **Retriever como skill (`internal/skills/rag-retriever`)** | Espelha o `intent-analyser`: orquestração (Do/SaveResults), parse e prompts embutidos (`prompt.md`) vivem na skill; o mecanismo de busca fica em `../internal/agent/rag`. |
 | **Parse do `ragQueries` (JSON) antes de LLM** | Determinismo, custo e fidelidade ao vocabulário já esculpido na etapa [1]. |
 | **Fallback LLM** | Cobre briefings legados sem `ragQueries`, mantendo compatibilidade. |
 | **Busca híbrida com RRF** | Aproveita diskann + GIN; robusto a escalas de score distintas. |
@@ -388,9 +388,9 @@ suíte completa `go test ./...` ✅ — resultado **ALL_GREEN**.
   campo `ragQueries` (substituiu a antiga tabela markdown).
 - `cmd/cli/main.go` — wiring do `runRetrieval` agora chama
   `ragretriever.Do(...)` + injeção de contexto.
-- `internal/llm/rag/types.go` — `Result` passa a incluir `protocol`, `daemon`
+- `../internal/agent/rag` — `Result` passa a incluir `protocol`, `daemon`
   e `chunk_type`.
-- `internal/llm/rag/retriever/retriever.go` — `Retrieve` preenche os metadados
+- `../internal/agent/rag` — `Retrieve` preenche os metadados
   no `Result`; **removidos** `Do` e `SaveResults` (movidos para a skill);
   removido o import de `querygen`.
 - `tests/internal/llm/` — testes apontando para a skill e validando os novos
@@ -399,7 +399,7 @@ suíte completa `go test ./...` ✅ — resultado **ALL_GREEN**.
   com `protocol`/`daemon`/`chunk_type` e o formato JSON do briefing.
 
 **Removidos**
-- `internal/llm/rag/querygen/` — pacote inteiro (`querygen.go`,
+- `../internal/agent/rag` — pacote inteiro (`querygen.go`,
   `querygen_prompt.go`, `querygen_prompt.md`): o parse do `ragQueries` e o
   fallback LLM migraram para a skill, e o antigo parser de tabela markdown já
   era obsoleto (commit `64e53fd`).

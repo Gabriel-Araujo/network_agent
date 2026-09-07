@@ -1,13 +1,17 @@
-package llm
+package agent
 
 import (
-	llm "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
+	_ "embed"
+
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
 
-func Connect(config types.Config) (*llm.Agent, error) {
+//go:embed prompts/AGENT.md
+var baseAgent string
+
+func Connect(config types.Config) (*Agent, error) {
 	provider := config.Providers[config.Selected]
 	log.Debugf("Trying connection with Provider '%s' through '%s'\n",
 		provider.Name, provider.Url)
@@ -21,11 +25,11 @@ func Connect(config types.Config) (*llm.Agent, error) {
 	log.Info("conectado")
 
 	model := provider.Models[provider.DefaultModel]
-	return llm.Init(
+	return Init(
 		client,
 		model.Id,
 		model.ContextSize,
 		loadSkillsAndTools(),
-		loadAgent(),
+		baseAgent,
 	), nil
 }

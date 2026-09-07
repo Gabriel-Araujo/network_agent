@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/pkg/db"
 	"github.com/openai/openai-go/v3"
 )

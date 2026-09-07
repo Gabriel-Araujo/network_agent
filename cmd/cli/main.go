@@ -7,31 +7,24 @@ import (
 	"os"
 	"strings"
 
+	agentapi "github.com/Gabriel-Araujo/network_agent/internal/agent"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/env"
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm"
-	agentapi "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/env"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
-	intentanalyser "github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
 
 var log = logger.Named("MAIN")
 
 func main() {
-	// O cli roda como sessão: ganha arquivo de log por default. O if preserva
-	// o override — sem ele, o main sobrescreveria LOG_FILE.
 	cfg := logger.ConfigFromEnv()
 	if cfg.File == "" {
 		cfg.File = "logs"
 	}
 	logger.Init(cfg)
 
-	llmConfig := config.Load()
-
-	// Mapeamento explícito para evitar erros de tipos de pacotes diferentes
-	agent, err := llm.Connect(llmConfig)
+	agent, err := agentapi.Connect(config.Load())
 
 	if err != nil {
 		log.Fatalf("falha ao conectar ao LLM: %v", err)
@@ -60,7 +53,7 @@ func main() {
 			continue
 		}
 
-		intentPath, err := intentanalyser.Do(ctx, userInput, agent)
+		/*intentPath, err := intentanalyser.Do(ctx, userInput, agent)
 		if err != nil {
 			log.Error("falha ao analisar a intenção", "err", err)
 			continue
@@ -79,11 +72,10 @@ func main() {
 			log.Info("retrieval salvo", "path", retrievalOut)
 		}
 
-		prompt := userInput
 		if retrievalJSON := loadRetrievalJSON(retrievalOut); retrievalJSON != "" {
 			prompt = userInput + "\n\n<recovered_context>\n" + retrievalJSON + "\n</recovered_context>"
-		}
-
+		}*/
+		prompt := userInput
 		out, err := agent.Chat(ctx, prompt)
 
 		if err != nil {
@@ -106,7 +98,7 @@ func runRetrieval(ctx context.Context, agent *agentapi.Agent, intentPath string)
 
 	// Embeddings vêm do LoadEmbedAgent (LM Studio em localhost: 1234),
 	// que serve o MESMO modelo usado no ingester (4096 dims).
-	embAgent := llm.LoadEmbbedAgent()
+	embAgent := agentapi.LoadEmbbedAgent()
 	cfg := rag.Config{
 		DSN:            dsn,
 		EmbeddingModel: embAgent.ModelName,

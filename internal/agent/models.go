@@ -1,27 +1,14 @@
-package llm
+package agent
 
 import (
-	_ "embed"
-
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	"github.com/openai/openai-go/v3/responses"
 )
 
-// log é o handle do pacote. Uma declaração por pacote, não por arquivo: em Go
-// um var de pacote é visível em todos os arquivos, e repeti-lo seria
-// redeclaração.
-var log = logger.Named("LLM")
+var log = logger.Named("MODELS")
 
-//go:embed agent/prompts/system-prompt.md
-var systemPrompt string
-
-func loadAgent() string {
-	return systemPrompt
-}
-
-func LoadTestAgent() *llm.Agent {
+func LoadTestAgent() *Agent {
 	_agent, err := Connect(getTestConfig())
 
 	if err != nil {
@@ -31,7 +18,7 @@ func LoadTestAgent() *llm.Agent {
 	return _agent
 }
 
-func LoadEmbbedAgent() *llm.Agent {
+func LoadEmbbedAgent() *Agent {
 	_agent, err := Connect(getEmbedConfig())
 
 	if err != nil {

@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	ragsearch "github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/retriever"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
@@ -33,7 +33,7 @@ func Do(ctx context.Context, briefingPath string, cfg rag.Config) (string, error
 		return "", fmt.Errorf("gerando queries do briefing: %w", err)
 	}
 
-	results, err := ragsearch.Retrieve(ctx, cfg, queries)
+	results, err := retriever.Retrieve(ctx, cfg, queries)
 	if err != nil {
 		return "", fmt.Errorf("buscando no pgvector: %w", err)
 	}

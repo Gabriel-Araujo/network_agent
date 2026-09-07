@@ -1,4 +1,4 @@
-package llm
+package agent
 
 import "github.com/Gabriel-Araujo/network_agent/internal/types"
 

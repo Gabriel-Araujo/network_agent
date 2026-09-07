@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	llm2 "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
+	llm2 "github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"

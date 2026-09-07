@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
 	"github.com/jackc/pgx/v5"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"

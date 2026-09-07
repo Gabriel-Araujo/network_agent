@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	llm "github.com/Gabriel-Araujo/network_agent/internal/llm/agent"
+	llm "github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"

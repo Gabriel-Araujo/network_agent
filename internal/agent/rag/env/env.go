@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag"
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/retriever"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/retriever"
 	"github.com/Gabriel-Araujo/network_agent/internal/paths"
 	"github.com/Gabriel-Araujo/network_agent/pkg/db"
 )
