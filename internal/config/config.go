@@ -38,14 +38,18 @@ func Load() types.Config {
 	raw, err := os.ReadFile(fileLocation)
 	if err != nil {
 		log.Warn("No config file detected. Starting config creator.")
-		return CreateConfig()
+		config := CreateConfig()
+		save(config)
+		return config
 	}
 
 	var config types.Config
 	err = json.Unmarshal(raw, &config)
 	if err != nil {
 		log.Warn("Failed to load existing config. Starting config creator.")
-		return CreateConfig()
+		config := CreateConfig()
+		save(config)
+		return config
 	}
 
 	log.Infof("Loaded config from: %s\n", fileLocation)
