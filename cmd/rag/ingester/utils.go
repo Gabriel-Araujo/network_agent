@@ -157,7 +157,15 @@ DO UPDATE SET
 }
 
 func getOpenaiClient() openai.Client {
-	_config := config.Load()
+	// Ingester é batch: lê a configuração já existente e falha claramente se
+	// não houver — não abre wizard interativo.
+	_config, err := config.Read()
+	if err != nil {
+		log.Fatalf("falha ao carregar a configuração (%s): %v", config.Path(), err)
+	}
+	if len(_config.Providers) == 0 {
+		log.Fatalf("nenhum provedor configurado em %s", config.Path())
+	}
 	provider := _config.Providers[_config.Selected]
 
 	return openai.NewClient(

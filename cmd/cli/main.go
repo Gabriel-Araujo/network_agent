@@ -24,7 +24,16 @@ func main() {
 	}
 	logger.Init(cfg)
 
-	agent, err := agentapi.Connect(config.Load())
+	// Registra o wizard de terminal: quando não há configuração, config.Load()
+	// delega a ele. Cada front-end registra o seu (a GUI usa a tela própria).
+	config.SetCreator(createConfig)
+
+	appCfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("falha ao carregar a configuração (%s): %v", config.Path(), err)
+	}
+
+	agent, err := agentapi.Connect(appCfg)
 
 	if err != nil {
 		log.Fatalf("falha ao conectar ao LLM: %v", err)

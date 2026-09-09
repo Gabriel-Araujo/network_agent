@@ -22,18 +22,26 @@ export function DeleteProvider(arg1) {
   return window['go']['main']['App']['DeleteProvider'](arg1);
 }
 
-export function GetSettings() {
-  return window['go']['main']['App']['GetSettings']();
+export function GetConfig() {
+  return window['go']['main']['App']['GetConfig']();
 }
 
 export function ListChats() {
   return window['go']['main']['App']['ListChats']();
 }
 
-export function UpdateModel(arg1, arg2) {
-  return window['go']['main']['App']['UpdateModel'](arg1, arg2);
+export function SelectProvider(arg1) {
+  return window['go']['main']['App']['SelectProvider'](arg1);
 }
 
-export function UpdateProvider(arg1) {
-  return window['go']['main']['App']['UpdateProvider'](arg1);
+export function SetDefaultModel(arg1, arg2) {
+  return window['go']['main']['App']['SetDefaultModel'](arg1, arg2);
+}
+
+export function UpdateModel(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateModel'](arg1, arg2, arg3);
+}
+
+export function UpdateProvider(arg1, arg2) {
+  return window['go']['main']['App']['UpdateProvider'](arg1, arg2);
 }

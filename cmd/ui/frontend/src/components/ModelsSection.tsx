@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Plus, Trash, PencilSimple, Star } from '@phosphor-icons/react'
-import { EMPTY_MODEL, ModelConfig, ProviderConfig, Settings } from '../types'
+import { AppConfig, EMPTY_MODEL, ModelConfig, ProviderConfig } from '../types'
 
 interface ModelsSectionProps {
   provider: ProviderConfig
-  onChanged: (s: Settings) => void
+  providerIndex: number
+  onChanged: (c: AppConfig) => void
   onError: (msg: string) => void
 }
 
@@ -12,17 +13,31 @@ const api = () => (window as any).go?.main?.App
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
 
-export default function ModelsSection({ provider, onChanged, onError }: ModelsSectionProps) {
-  // draft === null -> nenhum formulário aberto
-  // draft.id === '' -> criando; caso contrário, editando
+export default function ModelsSection({
+  provider,
+  providerIndex,
+  onChanged,
+  onError,
+}: ModelsSectionProps) {
   const [draft, setDraft] = useState<ModelConfig | null>(null)
+  // índice do modelo em edição; null = criando
+  const [editIdx, setEditIdx] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const creating = draft?.id === ''
+  const creating = draft !== null && editIdx === null
 
-  const startCreate = () => setDraft({ id: '', ...EMPTY_MODEL })
-  const startEdit = (m: ModelConfig) => setDraft({ ...m })
-  const cancel = () => setDraft(null)
+  const startCreate = () => {
+    setEditIdx(null)
+    setDraft({ ...EMPTY_MODEL })
+  }
+  const startEdit = (m: ModelConfig, i: number) => {
+    setEditIdx(i)
+    setDraft({ ...m })
+  }
+  const cancel = () => {
+    setDraft(null)
+    setEditIdx(null)
+  }
 
   const set = <K extends keyof ModelConfig>(k: K, v: ModelConfig[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d))
@@ -33,11 +48,11 @@ export default function ModelsSection({ provider, onChanged, onError }: ModelsSe
     if (!a) return onError('Bindings do Go indisponíveis.')
     setSaving(true)
     try {
-      const s: Settings = creating
-        ? await a.CreateModel(provider.id, draft)
-        : await a.UpdateModel(provider.id, draft)
-      onChanged(s)
-      setDraft(null)
+      const c: AppConfig = creating
+        ? await a.CreateModel(providerIndex, draft)
+        : await a.UpdateModel(providerIndex, editIdx, draft)
+      onChanged(c)
+      cancel()
     } catch (e) {
       onError(String(e))
     } finally {
@@ -45,13 +60,22 @@ export default function ModelsSection({ provider, onChanged, onError }: ModelsSe
     }
   }
 
-  const remove = async (modelID: string) => {
+  const remove = async (i: number) => {
     const a = api()
     if (!a) return
     try {
-      const s: Settings = await a.DeleteModel(provider.id, modelID)
-      onChanged(s)
-      if (draft?.id === modelID) setDraft(null)
+      onChanged(await a.DeleteModel(providerIndex, i))
+      if (editIdx === i) cancel()
+    } catch (e) {
+      onError(String(e))
+    }
+  }
+
+  const setDefault = async (i: number) => {
+    const a = api()
+    if (!a) return
+    try {
+      onChanged(await a.SetDefaultModel(providerIndex, i))
     } catch (e) {
       onError(String(e))
     }
@@ -68,16 +92,18 @@ export default function ModelsSection({ provider, onChanged, onError }: ModelsSe
       </div>
 
       {provider.models.length === 0 && !draft && (
-        <p className="settings__empty">Nenhum modelo cadastrado neste provedor.</p>
+        <p className="settings__empty">
+          Nenhum modelo cadastrado. Cadastre ao menos um para poder conversar.
+        </p>
       )}
 
       <ul className="models__list">
-        {provider.models.map((m) => (
-          <li key={m.id} className="models__row">
+        {provider.models.map((m, i) => (
+          <li key={i} className="models__row">
             <span className="models__row-main">
               <span className="models__name">
-                {m.name}
-                {m.default && (
+                {m.name || m.id}
+                {i === provider.default_model && (
                   <span className="models__badge" title="Modelo padrão">
                     <Star size={10} weight="fill" aria-hidden="true" />
                     padrão
@@ -85,14 +111,34 @@ export default function ModelsSection({ provider, onChanged, onError }: ModelsSe
                 )}
               </span>
               <span className="models__meta">
-                contexto {fmt(m.maxContext)} · saída {fmt(m.maxTokens)} · temp {m.temperature}
+                id {m.id} · contexto {fmt(m.context_size)}
               </span>
             </span>
             <span className="models__row-actions">
-              <button className="icon-btn" onClick={() => startEdit(m)} aria-label={`Editar ${m.name}`} title="Editar">
+              {i !== provider.default_model && (
+                <button
+                  className="icon-btn"
+                  onClick={() => setDefault(i)}
+                  aria-label={`Tornar ${m.name || m.id} o padrão`}
+                  title="Tornar padrão"
+                >
+                  <Star size={14} weight="bold" aria-hidden="true" />
+                </button>
+              )}
+              <button
+                className="icon-btn"
+                onClick={() => startEdit(m, i)}
+                aria-label={`Editar ${m.name || m.id}`}
+                title="Editar"
+              >
                 <PencilSimple size={14} weight="bold" aria-hidden="true" />
               </button>
-              <button className="icon-btn icon-btn--danger" onClick={() => remove(m.id)} aria-label={`Excluir ${m.name}`} title="Excluir">
+              <button
+                className="icon-btn icon-btn--danger"
+                onClick={() => remove(i)}
+                aria-label={`Excluir ${m.name || m.id}`}
+                title="Excluir"
+              >
                 <Trash size={14} weight="bold" aria-hidden="true" />
               </button>
             </span>
@@ -105,78 +151,40 @@ export default function ModelsSection({ provider, onChanged, onError }: ModelsSe
           <p className="models__form-title">{creating ? 'Novo modelo' : 'Editar modelo'}</p>
 
           <div className="field">
-            <label className="field__label" htmlFor="mod-name">Nome do modelo</label>
+            <label className="field__label" htmlFor="mod-id">
+              ID do modelo (usado na API)
+            </label>
+            <input
+              id="mod-id"
+              className="field__input"
+              value={draft.id}
+              onChange={(e) => set('id', e.target.value)}
+              placeholder="google/gemma-4-12b-qat"
+            />
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="mod-name">Nome de exibição</label>
             <input
               id="mod-name"
               className="field__input"
               value={draft.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder="google/gemma-4-12b-qat"
+              placeholder="Gemma 4 12B"
             />
           </div>
 
-          <div className="field-grid">
-            <div className="field">
-              <label className="field__label" htmlFor="mod-ctx">Contexto máximo (tokens)</label>
-              <input
-                id="mod-ctx"
-                className="field__input"
-                type="number"
-                min={1}
-                value={draft.maxContext}
-                onChange={(e) => set('maxContext', Number(e.target.value))}
-              />
-            </div>
-
-            <div className="field">
-              <label className="field__label" htmlFor="mod-out">Saída máxima (tokens)</label>
-              <input
-                id="mod-out"
-                className="field__input"
-                type="number"
-                min={1}
-                value={draft.maxTokens}
-                onChange={(e) => set('maxTokens', Number(e.target.value))}
-              />
-            </div>
-
-            <div className="field">
-              <label className="field__label" htmlFor="mod-temp">Temperatura</label>
-              <input
-                id="mod-temp"
-                className="field__input"
-                type="number"
-                min={0}
-                max={2}
-                step={0.1}
-                value={draft.temperature}
-                onChange={(e) => set('temperature', Number(e.target.value))}
-              />
-            </div>
-
-            <div className="field">
-              <label className="field__label" htmlFor="mod-topp">Top P</label>
-              <input
-                id="mod-topp"
-                className="field__input"
-                type="number"
-                min={0}
-                max={1}
-                step={0.05}
-                value={draft.topP}
-                onChange={(e) => set('topP', Number(e.target.value))}
-              />
-            </div>
-          </div>
-
-          <label className="switch">
+          <div className="field">
+            <label className="field__label" htmlFor="mod-ctx">Contexto máximo (tokens)</label>
             <input
-              type="checkbox"
-              checked={draft.default}
-              onChange={(e) => set('default', e.target.checked)}
+              id="mod-ctx"
+              className="field__input"
+              type="number"
+              min={0}
+              value={draft.context_size}
+              onChange={(e) => set('context_size', Number(e.target.value))}
             />
-            <span>Usar como modelo padrão deste provedor</span>
-          </label>
+          </div>
 
           <div className="settings__actions">
             <button className="btn-ghost" onClick={cancel}>Cancelar</button>

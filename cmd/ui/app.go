@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent"
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
+	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -15,6 +17,9 @@ import (
 type App struct {
 	ctx   context.Context
 	agent *agent.Agent
+
+	// agentMux protege a troca do agente quando a configuração muda.
+	agentMux sync.RWMutex
 
 	// busy trava a execução do agente: apenas UMA chamada AskAgent por vez.
 	// Garante que cada input do usuário seja processado uma única vez e
@@ -25,11 +30,51 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{
-		// Valores temporários: carrega o agente de teste (cliente OpenAI + tools + system prompt).
-		// A config real (provider, modelo, contexto, tools) virá da conexão do network_agent.
-		agent: agent.LoadTestAgent(),
+	a := &App{}
+	// Conecta a partir do arquivo de configuração (~/.network_agent), o mesmo
+	// usado pelo cmd/cli. Diferente de config.Load(), loadConfig() não abre o
+	// criador interativo por stdin — numa GUI isso travaria o app. Sem
+	// provedor configurado o agente fica nil e a UI orienta a configurar.
+	cfg, err := readConfig()
+	if err != nil {
+		fmt.Printf("[config] falha ao ler a configuração: %v\n", err)
+		return a
 	}
+	config.Normalize(&cfg)
+	a.reconnect(cfg)
+	return a
+}
+
+// reconnect troca o agente ativo conforme a configuração. É chamado no
+// startup e a cada gravação vinda da tela de Configurações.
+func (a *App) reconnect(cfg types.Config) {
+	a.agentMux.Lock()
+	defer a.agentMux.Unlock()
+
+	if len(cfg.Providers) == 0 {
+		a.agent = nil
+		return
+	}
+	provider := cfg.Providers[cfg.Selected]
+	if len(provider.Models) == 0 {
+		a.agent = nil
+		return
+	}
+
+	newAgent, err := agent.Connect(cfg)
+	if err != nil {
+		fmt.Printf("[config] falha ao conectar ao provedor %q: %v\n", provider.Name, err)
+		a.agent = nil
+		return
+	}
+	a.agent = newAgent
+}
+
+// currentAgent devolve o agente ativo sob lock de leitura.
+func (a *App) currentAgent() *agent.Agent {
+	a.agentMux.RLock()
+	defer a.agentMux.RUnlock()
+	return a.agent
 }
 
 // startup is called when the app starts. The context is saved
@@ -59,10 +104,15 @@ func (a *App) AskAgent(prompt string) (string, error) {
 
 	fmt.Printf("[AskAgent] CHAMADO: prompt=%q\n", prompt)
 
+	ag := a.currentAgent()
+	if ag == nil {
+		return "", fmt.Errorf("nenhum provedor configurado; abra Configurações e cadastre um provedor com ao menos um modelo")
+	}
+
 	// Emite um status inicial para a UI (temporário).
 	a.emitStatus("Processando")
 
-	response, err := a.agent.Chat(a.ctx, prompt)
+	response, err := ag.Chat(a.ctx, prompt)
 	if err != nil {
 		return "", err
 	}

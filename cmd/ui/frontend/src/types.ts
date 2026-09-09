@@ -42,59 +42,51 @@ export interface ChatMeta {
 }
 
 // ---------- configurações: provedores e modelos ----------
+// Espelha internal/types (types.Config/Provider/Model). Os registros são
+// identificados por ÍNDICE, como no Go — não há campo id de provedor.
 
 export interface ModelConfig {
   id: string
   name: string
-  maxContext: number
-  maxTokens: number
-  temperature: number
-  topP: number
-  default: boolean
+  context_size: number
 }
 
 export interface ProviderConfig {
-  id: string
   name: string
-  baseURL: string
-  apiKey: string
-  enabled: boolean
+  url: string
+  api_key: string
+  default_model: number
   models: ModelConfig[]
 }
 
-export interface Settings {
+export interface AppConfig {
+  selected: number
   providers: ProviderConfig[]
 }
 
-export const EMPTY_PROVIDER: Omit<ProviderConfig, 'id'> = {
+export const EMPTY_PROVIDER: ProviderConfig = {
   name: '',
-  baseURL: '',
-  apiKey: '',
-  enabled: true,
+  url: '',
+  api_key: '',
+  default_model: 0,
   models: [],
 }
 
-export const EMPTY_MODEL: Omit<ModelConfig, 'id'> = {
+export const EMPTY_MODEL: ModelConfig = {
+  id: '',
   name: '',
-  maxContext: 128000,
-  maxTokens: 4096,
-  temperature: 0.7,
-  topP: 1,
-  default: false,
+  context_size: 128000,
 }
 
-/** Provedor/modelo em uso: o primeiro provedor ativo que tenha modelos,
- *  preferindo o modelo marcado como padrão. */
+/** Provedor/modelo em uso: o selecionado na config e seu modelo padrão. */
 export function activeModel(
-  s: Settings | null,
+  c: AppConfig | null,
 ): { provider: ProviderConfig; model: ModelConfig } | null {
-  if (!s) return null
-  for (const p of s.providers) {
-    if (!p.enabled || p.models.length === 0) continue
-    const model = p.models.find((m) => m.default) ?? p.models[0]
-    return { provider: p, model }
-  }
-  return null
+  if (!c || !c.providers?.length) return null
+  const provider = c.providers[c.selected] ?? c.providers[0]
+  if (!provider || !provider.models?.length) return null
+  const model = provider.models[provider.default_model] ?? provider.models[0]
+  return { provider, model }
 }
 
 export const FALLBACK_CHATS: ChatMeta[] = [

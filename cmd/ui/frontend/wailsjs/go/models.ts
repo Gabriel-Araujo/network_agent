@@ -1,13 +1,9 @@
-export namespace main {
+export namespace types {
 	
 	export class Model {
 	    id: string;
 	    name: string;
-	    maxContext: number;
-	    maxTokens: number;
-	    temperature: number;
-	    topP: number;
-	    default: boolean;
+	    context_size: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Model(source);
@@ -17,19 +13,14 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.maxContext = source["maxContext"];
-	        this.maxTokens = source["maxTokens"];
-	        this.temperature = source["temperature"];
-	        this.topP = source["topP"];
-	        this.default = source["default"];
+	        this.context_size = source["context_size"];
 	    }
 	}
 	export class Provider {
-	    id: string;
 	    name: string;
-	    baseURL: string;
-	    apiKey: string;
-	    enabled: boolean;
+	    url: string;
+	    api_key: string;
+	    default_model: number;
 	    models: Model[];
 	
 	    static createFrom(source: any = {}) {
@@ -38,11 +29,10 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.baseURL = source["baseURL"];
-	        this.apiKey = source["apiKey"];
-	        this.enabled = source["enabled"];
+	        this.url = source["url"];
+	        this.api_key = source["api_key"];
+	        this.default_model = source["default_model"];
 	        this.models = this.convertValues(source["models"], Model);
 	    }
 	
@@ -64,15 +54,17 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class Settings {
+	export class Config {
+	    selected: number;
 	    providers: Provider[];
 	
 	    static createFrom(source: any = {}) {
-	        return new Settings(source);
+	        return new Config(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.selected = source["selected"];
 	        this.providers = this.convertValues(source["providers"], Provider);
 	    }
 	
@@ -94,6 +86,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 
 }
 

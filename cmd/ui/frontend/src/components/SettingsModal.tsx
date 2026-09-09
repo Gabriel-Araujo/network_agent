@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, Trash, X, CaretRight } from '@phosphor-icons/react'
 import '../Settings.css'
-import { EMPTY_PROVIDER, ProviderConfig, Settings } from '../types'
+import { AppConfig, EMPTY_PROVIDER, ProviderConfig } from '../types'
 import ModelsSection from './ModelsSection'
 
 interface SettingsModalProps {
   open: boolean
   onClose: () => void
   /** Notifica o App a cada gravação, para o pill do topo refletir na hora. */
-  onSettingsChanged?: (s: Settings) => void
+  onConfigChanged?: (c: AppConfig) => void
+  /** false = configuração obrigatória pendente: não pode fechar. */
+  dismissible?: boolean
 }
 
 const api = () => (window as any).go?.main?.App
 
-export default function SettingsModal({ open, onClose, onSettingsChanged }: SettingsModalProps) {
-  const [settings, setSettings] = useState<Settings>({ providers: [] })
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+export default function SettingsModal({
+  open,
+  onClose,
+  onConfigChanged,
+  dismissible = true,
+}: SettingsModalProps) {
+  const [config, setConfig] = useState<AppConfig>({ selected: 0, providers: [] })
+  // índice do provedor selecionado; null = nenhum
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [draft, setDraft] = useState<ProviderConfig | null>(null)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -24,16 +32,19 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
 
   const load = useCallback(async () => {
     const a = api()
-    if (!a?.GetSettings) return
+    if (!a?.GetConfig) return
     try {
-      const s: Settings = await a.GetSettings()
-      setSettings(s)
-      onSettingsChanged?.(s)
-      setSelectedId((cur) => cur ?? s.providers[0]?.id ?? null)
+      const c: AppConfig = await a.GetConfig()
+      setConfig(c)
+      onConfigChanged?.(c)
+      if (c.providers.length) {
+        setSelectedIdx((cur) => cur ?? 0)
+        setDraft((cur) => cur ?? { ...c.providers[0] })
+      }
     } catch (e) {
       setError(String(e))
     }
-  }, [onSettingsChanged])
+  }, [onConfigChanged])
 
   useEffect(() => {
     if (open) {
@@ -42,41 +53,49 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
     }
   }, [open, load])
 
-  // Fecha com Escape e prende o foco dentro do modal.
+  // Fecha com Escape e foca o modal ao abrir.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && dismissible) onClose()
     }
     document.addEventListener('keydown', onKey)
     dialogRef.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, onClose, dismissible])
 
-  // Sincroniza o formulário quando muda o provedor selecionado.
-  useEffect(() => {
-    if (creating) return
-    const p = settings.providers.find((x) => x.id === selectedId) ?? null
-    setDraft(p ? { ...p } : null)
-  }, [selectedId, settings, creating])
+  // O draft é definido explicitamente por quem muda de contexto (selectProvider,
+  // startCreate, cancelCreate). Não há efeito de sincronização: ele rodava após
+  // o commit e, com selectedIdx = null durante a criação, apagava o formulário.
 
   if (!open) return null
 
-  const apply = (s: Settings) => {
-    setSettings(s)
-    onSettingsChanged?.(s)
+  const apply = (c: AppConfig) => {
+    setConfig(c)
+    onConfigChanged?.(c)
     setError('')
+  }
+
+  const selectProvider = (i: number) => {
+    setCreating(false)
+    setSelectedIdx(i)
+    const p = config.providers[i]
+    setDraft(p ? { ...p } : null)
   }
 
   const startCreate = () => {
     setCreating(true)
-    setSelectedId(null)
-    setDraft({ id: '', ...EMPTY_PROVIDER })
+    setSelectedIdx(null)
+    setDraft({ ...EMPTY_PROVIDER })
   }
 
   const cancelCreate = () => {
     setCreating(false)
-    setSelectedId(settings.providers[0]?.id ?? null)
+    if (config.providers.length) selectProvider(0)
+    else {
+      setSelectedIdx(null)
+      setDraft(null)
+    }
   }
 
   const saveProvider = async () => {
@@ -85,14 +104,15 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
     if (!a) return setError('Bindings do Go indisponíveis.')
     setSaving(true)
     try {
-      const s: Settings = creating
+      const c: AppConfig = creating
         ? await a.CreateProvider(draft)
-        : await a.UpdateProvider(draft)
-      apply(s)
+        : await a.UpdateProvider(selectedIdx, draft)
+      apply(c)
       if (creating) {
         setCreating(false)
-        const novo = s.providers[s.providers.length - 1]
-        setSelectedId(novo?.id ?? null)
+        const idx = c.providers.length - 1
+        setSelectedIdx(idx)
+        setDraft({ ...c.providers[idx] })
       }
     } catch (e) {
       setError(String(e))
@@ -101,13 +121,29 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
     }
   }
 
-  const removeProvider = async (id: string) => {
+  const removeProvider = async (idx: number) => {
     const a = api()
     if (!a) return
     try {
-      const s: Settings = await a.DeleteProvider(id)
-      apply(s)
-      setSelectedId(s.providers[0]?.id ?? null)
+      const c: AppConfig = await a.DeleteProvider(idx)
+      apply(c)
+      if (c.providers.length) {
+        setSelectedIdx(0)
+        setDraft({ ...c.providers[0] })
+      } else {
+        setSelectedIdx(null)
+        setDraft(null)
+      }
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const useProvider = async (idx: number) => {
+    const a = api()
+    if (!a) return
+    try {
+      apply(await a.SelectProvider(idx))
     } catch (e) {
       setError(String(e))
     }
@@ -117,7 +153,11 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
     setDraft((d) => (d ? { ...d, [k]: v } : d))
 
   return (
-    <div className="settings-scrim" onMouseDown={onClose} role="presentation">
+    <div
+      className="settings-scrim"
+      onMouseDown={() => dismissible && onClose()}
+      role="presentation"
+    >
       <div
         className="settings"
         role="dialog"
@@ -129,11 +169,18 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
       >
         <header className="settings__head">
           <h2 className="settings__title">Configurações</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Fechar configurações" title="Fechar">
-            <X size={16} weight="bold" aria-hidden="true" />
-          </button>
+          {dismissible && (
+            <button className="icon-btn" onClick={onClose} aria-label="Fechar configurações" title="Fechar">
+              <X size={16} weight="bold" aria-hidden="true" />
+            </button>
+          )}
         </header>
 
+        {!dismissible && (
+          <p className="settings__notice">
+            Cadastre um provedor com ao menos um modelo para começar a usar o agente.
+          </p>
+        )}
         {error && <p className="settings__error">{error}</p>}
 
         <div className="settings__body">
@@ -145,25 +192,26 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
               </button>
             </div>
 
-            {settings.providers.length === 0 && !creating && (
+            {config.providers.length === 0 && !creating && (
               <p className="settings__empty">Nenhum provedor cadastrado.</p>
             )}
 
             <ul className="settings__items">
-              {settings.providers.map((p) => (
-                <li key={p.id}>
+              {config.providers.map((p, i) => (
+                <li key={i}>
                   <button
-                    className={`settings__item ${p.id === selectedId && !creating ? 'settings__item--active' : ''}`}
-                    onClick={() => {
-                      setCreating(false)
-                      setSelectedId(p.id)
-                    }}
+                    className={`settings__item ${i === selectedIdx && !creating ? 'settings__item--active' : ''}`}
+                    onClick={() => selectProvider(i)}
                   >
-                    <span className={`settings__dot ${p.enabled ? 'settings__dot--on' : ''}`} aria-hidden="true" />
+                    <span
+                      className={`settings__dot ${i === config.selected ? 'settings__dot--on' : ''}`}
+                      aria-hidden="true"
+                    />
                     <span className="settings__item-text">
                       <span className="settings__item-name">{p.name}</span>
                       <span className="settings__item-sub">
                         {p.models.length} {p.models.length === 1 ? 'modelo' : 'modelos'}
+                        {i === config.selected ? ' · em uso' : ''}
                       </span>
                     </span>
                     <CaretRight size={13} weight="bold" aria-hidden="true" />
@@ -187,11 +235,18 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
                   <h3 className="settings__pane-title">
                     {creating ? 'Novo provedor' : 'Editar provedor'}
                   </h3>
-                  {!creating && (
-                    <button className="btn-danger" onClick={() => removeProvider(draft.id)}>
-                      <Trash size={14} weight="bold" aria-hidden="true" />
-                      Excluir
-                    </button>
+                  {!creating && selectedIdx != null && (
+                    <div className="settings__pane-actions">
+                      {selectedIdx !== config.selected && (
+                        <button className="btn-ghost btn-ghost--sm" onClick={() => useProvider(selectedIdx)}>
+                          Usar este
+                        </button>
+                      )}
+                      <button className="btn-danger" onClick={() => removeProvider(selectedIdx)}>
+                        <Trash size={14} weight="bold" aria-hidden="true" />
+                        Excluir
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -202,7 +257,7 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
                     className="field__input"
                     value={draft.name}
                     onChange={(e) => set('name', e.target.value)}
-                    placeholder="LM Studio (local)"
+                    placeholder="OpenAI Compatible"
                   />
                 </div>
 
@@ -211,8 +266,8 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
                   <input
                     id="prov-url"
                     className="field__input"
-                    value={draft.baseURL}
-                    onChange={(e) => set('baseURL', e.target.value)}
+                    value={draft.url}
+                    onChange={(e) => set('url', e.target.value)}
                     placeholder="http://localhost:1234/v1"
                   />
                 </div>
@@ -223,20 +278,11 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
                     id="prov-key"
                     className="field__input"
                     type="password"
-                    value={draft.apiKey}
-                    onChange={(e) => set('apiKey', e.target.value)}
+                    value={draft.api_key}
+                    onChange={(e) => set('api_key', e.target.value)}
                     placeholder="deixe vazio para provedores locais"
                   />
                 </div>
-
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={draft.enabled}
-                    onChange={(e) => set('enabled', e.target.checked)}
-                  />
-                  <span>Provedor ativo</span>
-                </label>
 
                 <div className="settings__actions">
                   {creating && (
@@ -247,10 +293,11 @@ export default function SettingsModal({ open, onClose, onSettingsChanged }: Sett
                   </button>
                 </div>
 
-                {/* CRUD de modelos: vive dentro da seção de edição do provedor */}
-                {!creating && (
+                {/* CRUD de modelos: dentro da seção de edição do provedor */}
+                {!creating && selectedIdx != null && (
                   <ModelsSection
-                    provider={settings.providers.find((p) => p.id === draft.id) ?? draft}
+                    provider={config.providers[selectedIdx] ?? draft}
+                    providerIndex={selectedIdx}
                     onChanged={apply}
                     onError={setError}
                   />

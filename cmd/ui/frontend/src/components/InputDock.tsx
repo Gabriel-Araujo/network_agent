@@ -6,13 +6,23 @@ interface InputDockProps {
   onSend: (text: string) => void
   isWorking: boolean
   usageSummary: TokenUsage
+  /** false = sem provedor/modelo configurado: entrada bloqueada. */
+  configReady?: boolean
+  /** chamado quando o usuário tenta enviar com a config incompleta */
+  onBlocked?: () => void
 }
 
 const PLACEHOLDERS = ['Pergunte ou descreva uma tarefa...', 'Ex.: verifique se há updates pendentes', 'Ex.: escreva um resumo da reunião']
 
 const fmtNum = (n: number): string => n.toLocaleString('pt-BR')
 
-export default function InputDock({ onSend, isWorking, usageSummary }: InputDockProps) {
+export default function InputDock({
+  onSend,
+  isWorking,
+  usageSummary,
+  configReady = true,
+  onBlocked,
+}: InputDockProps) {
   const [value, setValue] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
 
@@ -25,6 +35,10 @@ export default function InputDock({ onSend, isWorking, usageSummary }: InputDock
 
   const submit = (e?: FormEvent) => {
     e?.preventDefault()
+    if (!configReady) {
+      onBlocked?.()
+      return
+    }
     const text = value.trim()
     if (!text || isWorking) return
     onSend(text)
@@ -38,7 +52,7 @@ export default function InputDock({ onSend, isWorking, usageSummary }: InputDock
 
   return (
     <footer className="dock">
-      <form className="dock__form" onSubmit={submit}>
+      <form className={`dock__form ${!configReady ? 'dock__form--blocked' : ''}`} onSubmit={submit}>
         <button type="button" className="icon-btn" aria-label="Anexar arquivo">
           <Paperclip size={18} weight="regular" aria-hidden="true" />
         </button>
@@ -46,7 +60,8 @@ export default function InputDock({ onSend, isWorking, usageSummary }: InputDock
           ref={taRef}
           className="dock__input"
           rows={1}
-          placeholder={PLACEHOLDERS[0]}
+          placeholder={configReady ? PLACEHOLDERS[0] : 'Configure um provedor e um modelo para começar'}
+          disabled={!configReady}
           value={value}
           onChange={(e) => {
             setValue(e.target.value)
@@ -63,12 +78,17 @@ export default function InputDock({ onSend, isWorking, usageSummary }: InputDock
         <button
           type="submit"
           className="btn-send"
-          disabled={!value.trim() || isWorking}
+          disabled={!configReady || !value.trim() || isWorking}
           aria-label="Enviar mensagem"
         >
           <ArrowUp size={18} weight="bold" aria-hidden="true" />
         </button>
       </form>
+      {!configReady && (
+        <p className="dock__blocked" role="status">
+          Nenhum provedor/modelo configurado. Abra Configurações para cadastrar.
+        </p>
+      )}
       <p className="dock__hint">
         <span>
           Total de tokens de entrada: <strong>{fmtNum(usageSummary.input)}</strong>

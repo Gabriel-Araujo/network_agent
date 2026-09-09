@@ -4,7 +4,7 @@ import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputDock from './components/InputDock'
 import SettingsModal from './components/SettingsModal'
-import { ChatMeta, FALLBACK_CHATS, Message, ToolCall, TokenUsage, Settings, activeModel } from './types'
+import { ChatMeta, FALLBACK_CHATS, Message, ToolCall, TokenUsage, AppConfig, activeModel } from './types'
 
 const countTokens = (text: string): number => {
   const t = (text ?? '').trim()
@@ -39,7 +39,10 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settings, setSettings] = useState<Settings | null>(null)
+  const [config, setConfig] = useState<AppConfig | null>(null)
+  // bloqueia a UI até existir provedor + modelo configurados
+  const [configReady, setConfigReady] = useState<boolean | null>(null)
+  const [blockedMsg, setBlockedMsg] = useState('')
   const [chatTitle, setChatTitle] = useState('')
 
   const streamingId = useRef<string | null>(null)
@@ -60,12 +63,24 @@ function App() {
         .then(setChats)
         .catch(() => setChats(FALLBACK_CHATS))
     }
-    // Carrega as configurações no boot para o pill do topo já mostrar
-    // provedor + modelo sem depender de abrir o modal.
-    if (w.go?.main?.App?.GetSettings) {
-      w.go.main.App.GetSettings()
-        .then(setSettings)
-        .catch(() => setSettings(null))
+    // Carrega a configuração no boot. Na primeira execução (sem provedor ou
+    // sem modelo) abre a tela de Configurações e bloqueia o input.
+    if (w.go?.main?.App?.GetConfig) {
+      w.go.main.App.GetConfig()
+        .then((c: AppConfig) => {
+          setConfig(c)
+          const ok = !!activeModel(c)
+          setConfigReady(ok)
+          if (!ok) setSettingsOpen(true)
+        })
+        .catch(() => {
+          setConfig(null)
+          setConfigReady(false)
+          setSettingsOpen(true)
+        })
+    } else {
+      // sem bindings (browser puro): mantém o mock utilizável
+      setConfigReady(true)
     }
   }, [])
 
@@ -191,6 +206,16 @@ function App() {
   const send = async (raw: string) => {
     const text = raw.trim()
     if (!text || isWorking || sendingRef.current) return
+    // Sem provedor/modelo configurado não há para onde enviar: bloqueia e
+    // explica, em vez de deixar o backend falhar com erro genérico.
+    if (configReady === false) {
+      setBlockedMsg(
+        !config || config.providers.length === 0
+          ? 'Nenhum provedor configurado. Cadastre um provedor com ao menos um modelo para conversar com o agente.'
+          : 'O provedor selecionado não tem nenhum modelo cadastrado. Adicione um modelo para conversar com o agente.',
+      )
+      return
+    }
     sendingRef.current = true
     lastFinishedId.current = null
     const id = 'msg-' + Date.now()
@@ -240,7 +265,7 @@ function App() {
   }
 
   // Provedor + modelo exibidos no topo (vindos das Configurações).
-  const active = useMemo(() => activeModel(settings), [settings])
+  const active = useMemo(() => activeModel(config), [config])
 
   // Resumo agregado de tokens de toda a conversa, exibido no rodapé do input.
   const usageSummary = useMemo<TokenUsage>(() => {
@@ -279,8 +304,39 @@ function App() {
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onSettingsChanged={setSettings}
+        onConfigChanged={(c) => {
+          setConfig(c)
+          setConfigReady(!!activeModel(c))
+        }}
+        dismissible={configReady !== false}
       />
+
+      {blockedMsg && (
+        <div className="alert-scrim" role="presentation" onMouseDown={() => setBlockedMsg('')}>
+          <div
+            className="alert"
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Configuração necessária"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 className="alert__title">Configuração necessária</h3>
+            <p className="alert__text">{blockedMsg}</p>
+            <div className="alert__actions">
+              <button className="btn-ghost" onClick={() => setBlockedMsg('')}>Fechar</button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setBlockedMsg('')
+                  setSettingsOpen(true)
+                }}
+              >
+                Abrir Configurações
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="main">
         <header className="topbar">
@@ -310,7 +366,19 @@ function App() {
         </header>
 
         <ChatArea messages={messages} onSuggestion={(t) => send(t)} onNewChat={newChat} isWorking={isWorking} />
-        <InputDock onSend={send} isWorking={isWorking} usageSummary={usageSummary} />
+        <InputDock
+          onSend={send}
+          isWorking={isWorking}
+          usageSummary={usageSummary}
+          configReady={configReady !== false}
+          onBlocked={() =>
+            setBlockedMsg(
+              !config || config.providers.length === 0
+                ? 'Nenhum provedor configurado. Cadastre um provedor com ao menos um modelo para conversar com o agente.'
+                : 'O provedor selecionado não tem nenhum modelo cadastrado. Adicione um modelo para conversar com o agente.',
+            )
+          }
+        />
       </main>
     </div>
   )
