@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/llm/rag/env"
+	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/env"
 )
 
 func writeEnvFile(t *testing.T, content string) string {

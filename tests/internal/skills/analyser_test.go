@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/llm"
+	llm "github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills/intent-analyser"
 )
 

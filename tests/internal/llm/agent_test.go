@@ -222,11 +222,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 		option.WithAPIKey("test-key"),
 	)
 
-	a := &llm2.Agent{
-		Client:       client,
-		ModelName:    "test-model",
-		SystemPrompt: "você é um assistente",
-	}
+	a := llm2.Init(client, "test-model", 0, []responses.ToolUnionParam{}, "você é um assistente")
 
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_sub",
