@@ -3,7 +3,8 @@ import './App.css'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputDock from './components/InputDock'
-import { ChatMeta, FALLBACK_CHATS, Message, ToolCall, TokenUsage } from './types'
+import SettingsModal from './components/SettingsModal'
+import { ChatMeta, FALLBACK_CHATS, Message, ToolCall, TokenUsage, Settings, activeModel } from './types'
 
 const countTokens = (text: string): number => {
   const t = (text ?? '').trim()
@@ -11,7 +12,8 @@ const countTokens = (text: string): number => {
   return Math.max(1, Math.round(t.length / 4))
 }
 
-// Context window simulado (gpt-4o-mini = 128k). O agente real deve preencher a partir da API.
+// Context window simulado (128k). O agente real deve preencher a partir da API;
+// o modelo configurado agora vem das Configurações (provedor + modelo).
 const CONTEXT_TOTAL = 128_000
 
 // Título gerado pelo agente a partir do primeiro prompt do usuário.
@@ -36,6 +38,8 @@ function App() {
   const [isWorking, setIsWorking] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState<Settings | null>(null)
   const [chatTitle, setChatTitle] = useState('')
 
   const streamingId = useRef<string | null>(null)
@@ -55,6 +59,13 @@ function App() {
       w.go.main.App.ListChats()
         .then(setChats)
         .catch(() => setChats(FALLBACK_CHATS))
+    }
+    // Carrega as configurações no boot para o pill do topo já mostrar
+    // provedor + modelo sem depender de abrir o modal.
+    if (w.go?.main?.App?.GetSettings) {
+      w.go.main.App.GetSettings()
+        .then(setSettings)
+        .catch(() => setSettings(null))
     }
   }, [])
 
@@ -228,6 +239,9 @@ function App() {
     setChatTitle('')
   }
 
+  // Provedor + modelo exibidos no topo (vindos das Configurações).
+  const active = useMemo(() => activeModel(settings), [settings])
+
   // Resumo agregado de tokens de toda a conversa, exibido no rodapé do input.
   const usageSummary = useMemo<TokenUsage>(() => {
     let input = 0
@@ -259,6 +273,13 @@ function App() {
         onClose={() => setSidebarOpen(false)}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onNewChat={newChat}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSettingsChanged={setSettings}
       />
 
       <main className="main">
@@ -275,7 +296,17 @@ function App() {
             </div>
           )}
           <div className="topbar__spacer" />
-          <span className="model-pill">gpt-4o-mini</span>
+          <span className="model-pill">
+            {active ? (
+              <>
+                <span className="model-pill__provider">{active.provider.name}</span>
+                <span className="model-pill__sep" aria-hidden="true">·</span>
+                <span className="model-pill__model">{active.model.name}</span>
+              </>
+            ) : (
+              'Nenhum modelo configurado'
+            )}
+          </span>
         </header>
 
         <ChatArea messages={messages} onSuggestion={(t) => send(t)} onNewChat={newChat} isWorking={isWorking} />

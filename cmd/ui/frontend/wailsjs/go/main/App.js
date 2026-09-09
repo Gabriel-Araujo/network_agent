@@ -6,6 +6,34 @@ export function AskAgent(arg1) {
   return window['go']['main']['App']['AskAgent'](arg1);
 }
 
+export function CreateModel(arg1, arg2) {
+  return window['go']['main']['App']['CreateModel'](arg1, arg2);
+}
+
+export function CreateProvider(arg1) {
+  return window['go']['main']['App']['CreateProvider'](arg1);
+}
+
+export function DeleteModel(arg1, arg2) {
+  return window['go']['main']['App']['DeleteModel'](arg1, arg2);
+}
+
+export function DeleteProvider(arg1) {
+  return window['go']['main']['App']['DeleteProvider'](arg1);
+}
+
+export function GetSettings() {
+  return window['go']['main']['App']['GetSettings']();
+}
+
 export function ListChats() {
   return window['go']['main']['App']['ListChats']();
+}
+
+export function UpdateModel(arg1, arg2) {
+  return window['go']['main']['App']['UpdateModel'](arg1, arg2);
+}
+
+export function UpdateProvider(arg1) {
+  return window['go']['main']['App']['UpdateProvider'](arg1);
 }

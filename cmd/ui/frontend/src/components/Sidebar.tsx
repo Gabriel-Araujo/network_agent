@@ -14,6 +14,7 @@ interface SidebarProps {
   onClose: () => void
   onToggleCollapse: () => void
   onNewChat: () => void
+  onOpenSettings: () => void
 }
 
 export default function Sidebar({
@@ -23,6 +24,7 @@ export default function Sidebar({
   onClose,
   onToggleCollapse,
   onNewChat,
+  onOpenSettings,
 }: SidebarProps) {
   const groups = [...new Set(chats.map((c) => c.group))]
 
@@ -89,11 +91,16 @@ export default function Sidebar({
         </nav>
 
         <div className="sidebar__footer">
-          <button className="chat-item chat-item--subtle">
+          <button className="chat-item chat-item--subtle" onClick={onOpenSettings}>
             <GearSix size={15} weight="regular" className="chat-item__icon" aria-hidden="true" />
             <span className="chat-item__title">Configurações</span>
           </button>
-          <button className="icon-btn sidebar__settings-icon" aria-label="Configurações" title="Configurações">
+          <button
+            className="icon-btn sidebar__settings-icon"
+            onClick={onOpenSettings}
+            aria-label="Configurações"
+            title="Configurações"
+          >
             <GearSix size={16} weight="regular" aria-hidden="true" />
           </button>
         </div>
