@@ -30,13 +30,21 @@ export default function SettingsModal({
   const [saving, setSaving] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
 
+  // O callback do App fica num ref para que `load` tenha identidade estável.
+  // Com `onConfigChanged` nas deps, cada render do App criava um `load` novo e
+  // o efeito abaixo reexecutava sem parar (GetConfig ~800x/s com o modal aberto).
+  const onConfigChangedRef = useRef(onConfigChanged)
+  useEffect(() => {
+    onConfigChangedRef.current = onConfigChanged
+  }, [onConfigChanged])
+
   const load = useCallback(async () => {
     const a = api()
     if (!a?.GetConfig) return
     try {
       const c: AppConfig = await a.GetConfig()
       setConfig(c)
-      onConfigChanged?.(c)
+      onConfigChangedRef.current?.(c)
       if (c.providers.length) {
         setSelectedIdx((cur) => cur ?? 0)
         setDraft((cur) => cur ?? { ...c.providers[0] })
@@ -44,8 +52,9 @@ export default function SettingsModal({
     } catch (e) {
       setError(String(e))
     }
-  }, [onConfigChanged])
+  }, [])
 
+  // Carrega a configuração uma única vez por abertura do modal.
   useEffect(() => {
     if (open) {
       load()
@@ -53,16 +62,24 @@ export default function SettingsModal({
     }
   }, [open, load])
 
-  // Fecha com Escape e foca o modal ao abrir.
+  // Fecha com Escape.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && dismissible) onClose()
     }
     document.addEventListener('keydown', onKey)
-    dialogRef.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose, dismissible])
+
+  // Foca o diálogo apenas quando ele abre, e só se o foco ainda não estiver
+  // dentro dele. Reexecutar este efeito a cada render do App roubava o foco do
+  // input que o usuário acabara de clicar (o foco durava ~1 ms).
+  useEffect(() => {
+    if (!open) return
+    const el = dialogRef.current
+    if (el && !el.contains(document.activeElement)) el.focus()
+  }, [open])
 
   // O draft é definido explicitamente por quem muda de contexto (selectProvider,
   // startCreate, cancelCreate). Não há efeito de sincronização: ele rodava após

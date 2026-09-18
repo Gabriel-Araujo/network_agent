@@ -265,6 +265,15 @@ function App() {
     setChatTitle('')
   }
 
+  // Identidades estáveis para o modal de configurações. Props inline geravam um
+  // `load` novo a cada render do App, o que reexecutava o efeito de foco do modal
+  // (roubando o foco dos inputs) e alimentava um loop de GetConfig.
+  const closeSettings = useCallback(() => setSettingsOpen(false), [])
+  const handleConfigChanged = useCallback((c: AppConfig) => {
+    setConfig(c)
+    setConfigReady(!!activeModel(c))
+  }, [])
+
   // Provedor + modelo exibidos no topo (vindos das Configurações).
   const active = useMemo(() => activeModel(config), [config])
 
@@ -304,11 +313,8 @@ function App() {
 
       <SettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onConfigChanged={(c) => {
-          setConfig(c)
-          setConfigReady(!!activeModel(c))
-        }}
+        onClose={closeSettings}
+        onConfigChanged={handleConfigChanged}
         dismissible={configReady !== false}
       />
 
