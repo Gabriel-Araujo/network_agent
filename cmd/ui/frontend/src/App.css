@@ -147,7 +147,8 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-rows: 56px minmax(0, 1fr) auto;
+  /* 39px = 56px - 30% */
+  grid-template-rows: 39px minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -396,7 +397,7 @@ button {
   gap: 6px;
   min-width: 0;
   max-width: 340px;
-  padding: 5px 11px;
+  padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
@@ -1432,3 +1433,78 @@ button {
         visibility 0s linear 0.32s;
     }
   }
+/* ============ janela sem moldura (frameless) ============ */
+
+/* Faixa de arrasto sobre o topo da sidebar: sem ela, com a barra de título
+   nativa removida, só a topbar moveria a janela. Fica atrás dos botões da
+   sidebar (z-index baixo) para não bloquear cliques. */
+.sidebar__brand-row {
+  --wails-draggable: drag;
+}
+
+.sidebar__brand-row button,
+.sidebar__logo {
+  --wails-draggable: no-drag;
+}
+
+/* ---- controles de janela (minimizar / maximizar / fechar) ---- */
+
+.wincontrols {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 0;
+  margin-left: 6px;
+  margin-right: -16px; /* encosta na borda direita, como no Windows */
+  --wails-draggable: no-drag;
+}
+
+.wincontrols__btn {
+  width: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.wincontrols__btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.wincontrols__btn:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* fechar: vermelho padrão do Windows apenas no hover */
+.wincontrols__btn--close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+.wincontrols__btn--close:active {
+  background: #b4271a;
+}
+
+.wincontrols__glyph {
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  /* os glifos MDL2 já vêm alinhados; sem antialias extra ficam borrados */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fallback para SOs sem as fontes de ícone da Microsoft (Linux/macOS):
+   desenha os símbolos equivalentes com bordas CSS. */
+@supports not (font-family: 'Segoe MDL2 Assets') {
+  .wincontrols__glyph {
+    font-family: var(--font);
+    font-size: 12px;
+  }
+}

@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputDock from './components/InputDock'
 import SettingsModal from './components/SettingsModal'
+import WindowControls from './components/WindowControls'
 import { ChatMeta, FALLBACK_CHATS, Message, ToolCall, TokenUsage, AppConfig, activeModel } from './types'
 
 const countTokens = (text: string): number => {
@@ -339,8 +340,8 @@ function App() {
       )}
 
       <main className="main">
-        <header className="topbar">
-          <button className="icon-btn topbar__menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu">
+        <header className="topbar" style={{ "--wails-draggable": "drag" } as any}>
+          <button className="icon-btn topbar__menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu" style={{ '--wails-draggable': 'no-drag' } as any}>
             <svg width="18" height="18" viewBox="0 0 256 256" fill="none" aria-hidden="true">
               <path d="M40 64h176M40 128h176M40 192h176" stroke="currentColor" strokeWidth="20" strokeLinecap="round" />
             </svg>
@@ -352,7 +353,7 @@ function App() {
             </div>
           )}
           <div className="topbar__spacer" />
-          <span className="model-pill">
+          <span className="model-pill" style={{ '--wails-draggable': 'no-drag' } as any}>
             {active ? (
               <>
                 <span className="model-pill__provider">{active.provider.name}</span>
@@ -363,6 +364,7 @@ function App() {
               'Nenhum modelo configurado'
             )}
           </span>
+          <WindowControls />
         </header>
 
         <ChatArea messages={messages} onSuggestion={(t) => send(t)} onNewChat={newChat} isWorking={isWorking} />
