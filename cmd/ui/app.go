@@ -31,9 +31,9 @@ type App struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	a := &App{}
-	// Conecta a partir do arquivo de configuração (~/.network_agent), o mesmo
-	// usado pelo cmd/cli. Diferente de config.Load(), loadConfig() não abre o
-	// criador interativo por stdin — numa GUI isso travaria o app. Sem
+	// Conecta a partir do arquivo de configuração (~/.network_agent/config.json),
+	// o mesmo usado pelo cmd/cli. Diferente de config.Load(), loadConfig() não
+	// abre o criador interativo por stdin — numa GUI isso travaria o app. Sem
 	// provedor configurado o agente fica nil e a UI orienta a configurar.
 	cfg, err := readConfig()
 	if err != nil {

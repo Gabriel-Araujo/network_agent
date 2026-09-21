@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
@@ -63,6 +64,13 @@ func Save(cfg types.Config) error {
 	raw, err := json.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("config: falha ao serializar: %w", err)
+	}
+
+	// O arquivo vive dentro do diretório de configuração, que pode não existir
+	// ainda: no primeiro uso o wizard cria a configuração do zero.
+	dir := filepath.Dir(fileLocation)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("config: falha ao criar o diretório %s: %w", dir, err)
 	}
 
 	tmp := fileLocation + ".tmp"
