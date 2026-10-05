@@ -24,7 +24,8 @@ const configFileName = "config.json"
 var fileLocation = defaultFileLocation()
 
 // defaultFileLocation devolve o caminho do arquivo de configuração. O
-// diretório que o contém é criado sob demanda (ver ensureMigrated).
+// diretório que o contém é criado sob demanda: Save faz o MkdirAll na primeira
+// gravação.
 func defaultFileLocation() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

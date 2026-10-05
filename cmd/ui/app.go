@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
+	"github.com/Gabriel-Araujo/network_agent/internal/history"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -17,6 +16,24 @@ import (
 type App struct {
 	ctx   context.Context
 	agent *agent.Agent
+
+	// store é o núcleo do histórico em disco (~/.network_agent/history). Nada é
+	// criado no disco antes da primeira gravação, então a primeira execução
+	// sobe sem diretório de histórico.
+	store history.Store
+
+	// active é o que a última conexão sabe da configuração ativa: o provedor e
+	// o modelo que a conversa nova grava. Anda junto do agente, sob o mesmo
+	// mutex, porque sai da mesma configuração que o construiu. A janela de
+	// contexto do medidor não mora aqui: ela é do modelo ativo, e é sondada no
+	// provedor a cada pergunta da UI (GetContextWindow).
+	active activeModel
+
+	// emit publica um evento para a UI. É um campo, e não runtime.EventsEmit
+	// direto nos métodos, para que o teste do turno observe os eventos sem a
+	// ponte do Wails — com um contexto que não veio dos hooks do app, o runtime
+	// real encerra o processo.
+	emit func(eventName string, data ...any)
 
 	// agentMux protege a troca do agente quando a configuração muda.
 	agentMux sync.RWMutex
@@ -28,9 +45,26 @@ type App struct {
 	busyMux sync.Mutex
 }
 
+// activeModel é o que a última conexão sabe da configuração ativa: o nome do
+// provedor e o id do modelo (a string que vai ao provedor).
+type activeModel struct {
+	Provider string
+	Model    string
+}
+
 // NewApp creates a new App application struct
 func NewApp() *App {
 	a := &App{}
+
+	// O histórico vive ao lado do config.json, em ~/.network_agent/history.
+	a.store = history.NewFileStore(history.DefaultDir())
+
+	// A ponte de eventos de produção; o ctx chega no startup e o closure lê o
+	// campo na hora da chamada.
+	a.emit = func(eventName string, data ...any) {
+		runtime.EventsEmit(a.ctx, eventName, data...)
+	}
+
 	// Conecta a partir do arquivo de configuração (~/.network_agent/config.json),
 	// o mesmo usado pelo cmd/cli. Diferente de config.Load(), loadConfig() não
 	// abre o criador interativo por stdin — numa GUI isso travaria o app. Sem
@@ -45,19 +79,17 @@ func NewApp() *App {
 	return a
 }
 
-// reconnect troca o agente ativo conforme a configuração. É chamado no
-// startup e a cada gravação vinda da tela de Configurações.
+// reconnect troca o agente ativo conforme a configuração e atualiza o par
+// provedor/modelo/contexto que a conversa nova grava. É chamado no startup e a
+// cada gravação vinda da tela de Configurações.
 func (a *App) reconnect(cfg types.Config) {
 	a.agentMux.Lock()
 	defer a.agentMux.Unlock()
 
-	if len(cfg.Providers) == 0 {
+	provider, model, ok := selectedModel(cfg)
+	if !ok {
 		a.agent = nil
-		return
-	}
-	provider := cfg.Providers[cfg.Selected]
-	if len(provider.Models) == 0 {
-		a.agent = nil
+		a.active = activeModel{}
 		return
 	}
 
@@ -65,9 +97,14 @@ func (a *App) reconnect(cfg types.Config) {
 	if err != nil {
 		fmt.Printf("[config] falha ao conectar ao provedor %q: %v\n", provider.Name, err)
 		a.agent = nil
+		a.active = activeModel{}
 		return
 	}
 	a.agent = newAgent
+	a.active = activeModel{
+		Provider: provider.Name,
+		Model:    model.Id,
+	}
 }
 
 // currentAgent devolve o agente ativo sob lock de leitura.
@@ -77,102 +114,19 @@ func (a *App) currentAgent() *agent.Agent {
 	return a.agent
 }
 
+// activeConfig devolve o snapshot do provedor/modelo ativos sob lock de leitura.
+func (a *App) activeConfig() activeModel {
+	a.agentMux.RLock()
+	defer a.agentMux.RUnlock()
+	return a.active
+}
+
 // startup is called when the app starts. The context is saved
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// AskAgent chama o método Chat do agente em loop na conversa.
-//
-// O mesmo *agent.Agent é reutilizado entre chamadas (o Agent guarda
-// previousResponseID), então o contexto da conversa é mantido.
-// A resposta final é devolvida ao frontend como string; os tokens são
-// emitidos via "agent:token" para a UI renderizar em streaming.
-func (a *App) AskAgent(prompt string) (string, error) {
-	if strings.TrimSpace(prompt) == "" {
-		return "", fmt.Errorf("prompt vazio")
-	}
-
-	// Trava contra chamadas concorrentes: se um AskAgent já estiver em
-	// execução, recusa a nova chamada (a UI já desabilita o input, mas isso
-	// é uma salvaguarda contra double-submit/loop).
-	if !a.busyMux.TryLock() {
-		return "", fmt.Errorf("agente já está processando uma resposta; aguarde")
-	}
-	defer a.busyMux.Unlock()
-
-	fmt.Printf("[AskAgent] CHAMADO: prompt=%q\n", prompt)
-
-	ag := a.currentAgent()
-	if ag == nil {
-		return "", fmt.Errorf("nenhum provedor configurado; abra Configurações e cadastre um provedor com ao menos um modelo")
-	}
-
-	// Emite um status inicial para a UI (temporário).
-	a.emitStatus("Processando")
-
-	response, err := ag.Chat(a.ctx, prompt)
-	if err != nil {
-		return "", err
-	}
-
-	// Streaming simulado dos tokens da resposta final, para a UI renderizar
-	// em tempo real (o método Chat retorna a string inteira de uma vez).
-	for _, chunk := range streamChunks(response) {
-		runtime.EventsEmit(a.ctx, "agent:token", map[string]string{
-			"token": chunk,
-			"id":    "msg-" + fmt.Sprint(time.Now().UnixMilli()),
-		})
-		time.Sleep(18 * time.Millisecond)
-	}
-	runtime.EventsEmit(a.ctx, "agent:done", map[string]string{
-		"id": "msg-" + fmt.Sprint(time.Now().UnixMilli()),
-	})
-
-	return response, nil
-}
-
-// streamChunks divide a resposta em pedaços preservando TODO o whitespace
-// (quebras de linha, linhas em branco e indentação). Isso é essencial para o
-// markdown: strings.Fields descartaria os "\n", transformando parágrafos,
-// listas e tabelas em uma única linha corrida.
-//
-// Cada pedaço é uma palavra junto com o whitespace que a segue, de modo que
-// a concatenação de todos os pedaços reproduz a string original byte a byte.
-func streamChunks(s string) []string {
-	var chunks []string
-	i := 0
-	for i < len(s) {
-		start := i
-		// avança pelo texto visível
-		for i < len(s) && !isSpace(s[i]) {
-			i++
-		}
-		// avança pelo whitespace que o segue (inclui \n e \n\n)
-		for i < len(s) && isSpace(s[i]) {
-			i++
-		}
-		chunks = append(chunks, s[start:i])
-	}
-	return chunks
-}
-
-func isSpace(b byte) bool {
-	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
-}
-
 func (a *App) emitStatus(label string) {
-	runtime.EventsEmit(a.ctx, "agent:status", map[string]string{"label": label})
-}
-
-// ListChats returns mock conversation history for the sidebar.
-func (a *App) ListChats() []map[string]string {
-	return []map[string]string{
-		{"id": "c1", "title": "Interface do agente de IA", "group": "Hoje"},
-		{"id": "c2", "title": "Stack Wails + React", "group": "Hoje"},
-		{"id": "c3", "title": "Paleta glass azulado", "group": "Ontem"},
-		{"id": "c4", "title": "Prompt /impeccable", "group": "Ontem"},
-		{"id": "c5", "title": "Arquitetura IPC-first", "group": "7 dias atrás"},
-	}
+	a.emit("agent:status", map[string]string{"label": label})
 }

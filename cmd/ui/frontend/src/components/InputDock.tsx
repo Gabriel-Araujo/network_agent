@@ -1,6 +1,6 @@
 import { FormEvent, useRef, useState } from 'react'
 import { ArrowUp, Paperclip } from '@phosphor-icons/react'
-import { TokenUsage } from '../types'
+import { TokenUsage, contextOrigin } from '../types'
 
 interface InputDockProps {
   onSend: (text: string) => void
@@ -25,6 +25,11 @@ export default function InputDock({
 }: InputDockProps) {
   const [value, setValue] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
+
+  // A janela do medidor é a do modelo ativo AGORA e a origem vem junto: sem
+  // total sondado nem medido, o item de contexto não aparece (nada de um teto
+  // inventado), e "declarado" nunca se passa por "provedor".
+  const origin = usageSummary.contextTotal > 0 ? contextOrigin(usageSummary.contextSource) : null
 
   const resize = () => {
     const ta = taRef.current
@@ -101,11 +106,18 @@ export default function InputDock({
         <span>
           Total de tokens: <strong>{fmtNum(usageSummary.total)}</strong>
         </span>
-        <span className="dock__hint-sep" aria-hidden="true">·</span>
-        <span>
-          Contexto utilizado: <strong>{fmtNum(usageSummary.contextUsed)}</strong>/
-          <strong>{fmtNum(usageSummary.contextTotal)}</strong>
-        </span>
+        {origin && (
+          <>
+            <span className="dock__hint-sep" aria-hidden="true">·</span>
+            <span>
+              Contexto utilizado: <strong>{fmtNum(usageSummary.contextUsed)}</strong>/
+              <strong>{fmtNum(usageSummary.contextTotal)}</strong>
+              <span className="dock__origin" title={origin.title}>
+                ({origin.label})
+              </span>
+            </span>
+          </>
+        )}
       </p>
     </footer>
   )

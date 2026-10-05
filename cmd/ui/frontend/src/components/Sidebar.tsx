@@ -1,32 +1,91 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   CaretLeft,
   ChatCircleDots,
   Command,
   GearSix,
+  PencilSimple,
   Plus,
+  Trash,
 } from '@phosphor-icons/react'
-import { ChatMeta } from '../types'
+import { BridgeError, Conversation, groupConversations } from '../types'
 
 interface SidebarProps {
   open: boolean
   collapsed: boolean
-  chats: ChatMeta[]
+  conversations: Conversation[]
+  /** Conversa aberta no chat, destacada na lista. */
+  activeId: string | null
+  /**
+   * Um turno está em voo. Abrir/navegar NÃO bloqueia: o turno segue no Go e,
+   * se a conversa não é mais a da tela, os tokens são descartados — o disco é
+   * a fonte quando ela for reaberta. Renomear e apagar continuam bloqueados.
+   */
+  busy: boolean
+  /** Falha da listagem ou de uma mutação, já interpretada da ponte. */
+  error: BridgeError | null
   onClose: () => void
   onToggleCollapse: () => void
   onNewChat: () => void
   onOpenSettings: () => void
+  onOpen: (c: Conversation) => void
+  /** Devolve true quando o título foi gravado (o input fecha só nesse caso). */
+  onRename: (id: string, title: string) => Promise<boolean>
+  onDelete: (c: Conversation) => void
+  onReload: () => void
+  onDismissError: () => void
 }
 
 export default function Sidebar({
   open,
   collapsed,
-  chats,
+  conversations,
+  activeId,
+  busy,
+  error,
   onClose,
   onToggleCollapse,
   onNewChat,
   onOpenSettings,
+  onOpen,
+  onRename,
+  onDelete,
+  onReload,
+  onDismissError,
 }: SidebarProps) {
-  const groups = [...new Set(chats.map((c) => c.group))]
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const groups = groupConversations(conversations)
+
+  // Foca e seleciona o título ao entrar em edição. Depende só do id em edição:
+  // um efeito que reexecutasse a cada render roubaria o foco do input.
+  useEffect(() => {
+    if (!editingId) return
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [editingId])
+
+  const startEdit = (c: Conversation) => {
+    setEditingId(c.id)
+    setDraft(c.title)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setDraft('')
+  }
+
+  // Enter grava, Esc cancela, clicar fora cancela. Em falha o input fica aberto
+  // com o texto digitado — o card de erro explica o motivo e nada se perde.
+  const commit = async (c: Conversation) => {
+    const title = draft.trim()
+    if (!title || title === c.title) {
+      cancelEdit()
+      return
+    }
+    if (await onRename(c.id, title)) cancelEdit()
+  }
 
   return (
     <>
@@ -71,20 +130,97 @@ export default function Sidebar({
         </div>
 
         <nav className="sidebar__list">
+          {error && (
+            <div className="sidebar__error" role="alert">
+              <p className="sidebar__error-title">{error.what}</p>
+              {error.why && <p className="sidebar__error-why">{error.why}</p>}
+              {error.next && <p className="sidebar__error-next">{error.next}</p>}
+              <div className="sidebar__error-actions">
+                <button className="link-btn" onClick={onReload}>
+                  Recarregar
+                </button>
+                <button className="link-btn link-btn--faint" onClick={onDismissError}>
+                  Fechar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {conversations.length === 0 && !error && (
+            <div className="sidebar__empty">
+              <p className="sidebar__empty-title">Nenhuma conversa ainda</p>
+              <p className="sidebar__empty-hint">
+                Suas conversas aparecem aqui e ficam salvas em disco, para continuar de onde parou.
+              </p>
+            </div>
+          )}
+
           {groups.map((g) => (
-            <div className="sidebar__group" key={g}>
-              <p className="sidebar__group-label">{g}</p>
+            <div className="sidebar__group" key={g.label}>
+              <p className="sidebar__group-label">{g.label}</p>
               <ul className="sidebar__items">
-                {chats
-                  .filter((c) => c.group === g)
-                  .map((c) => (
-                    <li key={c.id}>
-                      <button className="chat-item">
-                        <ChatCircleDots size={15} weight="regular" className="chat-item__icon" aria-hidden="true" />
-                        <span className="chat-item__title">{c.title}</span>
-                      </button>
-                    </li>
-                  ))}
+                {g.items.map((c) => (
+                  <li key={c.id}>
+                    {editingId === c.id ? (
+                      <input
+                        ref={inputRef}
+                        className="chat-item__input"
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            commit(c)
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEdit()
+                          }
+                        }}
+                        onBlur={cancelEdit}
+                        aria-label={`Renomear ${c.title}`}
+                      />
+                    ) : (
+                      <div
+                        className={`chat-item-row ${activeId === c.id ? 'chat-item-row--active' : ''}`}
+                      >
+                        <button
+                          className="chat-item"
+                          onClick={() => onOpen(c)}
+                          title={c.title}
+                        >
+                          <ChatCircleDots
+                            size={15}
+                            weight="regular"
+                            className="chat-item__icon"
+                            aria-hidden="true"
+                          />
+                          <span className="chat-item__title">{c.title}</span>
+                        </button>
+                        <span className="chat-item__actions">
+                          <button
+                            className="icon-btn icon-btn--xs"
+                            onClick={() => startEdit(c)}
+                            disabled={busy}
+                            aria-label={`Renomear ${c.title}`}
+                            title="Renomear"
+                          >
+                            <PencilSimple size={13} weight="bold" aria-hidden="true" />
+                          </button>
+                          <button
+                            className="icon-btn icon-btn--xs"
+                            onClick={() => onDelete(c)}
+                            disabled={busy}
+                            aria-label={`Apagar ${c.title}`}
+                            title="Apagar"
+                          >
+                            <Trash size={13} weight="bold" aria-hidden="true" />
+                          </button>
+                        </span>
+                      </div>
+                    )}
+                  </li>
+                ))}
               </ul>
             </div>
           ))}

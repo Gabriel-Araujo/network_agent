@@ -6,7 +6,7 @@ import {
   MagnifyingGlass,
   PencilSimple,
 } from '@phosphor-icons/react'
-import { Message, ToolCall } from '../types'
+import { Message, ToolCall, contextOrigin } from '../types'
 import Markdown from './Markdown'
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -61,6 +61,12 @@ function TokenUsageFooter({
   usage: NonNullable<Message['usage']>
   own?: boolean
 }) {
+  // A janela e a origem dela acompanham o uso medido do turno. Sem total não
+  // há o que comparar — o item fica de fora em vez de exibir "1.234/0" — e a
+  // origem (provedor ou declarado) é dita ao lado do número, porque declarado
+  // não se passa por medido.
+  const origin = usage.contextTotal > 0 ? contextOrigin(usage.contextSource) : null
+
   return (
     <div className={`usage ${own ? 'usage--own' : ''}`}>
       <span className="usage__item">
@@ -74,13 +80,20 @@ function TokenUsageFooter({
       <span className="usage__item">
         Total <strong>{fmtNum(usage.total)}</strong>
       </span>
-      <span className="usage__sep" aria-hidden="true" />
-      <span className="usage__item">
-        Contexto{' '}
-        <strong>
-          {fmtNum(usage.contextUsed)}/{fmtNum(usage.contextTotal)}
-        </strong>
-      </span>
+      {origin && (
+        <>
+          <span className="usage__sep" aria-hidden="true" />
+          <span className="usage__item">
+            Contexto{' '}
+            <strong>
+              {fmtNum(usage.contextUsed)}/{fmtNum(usage.contextTotal)}
+            </strong>
+            <span className="usage__origin" title={origin.title}>
+              ({origin.label})
+            </span>
+          </span>
+        </>
+      )}
     </div>
   )
 }
@@ -127,7 +140,8 @@ export default function MessageBubble({ message }: { message: Message }) {
             <span className="msg-ts msg-ts--meta">
               {message.time}
               {message.elapsedMs != null && ` · ${fmtDuration(message.elapsedMs)}`}
-              {message.tokens != null && ` · ~${message.tokens} tokens`}
+              {/* tokens medidos: vêm do usage do provedor, gravado no disco */}
+              {message.tokens != null && ` · ${message.tokens} tokens`}
             </span>
           )}
         </div>

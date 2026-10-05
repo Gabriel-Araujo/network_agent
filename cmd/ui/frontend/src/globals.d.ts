@@ -1,12 +1,20 @@
 export {}
 
+// Declaração à mão da superfície exposta ao front-end. A fonte da verdade é o
+// binding gerado (wailsjs/go/main/App.d.ts) — isto acompanha o que ele expõe.
+import type { Conversation } from './types'
+
 declare global {
   interface Window {
     go?: {
       main: {
         App: {
-          AskAgent(prompt: string): Promise<string>
-          ListChats(): Promise<Array<{ id: string; title: string; group: string }>>
+          // Histórico de conversas (ticket 07). ListChats (mock) morreu.
+          ListConversations(): Promise<Conversation[]>
+          CreateConversation(title: string): Promise<Conversation>
+          RenameConversation(id: string, title: string): Promise<Conversation>
+          DeleteConversation(id: string): Promise<void>
+          AskAgent(convID: string, prompt: string): Promise<Conversation>
         }
       }
     }

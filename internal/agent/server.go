@@ -27,6 +27,8 @@ func Connect(config types.Config) (*Agent, error) {
 	model := provider.Models[provider.DefaultModel]
 	return Init(
 		client,
+		provider.Url,
+		provider.ApiKey,
 		model.Id,
 		model.ContextSize,
 		loadSkillsAndTools(),

@@ -11,6 +11,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/env"
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
+	"github.com/Gabriel-Araujo/network_agent/internal/history"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
@@ -24,8 +25,6 @@ func main() {
 	}
 	logger.Init(cfg)
 
-	// Registra o wizard de terminal: quando não há configuração, config.Load()
-	// delega a ele. Cada front-end registra o seu (a GUI usa a tela própria).
 	config.SetCreator(createConfig)
 
 	appCfg, err := config.Load()
@@ -44,6 +43,8 @@ func main() {
 	fmt.Println("Network Agent started. Type your message (or 'exit' to quit):")
 
 	reader := bufio.NewReader(os.Stdin)
+
+	var transcript []history.Message
 
 	for {
 		fmt.Print("\nUser: ")
@@ -85,14 +86,20 @@ func main() {
 			prompt = userInput + "\n\n<recovered_context>\n" + retrievalJSON + "\n</recovered_context>"
 		}*/
 		prompt := userInput
-		out, err := agent.Chat(ctx, prompt)
+		resp, err := agent.Chat(ctx, transcript, prompt)
 
 		if err != nil {
 			log.Error("falha ao chamar o LLM", "err", err)
 			continue
 		}
 
+		out := resp.OutputText()
 		fmt.Printf("Agent: %s\n", out)
+
+		transcript = append(transcript,
+			history.Message{Role: history.RoleUser, Content: prompt, Status: history.StatusDone},
+			history.Message{Role: history.RoleAgent, Content: out, Status: history.StatusDone},
+		)
 	}
 }
 

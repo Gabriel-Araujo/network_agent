@@ -4,7 +4,8 @@ An LLM agent for network engineering with FRRouting, with context retrieval
 through RAG (PostgreSQL + pgvector) and executable skills.
 
 This glossary started with the logging subsystem and now covers the ICM
-pipeline as well. Other domain terms enter as they are settled.
+pipeline and the conversation history as well. Other domain terms enter as
+they are settled.
 
 ## Language
 
@@ -117,3 +118,16 @@ A log destination with its own format and rules. There are exactly two: the
 **console sink** (text, coloured, truncated values) and the **file sink**
 (JSON, with source, values intact).
 _Avoid_: handler, output, appender, writer
+
+### Conversation history
+
+**Conversa**:
+One exchange history with the agent: its ordered transcript, plus the provider
+and model that produced it. Persisted in the app's data directory, so it
+outlives the window. Distinct from a **Run**, which traverses a Pipeline.
+_Avoid_: session, chat, thread
+
+**Transcript**:
+The ordered messages of a Conversa: the unit the app owns and replays whole on
+every turn. Nothing about a Conversa lives only on the provider.
+_Avoid_: history, log, message list
