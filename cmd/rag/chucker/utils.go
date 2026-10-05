@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -86,4 +87,18 @@ func commonPrefix(a, b string) string {
 		i++
 	}
 	return a[:i]
+}
+
+// sourceURLFor monta a URL canônica do arquivo no GitHub do FRR a partir do
+// caminho local: usa o trecho a partir de doc/ quando o caminho o contém,
+// senão assume doc/user/, o corpus padrão.
+func sourceURLFor(path string) string {
+	const repo = "https://github.com/FRRouting/frr/blob/master/"
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i, part := range parts {
+		if part == "doc" && i+1 < len(parts) {
+			return repo + strings.Join(parts[i:], "/")
+		}
+	}
+	return repo + "doc/user/" + filepath.Base(path)
 }

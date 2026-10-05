@@ -3,8 +3,8 @@ package agent
 import "github.com/Gabriel-Araujo/network_agent/internal/types"
 
 var embedModel = types.Model{
-	Id:   "fastiraz/text-embedding-qwen3-embedding-8b",
-	Name: "Qwen3 Embedding *B",
+	Id:   "Qwen/Qwen3-Embedding-4B-GGUF",
+	Name: "Qwen3 Embedding 4B",
 }
 
 var testModel = types.Model{

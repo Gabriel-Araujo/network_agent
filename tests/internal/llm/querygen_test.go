@@ -10,74 +10,79 @@ import (
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 )
 
-// fakeGenerator permite testar o fallback sem rede.
+// fakeGenerator permite testar o caminho primário sem rede e registra os
+// filtros que recebeu.
 type fakeGenerator struct {
-	qs  []rag.QuerySuggestion
-	err error
+	qs           []rag.QuerySuggestion
+	err          error
+	recebidos    rag.Filtros
+	recebidoInpt string
 }
 
-func (f *fakeGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
+func (f *fakeGenerator) GenerateQueries(ctx context.Context, input string, filtros rag.Filtros) ([]rag.QuerySuggestion, error) {
+	f.recebidos = filtros
+	f.recebidoInpt = input
 	return f.qs, f.err
 }
 
-// panickingGenerator prova que o caminho determinístico NÃO chama o LLM.
-type panickingGenerator struct{}
-
-func (panickingGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
-	panic("LLM should not be called when briefing has the query table")
-}
-
-func TestBuildQueriesUsesParseNotLLM(t *testing.T) {
-	qs, err := ragretriever.BuildQueries(context.Background(), []byte(sampleBriefing), panickingGenerator{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(qs) != 4 {
-		t.Fatalf("len = %d, want 4", len(qs))
-	}
-	if qs[0].Query != "OSPF neighbor stuck Exstart Exchange state" {
-		t.Errorf("query[0] = %q", qs[0].Query)
-	}
-}
-
-func TestBuildQueriesFallsBackToLLM(t *testing.T) {
-	briefing := []byte(`{"classification":{"intentType":"troubleshooting"},"problemAndGoalSummary":"No ragQueries here."}`)
+func TestBuildQueriesUsaGerador(t *testing.T) {
 	fake := &fakeGenerator{qs: []rag.QuerySuggestion{
-		{Query: "OSPF MTU mismatch", Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"},
+		{Query: "OSPF MTU mismatch"},
+		{Query: "show ip ospf neighbor"},
 	}}
-	qs, err := ragretriever.BuildQueries(context.Background(), briefing, fake)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	filtros := rag.Filtros{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
+
+	qs := ragretriever.BuildQueries(context.Background(), "meu ospf não converge", filtros, fake)
+	if len(qs) != 2 || qs[0].Query != "OSPF MTU mismatch" {
+		t.Fatalf("qs = %+v, want as queries do gerador", qs)
 	}
-	if len(qs) != 1 || qs[0].Query != "OSPF MTU mismatch" {
-		t.Fatalf("qs = %+v, want the fake's suggestion", qs)
+	// O gerador recebe o input e o conjunto de filtros da busca.
+	if fake.recebidoInpt != "meu ospf não converge" {
+		t.Errorf("input repassado = %q", fake.recebidoInpt)
+	}
+	if fake.recebidos != filtros {
+		t.Errorf("filtros repassados = %+v, want %+v", fake.recebidos, filtros)
 	}
 }
 
-func TestBuildQueriesNoTableNoGenerator(t *testing.T) {
-	_, err := ragretriever.BuildQueries(context.Background(), []byte(`{"classification":{"intentType":"conceptual"}}`), nil)
-	if !errors.Is(err, rag.ErrNoQueries) {
-		t.Fatalf("err = %v, want ErrNoQueries", err)
+// Caso 3 do contrato: falhou a geração, a busca roda com uma única query do
+// input cru — nunca a busca inteira se perde por causa da reescrita.
+func TestBuildQueriesDegradaParaInputCru(t *testing.T) {
+	fake := &fakeGenerator{err: errors.New("provedor fora do ar")}
+	qs := ragretriever.BuildQueries(context.Background(), "meu ospf não converge", rag.Filtros{}, fake)
+	if len(qs) != 1 || qs[0].Query != "meu ospf não converge" {
+		t.Fatalf("qs = %+v, want uma query do input cru", qs)
+	}
+}
+
+func TestBuildQueriesVazioDegrada(t *testing.T) {
+	fake := &fakeGenerator{qs: nil}
+	qs := ragretriever.BuildQueries(context.Background(), "entrada qualquer", rag.Filtros{}, fake)
+	if len(qs) != 1 || qs[0].Query != "entrada qualquer" {
+		t.Fatalf("qs = %+v, want fallback para o input cru", qs)
+	}
+}
+
+func TestBuildQueriesSemGerador(t *testing.T) {
+	qs := ragretriever.BuildQueries(context.Background(), "entrada qualquer", rag.Filtros{}, nil)
+	if len(qs) != 1 || qs[0].Query != "entrada qualquer" {
+		t.Fatalf("qs = %+v, want fallback para o input cru", qs)
 	}
 }
 
 func TestParseGeneratedQueriesJSON(t *testing.T) {
-	// Sem code fence.
-	text := `[{"query":"OSPF MTU mismatch","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"},{"query":"show ip ospf neighbor","protocol":"ospf","daemon":"ospfd","chunk_type":"command_reference"}]`
+	text := `["OSPF MTU mismatch", "show ip ospf neighbor"]`
 	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(qs) != 2 {
-		t.Fatalf("len = %d, want 2", len(qs))
-	}
-	if qs[0].ChunkType != "concept" {
-
+	if len(qs) != 2 || qs[0].Query != "OSPF MTU mismatch" || qs[1].Query != "show ip ospf neighbor" {
+		t.Fatalf("qs = %+v", qs)
 	}
 }
 
 func TestParseGeneratedQueriesWithCodeFence(t *testing.T) {
-	text := "Aqui está o JSON:\n```json\n[{\"query\":\"OSPF neighbor stuck\",\"protocol\":\"ospf\",\"daemon\":\"ospfd\",\"chunk_type\":\"concept\"}]\n```\nFim."
+	text := "Aqui está o JSON:\n```json\n[\"OSPF neighbor stuck\"]\n```\nFim."
 	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -87,24 +92,24 @@ func TestParseGeneratedQueriesWithCodeFence(t *testing.T) {
 	}
 }
 
-func TestParseGeneratedQueriesRejectsInvalidChunkType(t *testing.T) {
-	text := `[{"query":"x","protocol":"ospf","daemon":"ospfd","chunk_type":"bogus"}]`
-	qs, err := ragretriever.ParseGeneratedQueries(text)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if qs[0].ChunkType != "" {
-		t.Errorf("chunk_type = %q, want empty (invalid normalized away)", qs[0].ChunkType)
-	}
-}
-
 func TestParseGeneratedQueriesSkipsEmptyQuery(t *testing.T) {
-	text := `[{"query":"","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"},{"query":"OSPF cost","protocol":"ospf","daemon":"ospfd","chunk_type":"concept"}]`
+	text := `["", "  ", "OSPF cost"]`
 	qs, err := ragretriever.ParseGeneratedQueries(text)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(qs) != 1 || !strings.Contains(qs[0].Query, "cost") {
 		t.Fatalf("qs = %+v, want only the non-empty query", qs)
+	}
+}
+
+func TestParseGeneratedQueriesInvalido(t *testing.T) {
+	// Conteúdo sem array JSON de strings → erro (a degradação é do BuildQueries).
+	if _, err := ragretriever.ParseGeneratedQueries("sem json aqui"); err == nil {
+		t.Fatal("esperava erro para saída sem JSON")
+	}
+	// Array de objetos (formato antigo) também é rejeitado: o contrato são strings.
+	if _, err := ragretriever.ParseGeneratedQueries(`[{"query":"x"}]`); err == nil {
+		t.Fatal("esperava erro para array de objetos")
 	}
 }

@@ -55,9 +55,10 @@ func FuseRRF(vec, fts map[string]int, k, limit int) []rag.ScoredChunk {
 }
 
 // Retrieve executa a busca híbrida para cada query sugerida e devolve um
-// Result por query. Se a query não retornar nada, ainda assim o Result
-// aparece com Response vazio, preservando seus metadados.
-func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion) ([]rag.Result, error) {
+// Result por query, com o conjunto único de filtros aplicado a todas elas.
+// Se a query não retornar nada, ainda assim o Result aparece com Response
+// vazio, preservando seus metadados.
+func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion, filtros rag.Filtros) ([]rag.Result, error) {
 	cfg = cfg.WithDefaults()
 
 	if len(queries) == 0 {
@@ -86,11 +87,11 @@ func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion
 
 	results := make([]rag.Result, 0, len(queries))
 	for i, q := range queries {
-		vecs, err := searchVector(ctx, store, cfg, q, vectors[i])
+		vecs, err := searchVector(ctx, store, cfg, filtros, vectors[i])
 		if err != nil {
 			return nil, fmt.Errorf("busca vetorial [%s]: %w", q.Query, err)
 		}
-		fts, err := searchFTS(ctx, store, cfg, q)
+		fts, err := searchFTS(ctx, store, cfg, q.Query, filtros)
 		if err != nil {
 			return nil, fmt.Errorf("busca full-text [%s]: %w", q.Query, err)
 		}
@@ -103,9 +104,9 @@ func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion
 
 		results = append(results, rag.Result{
 			Query:     q.Query,
-			Protocol:  q.Protocol,
-			Daemon:    q.Daemon,
-			ChunkType: q.ChunkType,
+			Protocol:  filtros.Protocol,
+			Daemon:    filtros.Daemon,
+			ChunkType: filtros.ChunkType,
 			Response:  buildResponse(chunks),
 		})
 	}

@@ -30,8 +30,9 @@ func main() {
 	}
 
 	config := string(data)
+	lineOffset := 0
 	if *protocol != "" {
-		config = validate.WrapSnippet(*protocol, config)
+		config, lineOffset = validate.WrapSnippet(*protocol, config)
 	}
 
 	result, err := validate.ValidateConfig(context.Background(), config)
@@ -46,7 +47,7 @@ func main() {
 	}
 	fmt.Println("INVALID")
 	for _, e := range result.Errors {
-		fmt.Printf("  line %d: %s\n", e.Line, e.Message)
+		fmt.Printf("  line %d: %s\n", e.Line-lineOffset, e.Message)
 	}
 	os.Exit(1)
 }

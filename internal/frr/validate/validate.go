@@ -102,29 +102,31 @@ var contextWrappers = map[string]string{
 // validate on its own, if it doesn't already carry that context (a line
 // starting with "router " or "interface "). Snippets for protocols with no
 // wrapper in contextWrappers (e.g. static routes, which are top-level) are
-// returned unchanged.
-func WrapSnippet(protocol, snippet string) string {
+// returned unchanged. The returned int is how many lines the wrapper
+// prepends (0 when unchanged) — subtract it from line numbers reported
+// against the wrapped text to recover the line in the original snippet.
+func WrapSnippet(protocol, snippet string) (string, int) {
 	trimmed := strings.TrimSpace(snippet)
 	if trimmed == "" {
-		return snippet
+		return snippet, 0
 	}
 	firstLine := strings.SplitN(trimmed, "\n", 2)[0]
 	if strings.HasPrefix(firstLine, "router ") || strings.HasPrefix(firstLine, "interface ") {
-		return snippet
+		return snippet, 0
 	}
 	wrapper, ok := contextWrappers[protocol]
 	if !ok || wrapper == "" {
-		return snippet
+		return snippet, 0
 	}
 
 	var b strings.Builder
 	b.WriteString(wrapper)
 	b.WriteString("\n")
-	for _, line := range strings.Split(trimmed, "\n") {
+	for _, line := range strings.Split(snippet, "\n") {
 		b.WriteString(" ")
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
 	b.WriteString("!\n")
-	return b.String()
+	return b.String(), 1
 }

@@ -37,10 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	chunks, err := chunkFile(
-		*path, *daemon, *protocol,
-		"https://github.com/FRRouting/frr/blob/master/doc/user/bgp.rst",
-	)
+	chunks, err := chunkFile(*path, *daemon, *protocol, sourceURLFor(*path))
 
 	if err != nil {
 		log.Fatalf("erro ao ler %s: %v", *path, err)

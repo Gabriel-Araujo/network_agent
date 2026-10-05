@@ -4,7 +4,7 @@ An LLM agent for network engineering with FRRouting, with context retrieval
 through RAG (PostgreSQL + pgvector) and executable skills.
 
 This glossary started with the logging subsystem and now covers the ICM
-pipeline and the conversation history as well. Other domain terms enter as
+pipeline, the conversation history and classification as well. Other domain terms enter as
 they are settled.
 
 ## Language
@@ -131,3 +131,48 @@ _Avoid_: session, chat, thread
 The ordered messages of a Conversa: the unit the app owns and replays whole on
 every turn. Nothing about a Conversa lives only on the provider.
 _Avoid_: history, log, message list
+
+### Classification
+
+**Classificador**:
+The component that, given an input and one or more **Listas**, chooses one value from each — or
+none, when nothing fits. With the **Modo RAG** flag on, it serves the RAG's classifier. It
+replaces the classification role of the `intent-analyser` skill.
+_Avoid_: intent analyser, router, tagger
+
+**Lista**:
+A closed set of candidate values for one dimension, supplied to the **Classificador** by whoever
+calls it; one value is chosen per list, or none.
+_Avoid_: opções, vocabulário, categorias
+
+**Modo RAG**:
+The **Classificador**'s flag-on mode, in which it serves as the RAG's classifier instead of a
+generic caller. The flag is a call parameter: the caller decides the mode.
+_Avoid_: flag do RAG, RAG flag
+
+**Filtros de busca**:
+The values that scope one input's document search: the chosen value of each **Lista** passed by
+the RAG caller, applied to the whole search and never to a single query. An empty value means
+that dimension is not filtered.
+_Avoid_: filtros por query, tags de busca
+
+**Skip rule**:
+The turn rule that decides whether the search runs: only when this turn's **Modo RAG**
+classification differs from the previous turn's. A skipped turn re-injects the last search's
+recovered context; a failed classification clears the comparison, so the search runs again.
+_Avoid_: cache de busca, regra de cache, memoização
+
+### Briefing
+
+**Briefing rico**:
+The structured picture a request paints of the network at hand: its devices, its connections, the
+problem and goal summary, and the execution plan. Distinct from the classification the
+**Classificador** makes and from the search queries.
+_Avoid_: intent analysis, análise de intenção, briefing de intenção
+
+**Espelho**:
+The JSON file a skill writes beside its in-memory result, named
+`<slug>-<hash8>.json` under `.agent/tmp` — a mirror, not the product: on a write
+failure the value still comes back and the failure is a sentinel error. Both the
+**Briefing rico** and the retrieval write one.
+_Avoid_: output file, arquivo de saída, cache, log, backup

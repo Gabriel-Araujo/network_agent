@@ -2,7 +2,6 @@ package rag
 
 import (
 	"context"
-	"errors"
 
 	"github.com/openai/openai-go/v3"
 )
@@ -53,22 +52,25 @@ type StackEntry struct {
 
 // -- Retriever Types -- //
 
-// ErrNoQueries indica que o briefing não contém o campo "ragQueries"
-// (ou veio vazio), obrigando o fallback por LLM.
-var ErrNoQueries = errors.New("briefing sem queries de RAG (campo 'ragQueries')")
-
-// QuerySuggestion é uma query reescrita para busca, com filtros
-// opcionais de metadados para a tabela frr_docs. ChunkType vazio
-// significa "sem filtro".
-type QuerySuggestion struct {
-	Query     string
+// Filtros é o conjunto único de metadados por input, aplicado a todas as
+// queries da busca (um conjunto por busca inteira, não por query). ""
+// significa "sem filtro" e casa com o NULL do SQL (nullableStr). Quem chama
+// é o Classificador (Modo RAG); a validação de pertencimento é dele — o
+// retriever não revalida.
+type Filtros struct {
 	Protocol  string
 	Daemon    string
 	ChunkType string
 }
 
+// QuerySuggestion é uma query de busca reescrita a partir do input. Só o
+// texto: os filtros vivem em Filtros, um conjunto para a busca inteira.
+type QuerySuggestion struct {
+	Query string
+}
+
 // Config centraliza o que o retriever precisa: conexão com o Postgres,
-// cliente de embeddings e o fallback de geração de queries.
+// cliente de embeddings e o gerador de queries.
 type Config struct {
 	DSN            string
 	EmbeddingModel string // vazio -> DefaultEmbeddingModel
@@ -91,10 +93,12 @@ func (c Config) WithDefaults() Config {
 	return c
 }
 
-// QueryGenerator gera sugestões de query a partir do texto do briefing,
-// usado como fallback quando o briefing não traz a tabela determinística.
+// QueryGenerator reescreve o input do usuário em queries de busca
+// (caminho primário da busca), recebendo os filtros escolhidos para orientar
+// a reescrita. Falhou a geração, o chamador degrada para uma query única do
+// input cru — com aviso explícito.
 type QueryGenerator interface {
-	GenerateQueries(ctx context.Context, briefing []byte) ([]QuerySuggestion, error)
+	GenerateQueries(ctx context.Context, input string, filtros Filtros) ([]QuerySuggestion, error)
 }
 
 // Result é a saída estruturada do retriever. Os metadados protocol, daemon e

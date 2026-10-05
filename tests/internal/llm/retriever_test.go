@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/retriever"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
+	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -97,11 +99,13 @@ func TestRetrieveIntegration(t *testing.T) {
 	}
 
 	queries := []rag.QuerySuggestion{
-		{Query: "BGP neighbor session Active state", Protocol: "bgp", Daemon: "bgpd"},
-		{Query: "OSPF stuck Exstart MTU mismatch", Protocol: "ospf", Daemon: "ospfd"},
+		{Query: "BGP neighbor session Active state"},
+		{Query: "OSPF stuck Exstart MTU mismatch"},
 	}
+	// Conjunto único de filtros por busca, aplicado a todas as queries.
+	filtros := rag.Filtros{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
 
-	results, err := retriever.Retrieve(context.Background(), cfg, queries)
+	results, err := retriever.Retrieve(context.Background(), cfg, queries, filtros)
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
@@ -111,6 +115,9 @@ func TestRetrieveIntegration(t *testing.T) {
 	for _, r := range results {
 		if r.Query == "" {
 			t.Errorf("result com query vazia: %+v", r)
+		}
+		if r.Protocol != filtros.Protocol || r.Daemon != filtros.Daemon || r.ChunkType != filtros.ChunkType {
+			t.Errorf("result com metadados fora do conjunto único: %+v", r)
 		}
 	}
 }
@@ -125,15 +132,14 @@ func testEmbedderClient() openai.Client {
 	)
 }
 
-// TestSaveResults verifica o shape do JSON gravado e a convenção de nome.
+// TestSaveResults verifica o shape do JSON gravado e a convenção de nome do
+// espelho: <slug>-<hash8>.json derivado do input (molde do briefing — o mesmo
+// input regrava o mesmo espelho).
 func TestSaveResults(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
 
-	briefing := filepath.Join(tmp, "meu-ospf-abc123.md")
-	if err := os.WriteFile(briefing, []byte("# x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	input := "meu ospf não converge entre o core e o edge"
 
 	results := []rag.Result{
 		{
@@ -151,12 +157,25 @@ func TestSaveResults(t *testing.T) {
 			Response:  "contexto B",
 		},
 	}
-	path, err := ragretriever.SaveResults(briefing, results)
+	path, err := ragretriever.SaveResults(input, results)
 	if err != nil {
 		t.Fatalf("saveResults: %v", err)
 	}
-	if filepath.Base(path) != "meu-ospf-abc123.json" {
-		t.Errorf("nome = %q, want meu-ospf-abc123.json", filepath.Base(path))
+	want := util.Slugify(input) + "-" + util.Hash8(input) + ".json"
+	if filepath.Base(path) != want {
+		t.Errorf("nome = %q, want %q", filepath.Base(path), want)
+	}
+	if !strings.HasPrefix(filepath.Base(path), "meu-ospf-nao-converge-entre-") {
+		t.Errorf("nome = %q, want slug do input como prefixo", filepath.Base(path))
+	}
+
+	// Determinístico: o mesmo input regrava o mesmo espelho.
+	path2, err := ragretriever.SaveResults(input, results)
+	if err != nil {
+		t.Fatalf("saveResults (2a chamada): %v", err)
+	}
+	if path2 != path {
+		t.Errorf("espelho mudou de nome: %q != %q", path2, path)
 	}
 
 	data, err := os.ReadFile(path)
@@ -175,5 +194,26 @@ func TestSaveResults(t *testing.T) {
 	}
 	if got[1].Protocol != "bgp" || got[1].Daemon != "bgpd" || got[1].ChunkType != "command_reference" {
 		t.Errorf("second result metadata = %+v, want protocol=bgp daemon=bgpd chunk_type=command_reference", got[1])
+	}
+}
+
+// TestSaveResultsFalhaDeGravacao: o espelho nunca derruba o caminho — a falha
+// de gravação sobe como erro (o Do a embrulha na sentinela
+// ErrEspelhoNaoGravado) e o valor em memória volta completo.
+func TestSaveResultsFalhaDeGravacao(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+
+	// .agent/tmp como ARQUIVO impede o MkdirAll do espelho.
+	if err := os.MkdirAll(".agent", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(".agent/tmp", []byte("bloqueio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	results := []rag.Result{{Query: "OSPF cost"}}
+	if _, err := ragretriever.SaveResults("meu ospf", results); err == nil {
+		t.Fatal("esperava erro de gravação do espelho")
 	}
 }

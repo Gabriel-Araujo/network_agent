@@ -3,12 +3,11 @@ package rag
 const (
 	ChunkTypeCommandReference = "command_reference"
 	ChunkTypeConcept          = "concept"
-
-	queriesHeader = "Rewritten queries for RAG"
 )
 
 // RetrievalDir é o diretório onde as saídas de busca são salvas, relativo
-// ao diretório de trabalho atual. (.agent já está no .gitignore.)
+// ao diretório de trabalho atual. (.agent não está no .gitignore — os
+// espelhos em .agent/tmp são artefatos de execução do agente.)
 const RetrievalDir = ".agent/tmp/retrieval"
 
 // DefaultEmbeddingModel é o modelo usado no ingester e no retriever.

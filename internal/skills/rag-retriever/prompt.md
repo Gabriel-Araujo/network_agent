@@ -1,14 +1,7 @@
 # RAG Query Rewriting
-
-Your job: turn the intent briefing below into search queries for an FRR
-documentation knowledge base stored in a PostgreSQL+pgvector table called
-`frr_docs`.
-
-The briefing is the JSON file produced by the `intent-analyser` skill. It
-normally contains a `ragQueries` object. The caller parses that object before
-searching. If it is absent or empty, build the queries yourself from the
-fields `classification` (intentType, protocols, daemons),
-`problemAndGoalSummary`, and `executionPipeline`.
+Your job: turn the user's networking question below into search queries for
+an FRR documentation knowledge base stored in a PostgreSQL+pgvector table
+called `frr_docs`.
 
 ## Rules
 
@@ -16,25 +9,17 @@ fields `classification` (intentType, protocols, daemons),
    won't come up" → "BGP session Active state" or "OSPF neighbor stuck
    Exstart"; "my router won't talk to the other one" → "OSPF neighbor
    adjacency down").
-2. Prefer the exact FRR command name when the briefing signals it (e.g. if it
+2. Prefer the exact FRR command name when the question signals it (e.g. if it
    mentions "redistribute", keep the term).
 3. One query per distinct aspect, 2 to 5 queries total — don't try to cover
-   the whole plan in a single string.
-4. For each query, suggest metadata filters:
-   - `protocol`: bgp | ospf | ospf6 | isis | rip | ripng | pim | ldp | vrrp | bfd | static
-   - `daemon`: bgpd | ospfd | ospf6d | isisd | ripd | ripngd | pimd | pim6d | ldpd | vrrpd | bfdd | staticd | zebra
-   - `chunk_type`: `command_reference` when the question is about a specific
-     command's syntax/behavior, `concept` when it's about general protocol
-     behavior.
-   Leave protocol/daemon empty if the briefing doesn't make it clear (do not
-   guess loudly — empty means "no filter").
-5. Output ONLY a raw JSON array, no prose, no code fences. Shape:
+   the whole question in a single string.
+4. Keep every query consistent with the search filters: they were chosen for
+   the whole search and will restrict the documents retrieved.
+5. Output ONLY a raw JSON array of strings, no prose, no code fences. Shape:
 
 ```json
-[
-  {"query": "...", "protocol": "...", "daemon": "...", "chunk_type": "..."}
-]
+["query one", "query two"]
 ```
 
-The caller will execute the hybrid search, save the retrieval JSON, and
-return its path. Do not answer the user's networking question.
+The caller will execute the hybrid search and return its results. Do not
+answer the user's networking question.

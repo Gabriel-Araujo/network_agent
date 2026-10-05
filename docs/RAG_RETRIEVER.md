@@ -1,9 +1,11 @@
 # Retriever RAG — Documentação da Implementação
 
 > Pipeline de busca híbrida (vetorial + full-text) sobre a base `frr_docs`
-> (PostgreSQL + pgvector), alimentado pelo briefing gerado pela skill de
-> análise de intenção (`intent-analyser`).
-> Saída: JSON estruturado `[{"query": string, "protocol": string, "daemon": string, "chunk_type": string, "response": string}]`.
+> (PostgreSQL + pgvector), alimentado pelo **Classificador** em Modo RAG
+> (`internal/skills/classifier`) e por um gerador de queries LLM.
+> Saída híbrida: resultados em memória **+** espelho JSON em
+> `.agent/tmp/retrieval/`.
+> Forma do resultado: `[{"query": string, "protocol": string, "daemon": string, "chunk_type": string, "response": string}]`.
 
 ---
 
@@ -18,29 +20,45 @@ usuário, antes de virar resposta, passa por um pipeline de **RAG
 pergunta do usuário
    │
    ▼
-[1] intent-analyser ──► briefing JSON estruturado (classificação, daemons,
-   │                     filtros, plano de diagnóstico, queries p/ busca)
+[1] Classificador (internal/skills/classifier)
+   │    • chamada genérica (Modo RAG desligado) — só exibida na tela
+   │    • chamada Modo RAG → map[string]string → rag.FiltrosFrom → rag.Filtros
    ▼
-[2] skill rag-retriever (ESTA IMPLEMENTAÇÃO) ──► busca híbrida no pgvector
-   │                                              (frr_docs) usando as queries
-   │                                              extraídas do briefing
+[1b] skip rule (deveBuscar) — a busca só roda quando a classificação RAG mudou
    ▼
-[3] resposta final gerada pelo LLM com o contexto recuperado
+[2] skill rag-retriever (ESTA IMPLEMENTAÇÃO) ──► queries reescritas pelo LLM
+   │                                              → busca híbrida no pgvector
+   │                                                (frr_docs) com os filtros
+   ▼
+[3] resposta final gerada pelo LLM com o <recovered_context> no prompt
 ```
 
-A skill `rag-retriever` é o elo **[2]**: ela lê o briefing JSON, transforma em
-**queries de busca reais** (parse determinístico do `ragQueries`, com fallback
-por LLM), executa a recuperação de documentação relevante e grava o resultado
-num shape determinístico, para que o passo [3] não precise re-reinterpretar a
-pergunta em linguagem natural. Por fim, devolve o **caminho do arquivo JSON**
-gerado.
+O **Classificador** escolhe, para cada **Lista** passada na chamada, um valor
+canônico — ou `""` quando nada se encaixa. As Listas do chamador RAG são
+`protocol`/`daemon`/`chunk_type` (fonte única: `rag.Listas()`), e o mapa de
+saída vira o **conjunto único de filtros** da busca via `rag.FiltrosFrom`.
+O **briefing rico** (`internal/skills/briefing`) é a skill preservada do antigo
+`intent-analyser` e está **fora do fluxo do CLI** (ver §12).
+
+A skill `rag-retriever` é o elo **[2]**: ela reescreve o input em **queries de
+busca reais** (gerador LLM, com degradação avisada para o input cru), executa a
+recuperação de documentação relevante com os filtros do Classificador e devolve
+os resultados **em memória** e **gravados num espelho JSON** em forma
+determinística, para que o passo [3] não precise re-reinterpretar a pergunta em
+linguagem natural.
 
 ---
 
 ## 2. Objetivo e Contrato de Saída
 
-A skill recebe o caminho do briefing JSON produzido pelo `intent-analyser` e
-gera:
+O ponto de entrada é:
+
+```go
+ragretriever.Do(ctx, input string, filtros rag.Filtros, cfg rag.Config) ([]rag.Result, string, error)
+```
+
+Recebe o **input textual** e o **conjunto único de filtros** do Classificador e
+gera um `rag.Result` por query:
 
 ```json
 [
@@ -57,11 +75,19 @@ gera:
 - **`query`** — a busca reescrita (em terminologia FRR), pronta para o motor
   de recuperação.
 - **`protocol`**, **`daemon`** e **`chunk_type`** — os filtros de metadados
-  usados na busca para essa query. Podem estar vazios quando o briefing não
-  especifica o filtro.
+  **da busca inteira** (um conjunto por input, não por query), vindos do
+  Classificador. Podem estar vazios ("sem filtro").
 - **`response`** — o **contexto recuperado** (`parent_content` + origem:
   `source_url` e `section_path`), **não** uma resposta gerada pelo LLM.
-  Gerar a resposta é responsabilidade do passo [3].
+  Gerar a resposta é responsabilidade do passo [3]. Query sem resultado devolve
+  `response` vazio, preservando os metadados.
+
+O retorno é **híbrido**: os resultados completos voltam em memória e o mesmo
+conteúdo é gravado no espelho `.agent/tmp/retrieval/<slug>-<hash8>.json`
+(§7). Se só a gravação do espelho falhar, o valor em memória volta completo,
+o path vem vazio e o erro é a sentinela
+`ragretriever.ErrEspelhoNaoGravado` (checável com `errors.Is`) — o espelho
+nunca derruba o caminho. Falha na busca é erro normal.
 
 Esse contrato é importante por um motivo de **separação de responsabilidades**
 (sobre o qual voltamos mais adiante): o retriever só deve trazer evidência;
@@ -98,102 +124,114 @@ resultado robusto a variações de vocabulário — o ponto central do RAG.
 
 ## 4. Arquitetura do Código
 
-A lógica foi **extraída para a skill** `internal/skills/rag-retriever/`
-(espelhando o `internal/skills/intent-analyser/`), que orquestra o fluxo e
-carrega **seus próprios prompts** (`prompt.md` via `//go:embed`). O mecanismo
-puro de busca permanece em `../internal/agent/rag`:
+A orquestração vive na skill `internal/skills/rag-retriever/`, que carrega
+**seus próprios prompts** (`prompt.md` via `//go:embed`). O mecanismo puro de
+busca permanece em `internal/agent/rag`:
 
 ```
 cmd/cli/main.go
-   │  intentanalyser.Do(...)                      → briefing JSON (.agent/tmp/network_agent/)
-   │  runRetrieval(...) → ragretriever.Do(...)    → JSON (.agent/tmp/retrieval/)
+   │  classifier.Do(..., modoRAG=false)      → só exibição na tela
+   │  classifier.Do(..., modoRAG=true)       → rag.FiltrosFrom → rag.Filtros
+   │  deveBuscar(...) → runRetrieval(...) → ragretriever.Do(...)  → memória + espelho
    ▼
-internal/skills/rag-retriever/        (skill — orquestração, prompts, fallback LLM)
-   ├─ retriever.go                    → Do, SaveResults, BuildQueries,
-   │                                    ParseQueriesFromBriefing, LLMQueryGenerator
-   ├─ prompt.go / prompt.md           → prompt do fallback LLM (//go:embed)
+internal/skills/classifier/          (Classificador — validação no cliente + retry ×2)
+internal/skills/briefing/            (briefing rico — FORA do fluxo do CLI, preservado)
+internal/skills/rag-retriever/       (skill — orquestração, geração de queries)
+   ├─ retriever.go                   → Do, SaveResults, BuildQueries,
+   │                                    LLMQueryGenerator, ParseGeneratedQueries
+   ├─ prompt.go / prompt.md          → prompt do gerador de queries (//go:embed)
    ▼
-internal/llm/rag/retriever/           (mecanismo de busca — sem IO de arquivo)
-   ├─ retriever.go                    → Retrieve, VectorLiteral, FuseRRF, buildResponse
-   ├─ embed.go                        → embeddings em lote + probe de dimensão (4096)
-   ├─ db.go                           → SQL híbrido (vetorial + FTS) + lookup de chunks
-   └─ queries.go                      → constantes SQL
-internal/llm/rag/
-   ├─ types.go / constants.go         → tipos (Config, Result, QuerySuggestion) e constantes
-   └─ env/env.go                      → leitura de DATABASE_URL / EMBEDDING_MODEL (.env)
+internal/agent/rag/
+   ├─ types.go                       → tipos (Config, Filtros, QuerySuggestion,
+   │                                    Result, QueryGenerator)
+   ├─ listas.go                      → Listas() (fonte única das Listas RAG)
+   │                                    e FiltrosFrom
+   ├─ constants.go                   → ChunkType*, RetrievalDir, DefaultEmbeddingModel, RrfK
+   ├─ retriever/                     (mecanismo de busca — sem IO de arquivo)
+   │   ├─ retriever.go               → Retrieve, VectorLiteral, FuseRRF, buildResponse
+   │   ├─ embed.go                   → embeddings em lote + ProbeEmbeddingDim (4096)
+   │   ├─ db.go                      → SQL híbrido (vetorial + FTS) + lookup de chunks
+   │   └─ queries.go                 → constantes SQL
+   └─ env/env.go                     → LoadEnv (DATABASE_URL / EMBEDDING_MODEL), Probe
 pkg/db                                → pgxpool lazy singleton
+pkg/util                              → Slugify, Hash8 (determinístico), SafePath
 ```
 
 ### 4.1 `internal/skills/rag-retriever/retriever.go` — orquestração (a skill)
 
-- **`Do(ctx, briefingPath, cfg)`** é o ponto de entrada: lê o briefing JSON,
-  chama `BuildQueries`, executa a busca via `retriever.Retrieve(...)`, grava o
-  resultado com `SaveResults` e **retorna o caminho** do JSON gerado.
-- **`SaveResults(briefingPath, results)`** grava o JSON em
-  `.agent/tmp/retrieval/<mesmo-nome>.json` (mesma convenção de nome do
-  briefing), retornando o caminho do arquivo criado.
-- **`BuildQueries(ctx, content, gen)`** tenta o parse determinístico do campo
-  `ragQueries`; se ausente, cai no fallback LLM (`gen`); se não há generator,
-  retorna `rag.ErrNoQueries`.
-- **`LLMQueryGenerator`** implementa o fallback usando a API de Responses do
-  openai-go (mesmo padrão do `intent-analyser`), com `systemPrompt` +
-  `prompt.md` embutidos na própria skill.
-- Os prompts vivem em `prompt.go` (`systemPrompt` + `//go:embed prompt.md`) —
-  **dentro da pasta da skill**, seguindo o modelo do `intent-analyser`.
+- **`Do(ctx, input, filtros, cfg)`** é o ponto de entrada: monta as queries com
+  `BuildQueries`, executa a busca via `retriever.Retrieve(ctx, cfg, queries,
+  filtros)`, grava o espelho com `SaveResults` e retorna **resultados em
+  memória + path do espelho** (sentinela `ErrEspelhoNaoGravado` quando só a
+  gravação falha).
+- **`SaveResults(input, results)`** grava o JSON em
+  `.agent/tmp/retrieval/<slug>-<hash8>.json` (slug + hash derivados do input,
+  molde do espelho do briefing), retornando o caminho do arquivo criado.
+- **`BuildQueries(ctx, input, filtros, gen)`** usa o gerador como caminho
+  primário; sem gerador, ou com geração falha/vazia, **degrada com aviso
+  explícito** para uma única query do input cru.
+- **`LLMQueryGenerator`** implementa a geração usando a API de Responses do
+  openai-go, com `systemPrompt` + `prompt.md` embutidos na própria skill
+  (`montarPrompt(filtros)` inclui os filtros escolhidos para orientar a
+  reescrita).
+- **`ParseGeneratedQueries`** extrai o array JSON de strings da saída do
+  gerador, tolerando texto ao redor e *code fences*; strings vazias são
+  descartadas.
 
-### 4.2 Parse determinístico do JSON (caminho preferido)
+### 4.2 `internal/skills/classifier` — a fonte dos filtros
 
-O briefing do `intent-analyser` é **JSON** e carrega as queries no campo
-`ragQueries` (objeto chave → sugestão):
+O Classificador (`classifier.Do(ctx, input, listas, modoRAG, agent)`) devolve
+`map[string]string`: um valor canônico por Lista, `""` = vazio explícito (nada
+se encaixa), nunca um valor inventado. O contrato completo está em
+[Contrato do classificador](../.agent/classifier/issues/02-contrato-do-classificador.md).
 
-```json
-"ragQueries": {
-  "1": {"query": "OSPF neighbor stuck Exstart Exchange state", "protocol": "ospf", "daemon": "ospfd", "suggestedChunkType": "concept"}
-}
-```
+- **Validação no cliente em 100% dos caminhos** — o provedor pode ignorar o
+  schema de saída em silêncio (ver
+  [Pesquisa: saída estruturada](../.agent/classifier/assets/pesquisa-saida-estruturada.md)),
+  então toda resposta passa por pertencimento à Lista antes de sair; saída
+  inválida é refeita no máximo 2× com o erro colado na tentativa seguinte e,
+  esgotadas as tentativas, o erro sobe explícito.
+- **`rag.Listas()`** é a fonte única das Listas do chamador RAG —
+  `protocol`/`daemon`/`chunk_type`, com os nomes das colunas da `frr_docs`
+  (saída sem tradução). Conjunto fechado por contrato: **não** é derivado do
+  banco (o conteúdo da base varia com a ingesta). Os prompts que precisam do
+  vocabulário derivam da tabela.
+- **`rag.FiltrosFrom(resultado)`** converte o mapa no `rag.Filtros` da busca;
+  `""` vira "sem filtro" (o `NULL` do SQL). O retriever **não revalida** os
+  valores — a garantia de pertencimento é do Classificador.
 
-`ParseQueriesFromBriefing` extrai esse objeto **sem chamar LLM**
-(`json.Unmarshal` + ordenação numérica das chaves para preservar a ordem).
-Por quê?
+### 4.3 Geração de queries — caminho primário com degradação avisada
 
-- **Determinismo**: a mesma entrada gera sempre as mesmas queries — essencial
-  para testes e reprodução.
-- **Custo/precisão**: as queries já foram esculpidas com vocabulário FRR na
-  etapa [1]; re-gerá-las gastaria uma chamada de modelo e poderia desviar.
-- O parser normaliza `protocol`/`daemon` para minúsculas e valida
-  `suggestedChunkType` contra `command_reference|concept` (vira `""`
-  = "sem filtro" se vier valor inválido), evitando que lixo do modelo vire
-  filtro SQL quebrado.
+As queries da busca são **geradas pelo LLM** a partir do input + filtros
+(`rag.QueryGenerator`): o modelo reescreve linguagem informal em terminologia
+FRR/RFC, uma query por aspecto (2 a 5), sempre consistente com os filtros —
+ver `internal/skills/rag-retriever/prompt.md`.
 
-### 4.3 Fallback por LLM
+Falhou a geração (ou não há gerador), a busca **degrada com aviso explícito**
+(`log.Warn`) para uma única query do input cru. Nunca falha silenciosa; nunca a
+busca inteira se perde por causa da reescrita.
 
-`BuildQueries(ctx, content, gen)` tenta **primeiro o parse determinístico** e
-só cai no LLM se o briefing **não tiver `ragQueries`** (formato legado ou
-campo ausente). O `LLMQueryGenerator` usa a mesma API de Responses do projeto
-(mesmo padrão do `intent-analyser`), com um prompt dedicado
-(`internal/skills/rag-retriever/prompt.md`) que devolve JSON puro
-(`ParseGeneratedQueries`, que tolera *code fences* e valida campos).
+> O caminho antigo — parse determinístico do campo `ragQueries` do briefing
+> (`ParseQueriesFromBriefing`, `ErrNoQueries`) com "fallback LLM" — foi
+> **removido por inteiro** junto do `intent-analyser` (ver §11). Hoje o gerador
+> é o caminho primário e o input cru é a degradação.
 
-O fallback nunca é o caminho normal — é um **seguro contra briefings
-legados**. Isso honra o princípio "determinístico primeiro, LLM segundo":
-chamadas de modelo são lentas, não-determinísticas e custosas.
-
-### 4.4 `../internal/agent/rag` — embeddings e consistência de dimensão
+### 4.4 `internal/agent/rag/retriever` — embeddings e consistência de dimensão
 
 `embedTexts` usa `client.Embeddings.New(...)` com o **mesmo modelo do
-ingester** (`text-embedding-qwen3-embedding-8b`). Isso é um requisito físico:
-se a query fosse embedded por um modelo diferente do que gerou os vetores do
-banco, a similaridade de cosseno perderia o significado (espaços vetoriais
-diferentes).
+ingester** (`text-embedding-qwen3-embedding-8b`, `rag.DefaultEmbeddingModel`).
+Isso é um requisito físico: se a query fosse embedded por um modelo diferente
+do que gerou os vetores do banco, a similaridade de cosseno perderia o
+significado (espaços vetoriais diferentes).
 
 **`ProbeEmbeddingDim`** embeds uma string de teste no primeiro uso e assert
 `len == 4096`. Se o modelo trocar, o erro é claro ("dimensão X, esperava
 4096") em vez de uma busca silenciosamente sem sentido.
 
-### 4.5 `../internal/agent/rag` — SQL híbrido
+### 4.5 `internal/agent/rag/retriever` — SQL híbrido
 
 Duas queries parametrizadas com filtros opcionais como `*string` (nil = sem
-filtro):
+filtro, via `nullableStr`):
 
 ```sql
 -- vetorial (usa diskann)
@@ -217,27 +255,27 @@ LIMIT $5;
 
 Cada fonte busca `limit × FetchFactor` (mais candidatos do que o resultado
 final) para alimentar a fusão. Os filtros `daemon`/`protocol`/`chunk_type`
-vêm **das colunas sugestas pelo briefing** — viram `WHERE`, não metadados
+vêm do **conjunto único do Classificador** — viram `WHERE`, não metadados
 decorativos, aproveitando o índice btree `(daemon, protocol, chunk_type)`.
 
-`fetchChunks` busca os metadados dos vencedores **na ordem do RRF**, e
-`nullableStr` converte filtro vazio em `NULL`.
+`fetchChunks` busca os metadados dos vencedores **na ordem do RRF** (lookup
+`chunk_id = ANY($1::text[])`).
 
 ### 4.6 `pkg/db` — pool lazy singleton
 
 `db.OpenDB` cria um `pgxpool` na primeira chamada e o reutiliza
-(`sync.Once`). Como o retriever roda a cada turno da conversa, reabrir socket
-a cada busca seria caro; o singleton evita essa recriação. Um `Ping` no
+(`sync.Once`). Como o retriever roda quando a classificação muda, reabrir
+socket a cada busca seria caro; o singleton evita essa recriação. Um `Ping` no
 primeiro uso valida a conexão cedo (fail-fast).
 
-### 4.7 `../internal/agent/rag` — configuração via ambiente
+### 4.7 `internal/agent/rag/env` — configuração via ambiente
 
 `LoadEnv()` lê `DATABASE_URL`/`EMBEDDING_MODEL` de variáveis de ambiente com
-fallback para o `.env` na raiz do repo (`paths.RepoFile`), preservando a
-convenção já usada por `internal/llm/config.go` (leitura própria de `.env`,
-sem dependência de godotenv). `Probe(...)` oferece uma verificação de sanidade
-do schema (contagem de chunks, FTS e `ORDER BY ... <=> $1::vector`) sem
-precisar de embeddings reais.
+fallback para o `.env` na raiz do repo, preservando a convenção já usada por
+`internal/llm/config.go` (leitura própria de `.env`, sem dependência de
+godotenv). `Probe(...)` oferece uma verificação de sanidade do schema
+(contagem de chunks, FTS e `ORDER BY ... <=> $1::vector`) sem precisar de
+embeddings reais.
 
 ---
 
@@ -247,16 +285,17 @@ Existem **dois clientes** no projeto:
 
 | Cliente | Uso | Endpoint |
 |---|---|---|
-| `agent.Client` (chat) | conversa / geração de queries via LLM | provedor remoto (OpenRouter) |
-| `LLM.LoadEmbbedAgent()` | **embeddings** | LM Studio local `http://localhost:1234/v1` |
+| `agent.Client` (chat) | conversa / geração de queries via LLM | provedor configurado (ex.: OpenRouter) |
+| `agentapi.LoadEmbbedAgent()` | **embeddings** | LM Studio local `http://localhost:1234/v1` |
 
 O `cmd/cli/main.go` (função `runRetrieval`) usa **`LoadEmbbedAgent()`** como
 fonte do `Embedder` e do `EmbeddingModel`. Por quê? O provedor remoto usado
-para o chat **não serve o modelo de embedding** (`text-embedding-qwen3-embedding-8b`
-dá 404/"model does not exist"), enquanto o LM Studio local o serve com as
-mesmas 4096 dimensões usadas no ingest. Misturar os dois quebraria a
-similaridade vetorial — então embeddings têm seu **próprio agente**, isolado
-do chat. (Isso foi validado na integração: `len(embedding) == 4096`.)
+para o chat **não serve o modelo de embedding**
+(`text-embedding-qwen3-embedding-8b` dá 404/"model does not exist"), enquanto o
+LM Studio local o serve com as mesmas 4096 dimensões usadas no ingest.
+Misturar os dois quebraria a similaridade vetorial — então embeddings têm seu
+**próprio agente**, isolado do chat. (Isso foi validado na integração:
+`len(embedding) == 4096`.)
 
 ---
 
@@ -267,7 +306,7 @@ rankings sem depender de calibragem de scores (que são incompatíveis entre
 cosseno e `ts_rank_cd`):
 
 ```
-score[id] += 1 / (k + rank + 1)     para cada fonte    (k = 60)
+score[id] += 1 / (k + rank + 1)     para cada fonte    (k = rag.RrfK = 60)
 ```
 
 Por quê **RRF** em vez de soma de scores normalizados?
@@ -283,44 +322,62 @@ Por quê **RRF** em vez de soma de scores normalizados?
 
 ## 7. Filesystem de Trabalho
 
-- **Entrada**: `.agent/tmp/network_agent/<slug>-<hash8>.json` — gerado pelo
-  `intent-analyser.Do(...)` (slug de até 5 palavras + hash8, nomes únicos).
-- **Saída**: `.agent/tmp/retrieval/<mesmo-nome>.json` — gravado pelo
-  `rag-retriever.SaveResults(...)`, seguindo a mesma convenção de nome
-  (rastreabilidade 1:1 briefing → resultado).
-- `.agent/` está no `.gitignore`, então artefatos não vazam para o versionado.
+- **Espelho do retrieval**: `.agent/tmp/retrieval/<slug>-<hash8>.json` —
+  gravado por `ragretriever.SaveResults(...)`, nome derivado do input via
+  `pkg/util.Slugify`/`Hash8`. O **Hash8 é determinístico**: o mesmo input
+  regrava o mesmo espelho (sobrescreve, sem histórico de execuções).
+- **Espelho do briefing rico**: `.agent/tmp/<slug>-<hash8>.json` — gravado
+  pela skill `briefing` (fora do fluxo do CLI, §12), mesma convenção de nome.
+- `.agent/` **é versionado** (os tickets do tracker moram em
+  `.agent/<effort>/`); os espelhos em `.agent/tmp/` são artefatos de execução
+  do agente, não confundir com os tickets.
 
-O `cmd/cli/main.go` injeta o JSON no prompt do passo [3] dentro de um bloco
-`<recovered_context>...</recovered_context>`, dando ao LLM evidência
-verificável e citável no contexto — sem embutir a origem bruta na resposta
-final.
+O `cmd/cli/main.go` injeta o JSON dos resultados no prompt do passo [3] dentro
+de um bloco `<recovered_context>...</recovered_context>`, dando ao LLM
+evidência verificável e citável no contexto — sem embutir a origem bruta na
+resposta final.
 
 ---
 
 ## 8. Integração com o CLI (fluxo E2E)
 
 ```
-leu "exit"? ──► não ──► intentanalyser.Do(ctx, pergunta, agent)
-                         │                          │
-                         │       briefing JSON  ▼
-                         │                  runRetrieval(ctx, agent, intentPath)
-                         │                          │  LoadEmbbedAgent (LM Studio)
-                         │                          │  ragretriever.Do(...) → JSON
-                         │                          ▼
-                         │            JSON em .agent/tmp/retrieval/
+leu "exit"? ──► não ──► classifier.Do(..., modoRAG=false)  → exibição na tela
+                         │                                    (lista=valor por Lista)
                          ▼
-         prompt = pergunta + <recovered_context> JSON
+                   classifier.Do(..., modoRAG=true) → map → rag.FiltrosFrom
+                         │        │
+                         │        └─ falha: filtros vazios + aviso, comparação zerada
                          ▼
-                 agent.Chat(ctx, prompt)  → resposta final
+                   deveBuscar(atual, anterior)? ── não ──► re-injeta o contexto
+                         │ sim                               do último retrieval
+                         ▼
+                   runRetrieval(ctx, agent, input, filtros)
+                         │   LoadEmbbedAgent (LM Studio) + LLMQueryGenerator
+                         │   ragretriever.Do(...) → memória + espelho
+                         ▼
+                   prompt = pergunta + <recovered_context> JSON
+                         ▼
+                   agent.Chat(ctx, transcript, prompt)  → resposta final
 ```
 
-A skill `rag-retriever` recebe `intentPath` (o path do briefing), extrai as
-queries (`ragQueries` + fallback LLM), busca no `frr_docs` e devolve o path do
-JSON gravado — que é lido pelo CLI e injetado no prompt final.
+**Skip rule** (`deveBuscar`): o retrieval só roda quando a classificação RAG
+do turno difere da do anterior — igualdade exata do mapa (`maps.Equal`),
+vazio incluído. `atual == nil` (falha do classificador) ou `anterior == nil`
+(primeiro turno / comparação zerada) sempre busca. Pulado, o contexto vem do
+**último retrieval real** re-injetado no prompt.
 
-Se o retrieval falhar (ex.: `DATABASE_URL` vazio), o CLI **degrada
-graciosamente**: loga o erro e segue sem contexto RAG — a conversa não é
-interrompida pela ausência de banco.
+**Degradações** (o turno nunca morre por falha do RAG):
+
+- Classificação RAG falha → filtros vazios (idêntico a "nada se encaixa") e a
+  comparação zera — o próximo turno busca de novo.
+- Retrieval falha (ex.: `DATABASE_URL` vazio) → aviso e o turno segue sem
+  contexto RAG.
+- Só o espelho falha → `ErrEspelhoNaoGravado`; o contexto em memória segue e
+  o turno continua.
+
+O prompt **enriquecido** (com `<recovered_context>`) é o que entra no
+transcript, preservando no histórico o contexto que o LLM realmente viu.
 
 ---
 
@@ -328,92 +385,118 @@ interrompida pela ausência de banco.
 
 | Decisão | Por quê |
 |---|---|
-| **Skill Go determinística** (não tool do agente) | O agente deserializa args de tool em `map[string]string`; args aninhados (array de queries) quebrariam. Uma skill que consome o arquivo evita o gotcha e mantém o pipeline testável fora do loop de tools. |
-| **Retriever como skill (`internal/skills/rag-retriever`)** | Espelha o `intent-analyser`: orquestração (Do/SaveResults), parse e prompts embutidos (`prompt.md`) vivem na skill; o mecanismo de busca fica em `../internal/agent/rag`. |
-| **Parse do `ragQueries` (JSON) antes de LLM** | Determinismo, custo e fidelidade ao vocabulário já esculpido na etapa [1]. |
-| **Fallback LLM** | Cobre briefings legados sem `ragQueries`, mantendo compatibilidade. |
+| **Skill Go determinística** (não tool do agente) | O agente deserializa args de tool em `map[string]string`; args aninhados (array de queries) quebrariam. Uma skill que consome o input evita o gotcha e mantém o pipeline testável fora do loop de tools. |
+| **Filtros vêm do Classificador** (`rag.Listas`/`FiltrosFrom`) | Conjunto fechado por contrato, validação de pertencimento 100% no cliente, um conjunto por busca inteira. |
+| **Queries geradas pelo LLM como caminho primário** | Reescrita em terminologia FRR melhora a recuperação; a degradação é avisada e vai para o input cru — a busca nunca se perde. |
+| **Validação no cliente + retry ×2** | O provedor pode ignorar o schema em silêncio; nunca sai valor inventado, e o erro final é explícito. |
+| **Saída híbrida memória + espelho** | Em memória para o turno; espelho para rastreabilidade. Falha do espelho é sentinela, nunca derruba o valor. |
+| **`Hash8` determinístico** | O mesmo input regrava o mesmo espelho — reprodutível, sem acúmulo. |
 | **Busca híbrida com RRF** | Aproveita diskann + GIN; robusto a escalas de score distintas. |
 | **Filtros viram SQL `WHERE`** | Usam o índice btree `(daemon, protocol, chunk_type)` da tabela. |
 | **`LoadEmbbedAgent` (LM Studio) p/ embeddings** | Provedor de chat não serve o modelo de embedding; consistência de espaço vetorial com o ingest. |
 | **`ProbeEmbeddingDim`** | Detecta troca de modelo cedo, com erro claro (dim 4096). |
 | **`response` = contexto, não resposta** | Separa recuperação de geração; evidência rastreável (`source_url`/`section_path`). |
-| **Pool lazy singleton** | Evita reabrir conexão a cada turno; fail-fast no 1º uso. |
-| **Nome de saída espelha o briefing** | Rastreabilidade 1:1 e diretório já gitignored. |
+| **Pool lazy singleton** | Evita reabrir conexão a cada busca; fail-fast no 1º uso. |
+| **Skip rule** | Evita re-buscar quando a classificação não mudou; re-injeta o último contexto. |
 
 ---
 
 ## 10. Testes
 
-**Unitários** (não dependem de rede/banco; em `tests/internal/llm/`, cobrindo
-a skill e o mecanismo de busca):
-- `query_test.go` — parse do `ragQueries` da skill (ordem numérica,
-  normalização, `chunk_type` inválido, campo ausente, JSON inválido).
-- `querygen_test.go` — `BuildQueries`: parse preferencial vs. fallback (com
-  fake), JSON com/sem code fence, validação.
-- `retriever_test.go` — `VectorLiteral`, `FuseRRF` (dedupe, ordenação, limite,
-  vazio), `SaveResults` (shape JSON com protocol/daemon/chunk_type).
-- `env_test.go` — leitura de `.env` e defaults.
+**Unitários** (sem rede/banco):
+
+- `internal/skills/classifier/classifier_test.go` — contrato do Classificador
+  (validação, retry ×2, resolução de grafia, vazio explícito) com LLM falso.
+- `internal/skills/briefing/briefing_test.go` — contrato do briefing rico.
+- `internal/agent/rag/listas_test.go` — costura `FiltrosFrom` ↔ nomes das
+  Listas (fixa a fonte única).
+- `tests/internal/llm/listas_test.go` — `rag.Listas()`.
+- `tests/internal/llm/querygen_test.go` — `BuildQueries`: gerador primário vs.
+  degradação para input cru (com fake), `ParseGeneratedQueries` (JSON, code
+  fence, vazio, inválido).
+- `tests/internal/llm/retriever_test.go` — `VectorLiteral`, `FuseRRF`
+  (dedupe, ordenação, limite, vazio), `SaveResults` (shape JSON com
+  protocol/daemon/chunk_type) e falha de gravação (sentinela).
+- `tests/internal/llm/env_test.go` — leitura de `.env` e defaults.
+- `cmd/cli/main_test.go` — skip rule (`TestDeveBuscar`) e o bloco
+  `<recovered_context>` (`TestJSONDoContexto`).
+- `pkg/util/util_test.go` — `Slugify`, `Hash8`, `SafePath`.
 
 **Integração** (gated em `DATABASE_URL`; pulados sem banco):
+
 - `TestRetrieveIntegration` — embeddings LM Studio + busca híbrida real em `frr_docs`.
-- `TestE2EDoIntegration` — pipeline completo da skill: briefing de exemplo →
-  `ragretriever.Do(...)` → JSON em disco.
+- `TestE2EDoIntegration` — pipeline completo: input + filtros →
+  `ragretriever.Do(...)` → memória + espelho em disco.
 - `TestProbeSkippedWithoutDB` — sanitização do schema.
 
-**Validação executada** (banco local `localhost:5432` + LM Studio `:1234`):
-`go build ./...` ✅ · `go vet` ✅ · unit `go test ./tests/internal/llm -count=1` ✅ ·
-suíte completa `go test ./...` ✅ — resultado **ALL_GREEN**.
+**Gates de aceite** (escopos das Notas do mapa
+[Classificador](../.agent/classifier/map.md); `go build`/`go test` sem escopo
+quebram fora do alcance — pré-existente):
+
+```bash
+gofmt -l <arquivos tocados>
+go vet ./internal/... ./pkg/... ./cmd/... ./tests/internal/llm/...
+go build ./internal/... ./pkg/... ./cmd/... ./tests/internal/llm/...
+go test -count=1 <pacotes citados>
+```
 
 > **Nota de cobertura**: o corpus atual só contém docs de **BGP** (516 chunks:
-> 375 `command_reference` + 141 `concept`). Queries de OSPF no briefing de
-> exemplo retornam contexto vazio porque **não há docs de OSPF ingeridos** —
-> comportamento correto do retriever, não um bug. Para cobrir outros
-> protocolos, basta rodar `chucker` + `ingester` com o `.rst` correspondente.
+> 375 `command_reference` + 141 `concept`). Queries de OSPF retornam contexto
+> vazio porque **não há docs de OSPF ingeridos** — comportamento correto do
+> retriever, não um bug. Para cobrir outros protocolos, basta rodar `chucker`
+> + `ingester` com o `.rst` correspondente.
 
 ---
 
-## 11. Arquivos Modificados/Criados
+## 11. Peças vivas e peças mortas
 
-**Criados**
-- `internal/skills/rag-retriever/` — a skill do retriever:
-  - `retriever.go` — `Do`, `SaveResults`, `BuildQueries`,
-    `ParseQueriesFromBriefing`, `LLMQueryGenerator`, `ParseGeneratedQueries`
-  - `prompt.go` — `systemPrompt` + `//go:embed prompt.md`
-  - `prompt.md` — prompt do fallback LLM
-- `docs/RAG_RETRIEVER.md` — esta documentação
-- `.env.example`
+**Vivas** (o fluxo atual):
 
-**Modificados**
-- `internal/skills/intent-analyser/{analyser,prompt}.md` — saída em JSON com o
-  campo `ragQueries` (substituiu a antiga tabela markdown).
-- `cmd/cli/main.go` — wiring do `runRetrieval` agora chama
-  `ragretriever.Do(...)` + injeção de contexto.
-- `../internal/agent/rag` — `Result` passa a incluir `protocol`, `daemon`
-  e `chunk_type`.
-- `../internal/agent/rag` — `Retrieve` preenche os metadados
-  no `Result`; **removidos** `Do` e `SaveResults` (movidos para a skill);
-  removido o import de `querygen`.
-- `tests/internal/llm/` — testes apontando para a skill e validando os novos
-  campos da saída.
-- `resources/agent/skills/frr-rag-retriever/SKILL.md` — documentado o contrato
-  com `protocol`/`daemon`/`chunk_type` e o formato JSON do briefing.
+- `internal/skills/classifier/` — o Classificador (contrato em
+  `.agent/classifier/issues/02-contrato-do-classificador.md`).
+- `internal/skills/briefing/` — briefing rico, **fora do fluxo do CLI** (§12).
+- `internal/skills/rag-retriever/` — esta skill: `Do`, `SaveResults`,
+  `BuildQueries`, `LLMQueryGenerator`, `ParseGeneratedQueries`, prompts.
+- `internal/agent/rag/` — `Listas()`, `FiltrosFrom`, `Filtros`,
+  `QuerySuggestion`, `Config`, `Result`, mecanismo de busca, `env`.
+- `cmd/cli/main.go` — 2 chamadas ao Classificador por turno, skip rule,
+  `runRetrieval`, `<recovered_context>`.
+- `pkg/util` — `Slugify`/`Hash8` (nomes dos espelhos).
 
-**Removidos**
-- `../internal/agent/rag` — pacote inteiro (`querygen.go`,
-  `querygen_prompt.go`, `querygen_prompt.md`): o parse do `ragQueries` e o
-  fallback LLM migraram para a skill, e o antigo parser de tabela markdown já
-  era obsoleto (commit `64e53fd`).
+**Mortas** (removidas; não voltar a documentar como ativas):
+
+- `internal/skills/intent-analyser/` — substituído pelo Classificador
+  (classificação) + `internal/skills/briefing` (partes ricas).
+- Campo `ragQueries` do briefing e `ParseQueriesFromBriefing` / `ErrNoQueries`.
+- `loadRetrievalJSON` (o CLI lê o contexto dos resultados em memória).
+- O "fallback LLM" de queries — hoje o gerador é o caminho primário e a
+  degradação é o input cru com aviso (§4.3).
+- `tests/internal/llm/query_test.go` (cobria o parse do `ragQueries`).
 
 ---
 
-## 12. Passos Futuros Sugeridos
+## 12. Briefing rico (fora do fluxo do CLI)
+
+`internal/skills/briefing` é a skill preservada do antigo `intent-analyser`:
+só as partes ricas (devices, conexões, resumo do problema e pipeline de
+execução). Entrada: o input textual. Saída:
+`Do(ctx, input, agent) (Briefing, string, error)` — valor em memória **+**
+espelho `.agent/tmp/<slug>-<hash8>.json` (sentinela
+`briefing.ErrEspelhoNaoGravado`), validação/retry ×2 como o Classificador.
+O contrato está em
+[Desenho da skill do briefing rico](../.agent/classifier/issues/04-desenho-da-skill-do-briefing-rico.md).
+O CLI **não** a chama — ela fica pronta para as próximas partes do plano.
+
+---
+
+## 13. Passos Futuros Sugeridos
 
 1. **Ingerir docs de OSPF/IS-IS/static** para o retriever ter base real
    multi-protocolo (hoje só BGP).
-2. **Gerar a resposta final a partir do JSON** (passo [3]) — o contrato
-   `[{query, protocol, daemon, chunk_type, response}]` já está pronto para consumo.
-3. **Paginamento/limites por token** do `response` para proteger o contexto
-   em briefings grandes.
-4. **Observabilidade**: log do RRF por query (quais chunks vieram de cada
+2. **Paginamento/limites por token** do `response` para proteger o contexto
+   em buscas grandes.
+3. **Observabilidade**: log do RRF por query (quais chunks vieram de cada
    fonte) para sintonizar `FetchFactor`.
-```
+4. **Avaliação de qualidade do classificador** quando for preciso provar
+   acurácia (conjunto rotulado, revisão humana) — ver
+   [Classificador](../.agent/classifier/map.md), "Ainda não especificado".

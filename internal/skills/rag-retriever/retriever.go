@@ -8,52 +8,56 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/retriever"
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 )
 
-// Do lê o briefing JSON gerado pelo intent-analyser, extrai as queries de
-// ragQueries (usando o fallback LLM quando necessário), executa a busca
-// híbrida e salva o resultado em retrievalDir. Retorna o caminho do JSON.
-func Do(ctx context.Context, briefingPath string, cfg rag.Config) (string, error) {
-	content, err := os.ReadFile(briefingPath)
+var log = logger.Named("RAG-RETRIEVER")
+
+// ErrEspelhoNaoGravado sinaliza a falha de gravação do espelho em
+// .agent/tmp/retrieval: o valor em memória volta completo e o path vem
+// vazio — o espelho nunca derruba o caminho (checável com errors.Is).
+var ErrEspelhoNaoGravado = errors.New("espelho do retrieval não gravado")
+
+// Do gera as queries a partir do input textual (caminho primário; degrada com
+// aviso explícito para uma query única do input cru), executa a busca híbrida
+// com o conjunto único de filtros e grava o espelho
+// .agent/tmp/retrieval/<slug>-<hash8>.json. Retorna os resultados em memória,
+// o path do espelho e o erro — sentinela ErrEspelhoNaoGravado quando só o
+// espelho falhou (resultados completos e path vazio nesse caso).
+func Do(ctx context.Context, input string, filtros rag.Filtros, cfg rag.Config) ([]rag.Result, string, error) {
+	queries := BuildQueries(ctx, input, filtros, cfg.QueryGen)
+
+	results, err := retriever.Retrieve(ctx, cfg, queries, filtros)
 	if err != nil {
-		return "", fmt.Errorf("lendo briefing %s: %w", briefingPath, err)
+		return nil, "", fmt.Errorf("buscando no pgvector: %w", err)
 	}
 
-	queries, err := BuildQueries(ctx, content, cfg.QueryGen)
+	path, err := SaveResults(input, results)
 	if err != nil {
-		return "", fmt.Errorf("gerando queries do briefing: %w", err)
+		log.Warn("espelho do retrieval não gravado — resultados devolvidos em memória", "err", err)
+		return results, "", fmt.Errorf("%w: %w", ErrEspelhoNaoGravado, err)
 	}
-
-	results, err := retriever.Retrieve(ctx, cfg, queries)
-	if err != nil {
-		return "", fmt.Errorf("buscando no pgvector: %w", err)
-	}
-
-	return SaveResults(briefingPath, results)
+	return results, path, nil
 }
 
-// SaveResults grava o resultado JSON em retrievalDir, seguindo a mesma
-// convenção de nome do briefing (<arquivo-sem-ext>.json), e retorna o
-// caminho do arquivo criado.
-func SaveResults(briefingPath string, results []rag.Result) (string, error) {
-	base := filepath.Base(briefingPath)
-	base = strings.TrimSuffix(base, filepath.Ext(base))
-	name := base + ".json"
+// SaveResults grava o JSON de []rag.Result em .agent/tmp/retrieval com o nome
+// <slug>-<hash8>.json derivado do input — molde do briefing: o mesmo input
+// regrava o mesmo espelho (sobrescreve, sem histórico de execuções).
+// Retorna o caminho do arquivo criado.
+func SaveResults(input string, results []rag.Result) (string, error) {
+	name := util.Slugify(input) + "-" + util.Hash8(input) + ".json"
 
 	dir, err := util.SafePath(".", rag.RetrievalDir)
 	if err != nil {
 		return "", err
 	}
-
 	jsonPath := filepath.Join(dir, name)
 	if err := os.MkdirAll(filepath.Dir(jsonPath), 0o755); err != nil {
 		return "", err
@@ -70,41 +74,47 @@ func SaveResults(briefingPath string, results []rag.Result) (string, error) {
 	return jsonPath, nil
 }
 
-// BuildQueries extrai as queries do campo ragQueries do briefing JSON. Se o
-// campo não existir ou estiver vazio, delega ao generator como fallback LLM.
-// Quando não há generator disponível, retorna rag.ErrNoQueries.
-func BuildQueries(ctx context.Context, content []byte, gen rag.QueryGenerator) ([]rag.QuerySuggestion, error) {
-	queries, err := ParseQueriesFromBriefing(content)
-	if err == nil {
-		return queries, nil
+// BuildQueries monta as queries da busca: o gerador é o caminho primário
+// (input + filtros → queries reescritas); falhou a geração — ou não há
+// gerador — a busca degrada com aviso explícito para uma única query do input
+// cru. Nunca falha silenciosa; nunca a busca inteira se perde por causa da
+// reescrita.
+func BuildQueries(ctx context.Context, input string, filtros rag.Filtros, gen rag.QueryGenerator) []rag.QuerySuggestion {
+	if gen != nil {
+		queries, err := gen.GenerateQueries(ctx, input, filtros)
+		switch {
+		case err != nil:
+			log.Warn("geração de queries falhou — buscando com o input cru", "err", err)
+		case len(queries) == 0:
+			log.Warn("geração de queries devolveu vazio — buscando com o input cru")
+		default:
+			return queries
+		}
+	} else {
+		log.Warn("gerador de queries ausente — buscando com o input cru")
 	}
-	if !errors.Is(err, rag.ErrNoQueries) {
-		return nil, err
-	}
-	if gen == nil {
-		return nil, rag.ErrNoQueries
-	}
-	return gen.GenerateQueries(ctx, content)
+	return []rag.QuerySuggestion{{Query: input}}
 }
 
-// LLMQueryGenerator implementa o fallback de geração de queries usando a API
-// de Responses do openai-go.
+// LLMQueryGenerator implementa a geração de queries (caminho primário) usando
+// a API de Responses do openai-go.
 type LLMQueryGenerator struct {
 	Client    openai.Client
 	ModelName string
 }
 
-// GenerateQueries pede ao modelo que reescreva o briefing em queries de busca
-// para a tabela frr_docs e interpreta a resposta como JSON.
-func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte) ([]rag.QuerySuggestion, error) {
+// GenerateQueries pede ao modelo que reescreva o input em queries de busca
+// para a tabela frr_docs, recebendo os filtros escolhidos (e o vocabulário
+// das Listas) para orientar a reescrita.
+func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, input string, filtros rag.Filtros) ([]rag.QuerySuggestion, error) {
 	resp, err := g.Client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: g.ModelName,
 		// Mesma restrição do intent-analyser: só pode haver system na primeira
 		// posição, e o servidor mapeia developer para system.
-		Instructions: openai.String(systemPrompt + "\n\n" + skillPrompt),
+		Instructions: openai.String(montarPrompt(filtros)),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
-				responses.ResponseInputItemParamOfMessage(string(briefing), responses.EasyInputMessageRoleUser),
+				responses.ResponseInputItemParamOfMessage(input, responses.EasyInputMessageRoleUser),
 			},
 		},
 	})
@@ -114,82 +124,11 @@ func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, briefing []byte
 	return ParseGeneratedQueries(resp.OutputText())
 }
 
-type ragQueryJSON struct {
-	Query              string `json:"query"`
-	Protocol           string `json:"protocol"`
-	Daemon             string `json:"daemon"`
-	SuggestedChunkType string `json:"suggestedChunkType"`
-}
-
-type briefingJSON struct {
-	RagQueries map[string]ragQueryJSON `json:"ragQueries"`
-}
-
-// ParseQueriesFromBriefing extrai, em ordem numérica, as queries do campo
-// ragQueries produzido pelo intent-analyser. Valores de protocol, daemon e
-// suggestedChunkType são normalizados para os filtros usados no banco.
-func ParseQueriesFromBriefing(content []byte) ([]rag.QuerySuggestion, error) {
-	var briefing briefingJSON
-	if err := json.Unmarshal(content, &briefing); err != nil {
-		return nil, rag.ErrNoQueries
-	}
-	if len(briefing.RagQueries) == 0 {
-		return nil, rag.ErrNoQueries
-	}
-
-	keys := make([]string, 0, len(briefing.RagQueries))
-	for key := range briefing.RagQueries {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keyLess(keys[i], keys[j]) })
-
-	queries := make([]rag.QuerySuggestion, 0, len(keys))
-	for _, key := range keys {
-		suggestion := briefing.RagQueries[key]
-		query := strings.TrimSpace(suggestion.Query)
-		if query == "" {
-			continue
-		}
-
-		chunkType := strings.ToLower(strings.TrimSpace(suggestion.SuggestedChunkType))
-		switch chunkType {
-		case rag.ChunkTypeCommandReference, rag.ChunkTypeConcept:
-		default:
-			chunkType = ""
-		}
-
-		queries = append(queries, rag.QuerySuggestion{
-			Query:     query,
-			Protocol:  strings.ToLower(strings.TrimSpace(suggestion.Protocol)),
-			Daemon:    strings.ToLower(strings.TrimSpace(suggestion.Daemon)),
-			ChunkType: chunkType,
-		})
-	}
-	if len(queries) == 0 {
-		return nil, rag.ErrNoQueries
-	}
-	return queries, nil
-}
-
-func keyLess(a, b string) bool {
-	an, aerr := strconv.Atoi(a)
-	bn, berr := strconv.Atoi(b)
-	switch {
-	case aerr == nil && berr == nil:
-		return an < bn
-	case aerr == nil:
-		return true
-	case berr == nil:
-		return false
-	default:
-		return a < b
-	}
-}
-
 var fenceRe = regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)```")
 
-// ParseGeneratedQueries extrai o array JSON de queries da saída do fallback
-// LLM, tolerando texto ao redor e code fences.
+// ParseGeneratedQueries extrai o array JSON de queries (strings) da saída do
+// gerador, tolerando texto ao redor e code fences. Strings vazias são
+// descartadas.
 func ParseGeneratedQueries(text string) ([]rag.QuerySuggestion, error) {
 	text = strings.TrimSpace(text)
 	if strings.HasPrefix(text, "[") {
@@ -207,39 +146,19 @@ func ParseGeneratedQueries(text string) ([]rag.QuerySuggestion, error) {
 	return nil, errors.New("não foi possível extrair queries JSON da resposta do LLM")
 }
 
-type generatedQueryJSON struct {
-	Query     string `json:"query"`
-	Protocol  string `json:"protocol"`
-	Daemon    string `json:"daemon"`
-	ChunkType string `json:"chunk_type"`
-}
-
 func parseQueriesJSON(content string) ([]rag.QuerySuggestion, bool) {
-	var raw []generatedQueryJSON
+	var raw []string
 	if err := json.Unmarshal([]byte(content), &raw); err != nil {
 		return nil, false
 	}
 
 	queries := make([]rag.QuerySuggestion, 0, len(raw))
 	for _, item := range raw {
-		query := strings.TrimSpace(item.Query)
+		query := strings.TrimSpace(item)
 		if query == "" {
 			continue
 		}
-
-		chunkType := strings.ToLower(strings.TrimSpace(item.ChunkType))
-		switch chunkType {
-		case rag.ChunkTypeCommandReference, rag.ChunkTypeConcept:
-		default:
-			chunkType = ""
-		}
-
-		queries = append(queries, rag.QuerySuggestion{
-			Query:     query,
-			Protocol:  strings.ToLower(strings.TrimSpace(item.Protocol)),
-			Daemon:    strings.ToLower(strings.TrimSpace(item.Daemon)),
-			ChunkType: chunkType,
-		})
+		queries = append(queries, rag.QuerySuggestion{Query: query})
 	}
 	return queries, true
 }

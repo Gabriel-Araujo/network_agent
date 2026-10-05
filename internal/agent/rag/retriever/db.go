@@ -9,13 +9,13 @@ import (
 
 // searchVector devolve map[chunk_id]rank para a busca vetorial de uma
 // query, com top-K = limit*FetchFactor.
-func searchVector(ctx context.Context, s *db.DB, cfg rag.Config, q rag.QuerySuggestion, vec []float64) (map[string]int, error) {
+func searchVector(ctx context.Context, s *db.DB, cfg rag.Config, filtros rag.Filtros, vec []float64) (map[string]int, error) {
 	limit := cfg.Limit * cfg.FetchFactor
 	rows, err := s.Pool.Query(ctx, vectorSearchSQL,
 		VectorLiteral(vec),
-		nullableStr(q.Daemon),
-		nullableStr(q.Protocol),
-		nullableStr(q.ChunkType),
+		nullableStr(filtros.Daemon),
+		nullableStr(filtros.Protocol),
+		nullableStr(filtros.ChunkType),
 		limit,
 	)
 	if err != nil {
@@ -38,13 +38,13 @@ func searchVector(ctx context.Context, s *db.DB, cfg rag.Config, q rag.QuerySugg
 }
 
 // searchFTS devolve map[chunk_id]rank para a busca full-text de uma query.
-func searchFTS(ctx context.Context, s *db.DB, cfg rag.Config, q rag.QuerySuggestion) (map[string]int, error) {
+func searchFTS(ctx context.Context, s *db.DB, cfg rag.Config, query string, filtros rag.Filtros) (map[string]int, error) {
 	limit := cfg.Limit * cfg.FetchFactor
 	rows, err := s.Pool.Query(ctx, ftsSearchSQL,
-		q.Query,
-		nullableStr(q.Daemon),
-		nullableStr(q.Protocol),
-		nullableStr(q.ChunkType),
+		query,
+		nullableStr(filtros.Daemon),
+		nullableStr(filtros.Protocol),
+		nullableStr(filtros.ChunkType),
 		limit,
 	)
 	if err != nil {
