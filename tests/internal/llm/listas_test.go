@@ -41,7 +41,7 @@ func TestListas(t *testing.T) {
 		protocol:  {"bgp", "ospf", "ospf6", "isis", "rip", "ripng", "pim", "ldp", "vrrp", "bfd", "static"},
 		daemon:    {"bgpd", "ospfd", "ospf6d", "isisd", "ripd", "ripngd", "pimd", "pim6d", "ldpd", "vrrpd", "bfdd", "staticd", "zebra"},
 		chunkType: {rag.ChunkTypeCommandReference, rag.ChunkTypeConcept},
-		agent:     {"construtor", "modificar", "professor"},
+		agent:     {"builder", "modifier", "teacher"},
 	}
 	for l, want := range esperados {
 		if len(l.Valores) != len(want) {

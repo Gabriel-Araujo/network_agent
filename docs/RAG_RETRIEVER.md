@@ -35,8 +35,11 @@ pergunta do usuário
 
 O **Classificador** escolhe, para cada **Lista** passada na chamada, um valor
 canônico — ou `""` quando nada se encaixa. As Listas do chamador RAG são
-`protocol`/`daemon`/`chunk_type` (fonte única: `rag.Listas()`), e o mapa de
-saída vira o **conjunto único de filtros** da busca via `rag.FiltrosFrom`.
+`protocol`/`daemon`/`chunk_type`/`agent` (fonte única: `rag.Listas()`), e o mapa
+de saída vira o **conjunto único de filtros** da busca via `rag.FiltrosFrom` —
+que considera só as três primeiras: `agent` é dimensão de **roteamento** (qual
+agente responde o input: `builder`/`modifier`/`teacher`), não filtro da
+`frr_docs`.
 O **briefing rico** (`internal/skills/briefing`) é a skill preservada do antigo
 `intent-analyser` e está **fora do fluxo do CLI** (ver §12).
 
