@@ -79,7 +79,7 @@ type SanityProbe struct {
 }
 
 // Probe executa as verificações de sanidade do schema, sem depender de
-// chamadas de embedding reais (usa um vetor zero de 4096 dims apenas para
+// chamadas de embedding reais (usa um vetor zero com a dimensão configurada apenas para
 // exercitar o ORDER BY `embedding <=> $1::vector`).
 func Probe(ctx context.Context, dsn string) (*SanityProbe, error) {
 	s, err := db.OpenDB(ctx, dsn)
@@ -87,8 +87,8 @@ func Probe(ctx context.Context, dsn string) (*SanityProbe, error) {
 		return nil, err
 	}
 
-	// Vetor zero 4096-dim: válido para o operador <=>, dispensa embed.
-	zero := make([]float64, 4096)
+	// Vetor zero: válido para o operador <=>, dispensa chamada ao embedder.
+	zero := make([]float64, rag.EmbeddingDimension)
 
 	var p SanityProbe
 	if err := s.Pool.QueryRow(ctx, `SELECT count(*) FROM frr_docs;`).Scan(&p.ChunkCount); err != nil {

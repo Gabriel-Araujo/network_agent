@@ -11,8 +11,8 @@ import (
 //go:embed prompt.md
 var skillPrompt string
 
-// systemPrompt define a identidade do agente de reescrita de queries,
-// enviado como instrução de sistema a cada chamada.
+// systemPrompt defines the query-rewriting agent identity and is sent as the
+// system instruction on every call.
 const systemPrompt = `
 # Identity
 
@@ -22,33 +22,32 @@ queries to run against an FRR documentation knowledge base, following the
 rules in the skill prompt.
 `
 
-// montarPrompt monta as instruções do gerador: identidade + regras (prompt.md),
-// os filtros escolhidos para a busca inteira e o vocabulário das Listas —
-// derivado da fonte única rag.Listas(), nunca copiado à mão.
-func montarPrompt(filtros rag.Filtros) string {
+// buildPrompt builds generator instructions from the identity, prompt.md
+// rules, selected filters, and the vocabulary from rag.Lists().
+func buildPrompt(filters rag.Filters) string {
 	var b strings.Builder
 	b.WriteString(systemPrompt + "\n" + skillPrompt)
 
 	b.WriteString("\n# Search filters (apply to the whole search)\n")
-	fmt.Fprintf(&b, "- protocol: %s\n", filtroOuQualquer(filtros.Protocol))
-	fmt.Fprintf(&b, "- daemon: %s\n", filtroOuQualquer(filtros.Daemon))
-	fmt.Fprintf(&b, "- chunk_type: %s\n", filtroOuQualquer(filtros.ChunkType))
+	fmt.Fprintf(&b, "- protocol: %s\n", anyFilter(filters.Protocol))
+	fmt.Fprintf(&b, "- daemon: %s\n", anyFilter(filters.Daemon))
+	fmt.Fprintf(&b, "- chunk_type: %s\n", anyFilter(filters.ChunkType))
 
 	b.WriteString("\n# Valid values (closed vocabulary)\n")
-	for _, l := range rag.Listas() {
-		nomes := make([]string, 0, len(l.Valores))
-		for _, v := range l.Valores {
-			nomes = append(nomes, v.Nome)
+	for _, list := range rag.Lists() {
+		names := make([]string, 0, len(list.Values))
+		for _, value := range list.Values {
+			names = append(names, value.Name)
 		}
-		fmt.Fprintf(&b, "- %s: %s\n", l.Nome, strings.Join(nomes, ", "))
+		fmt.Fprintf(&b, "- %s: %s\n", list.Name, strings.Join(names, ", "))
 	}
 	return b.String()
 }
 
-// filtroOuQualquer formata um filtro vazio ("sem filtro") para o prompt.
-func filtroOuQualquer(valor string) string {
-	if strings.TrimSpace(valor) == "" {
+// anyFilter formats an empty filter for the prompt.
+func anyFilter(value string) string {
+	if strings.TrimSpace(value) == "" {
 		return "any (no filter)"
 	}
-	return valor
+	return value
 }

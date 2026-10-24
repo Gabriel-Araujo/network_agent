@@ -113,7 +113,8 @@ func getModelId() string {
 
 func setContextSize() int64 {
 	fmt.Println("Set model context size.")
-	fmt.Println("0 for default")
+	fmt.Println("LM Studio: informe a janela desejada (ex.: 65536).")
+	fmt.Println("0 mantém a janela já carregada pelo provedor.")
 
 	for {
 		input, err := strconv.ParseInt(readInput(), 10, 64)

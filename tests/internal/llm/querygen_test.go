@@ -15,11 +15,11 @@ import (
 type fakeGenerator struct {
 	qs           []rag.QuerySuggestion
 	err          error
-	recebidos    rag.Filtros
+	recebidos    rag.Filters
 	recebidoInpt string
 }
 
-func (f *fakeGenerator) GenerateQueries(ctx context.Context, input string, filtros rag.Filtros) ([]rag.QuerySuggestion, error) {
+func (f *fakeGenerator) GenerateQueries(ctx context.Context, input string, filtros rag.Filters) ([]rag.QuerySuggestion, error) {
 	f.recebidos = filtros
 	f.recebidoInpt = input
 	return f.qs, f.err
@@ -30,7 +30,7 @@ func TestBuildQueriesUsaGerador(t *testing.T) {
 		{Query: "OSPF MTU mismatch"},
 		{Query: "show ip ospf neighbor"},
 	}}
-	filtros := rag.Filtros{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
+	filtros := rag.Filters{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
 
 	qs := ragretriever.BuildQueries(context.Background(), "meu ospf não converge", filtros, fake)
 	if len(qs) != 2 || qs[0].Query != "OSPF MTU mismatch" {
@@ -49,7 +49,7 @@ func TestBuildQueriesUsaGerador(t *testing.T) {
 // input cru — nunca a busca inteira se perde por causa da reescrita.
 func TestBuildQueriesDegradaParaInputCru(t *testing.T) {
 	fake := &fakeGenerator{err: errors.New("provedor fora do ar")}
-	qs := ragretriever.BuildQueries(context.Background(), "meu ospf não converge", rag.Filtros{}, fake)
+	qs := ragretriever.BuildQueries(context.Background(), "meu ospf não converge", rag.Filters{}, fake)
 	if len(qs) != 1 || qs[0].Query != "meu ospf não converge" {
 		t.Fatalf("qs = %+v, want uma query do input cru", qs)
 	}
@@ -57,14 +57,14 @@ func TestBuildQueriesDegradaParaInputCru(t *testing.T) {
 
 func TestBuildQueriesVazioDegrada(t *testing.T) {
 	fake := &fakeGenerator{qs: nil}
-	qs := ragretriever.BuildQueries(context.Background(), "entrada qualquer", rag.Filtros{}, fake)
+	qs := ragretriever.BuildQueries(context.Background(), "entrada qualquer", rag.Filters{}, fake)
 	if len(qs) != 1 || qs[0].Query != "entrada qualquer" {
 		t.Fatalf("qs = %+v, want fallback para o input cru", qs)
 	}
 }
 
 func TestBuildQueriesSemGerador(t *testing.T) {
-	qs := ragretriever.BuildQueries(context.Background(), "entrada qualquer", rag.Filtros{}, nil)
+	qs := ragretriever.BuildQueries(context.Background(), "entrada qualquer", rag.Filters{}, nil)
 	if len(qs) != 1 || qs[0].Query != "entrada qualquer" {
 		t.Fatalf("qs = %+v, want fallback para o input cru", qs)
 	}

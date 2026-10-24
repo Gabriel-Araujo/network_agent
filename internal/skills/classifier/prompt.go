@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// systemPrompt é a identidade do classificador: ele não conversa, ele escolhe.
+// systemPrompt defines the classifier identity: it does not chat; it chooses.
 const systemPrompt = `# Identity
 You are a text classifier for a network engineering assistant (FRRouting). You do not chat: you read the user's request and choose values.
 
@@ -14,28 +14,26 @@ You are a text classifier for a network engineering assistant (FRRouting). You d
 - If nothing in a list fits the request, use "" (empty string). "Nothing fits" is a valid answer; an invented value is never acceptable.
 - Reply with a single JSON object only: one property per list and nothing else. No preamble, no code fences.`
 
-// modoRAGPrompt liga o Modo RAG do classificador: a flag é parâmetro da
-// chamada (quem chama decide o modo) e muda o comportamento interno — a saída
-// alimenta os filtros de busca do RAG (Como o modo RAG alimenta a busca).
-const modoRAGPrompt = `
-# Modo RAG
+// ragModePrompt enables the classifier's RAG behavior. The flag is supplied by
+// the caller and changes internal behavior by feeding RAG search filters.
+const ragModePrompt = `
+# RAG Mode
 This classification feeds RAG search filters. Prefer the specific value over "" whenever the request touches that protocol or daemon at all: the value scopes the document search for the whole request.`
 
-// montarPrompt monta o prompt de sistema com as listas e seus valores — a
-// descrição por valor é o que dá ao modelo material para desempatar.
-func montarPrompt(listas []Lista, modoRAG bool) string {
+// buildPrompt builds the system prompt from the lists and their values.
+func buildPrompt(lists []List, ragMode bool) string {
 	var b strings.Builder
 	b.WriteString(systemPrompt)
-	if modoRAG {
-		b.WriteString(modoRAGPrompt)
+	if ragMode {
+		b.WriteString(ragModePrompt)
 	}
 	b.WriteString("\n\n# Lists\n")
-	for _, l := range listas {
-		fmt.Fprintf(&b, "\n## %s\n", strings.TrimSpace(l.Nome))
-		for _, v := range l.Valores {
-			fmt.Fprintf(&b, "- %q", v.Nome)
-			if d := strings.TrimSpace(v.Descricao); d != "" {
-				fmt.Fprintf(&b, ": %s", d)
+	for _, list := range lists {
+		fmt.Fprintf(&b, "\n## %s\n", strings.TrimSpace(list.Name))
+		for _, value := range list.Values {
+			fmt.Fprintf(&b, "- %q", value.Name)
+			if description := strings.TrimSpace(value.Description); description != "" {
+				fmt.Fprintf(&b, ": %s", description)
 			}
 			b.WriteString("\n")
 		}
@@ -43,30 +41,26 @@ func montarPrompt(listas []Lista, modoRAG bool) string {
 	return b.String()
 }
 
-// montarCorrecao cola o erro da tentativa rejeitada na próxima chamada.
-func montarCorrecao(err error) string {
+// buildCorrection includes a rejected-attempt error in the next request.
+func buildCorrection(err error) string {
 	return fmt.Sprintf(`Your previous answer was rejected: %v
 
 Answer again with a single JSON object only, one property per list, each value spelled exactly as one of that list's allowed values — or "" when nothing fits. Never invent a value.`, err)
 }
 
-// montarSchema pede ao provedor o formato de saída: um objeto com uma
-// propriedade por lista, cada uma string com o enum dos valores permitidos mais
-// o vazio explícito. É o mesmo contrato que a validação no cliente reforça — o
-// provedor pode ignorar o schema em silêncio (ver
-// .agent/classifier/assets/pesquisa-saida-estruturada.md), por isso a garantia
-// é a validação, não o schema.
-func montarSchema(listas []Lista) map[string]any {
-	props := make(map[string]any, len(listas))
-	required := make([]string, 0, len(listas))
-	for _, l := range listas {
-		nome := strings.TrimSpace(l.Nome)
+// buildSchema asks the provider for one string property per list, using the
+// allowed values plus an explicit empty value.
+func buildSchema(lists []List) map[string]any {
+	props := make(map[string]any, len(lists))
+	required := make([]string, 0, len(lists))
+	for _, list := range lists {
+		name := strings.TrimSpace(list.Name)
 		enum := []string{""}
-		for _, v := range l.Valores {
-			enum = append(enum, v.Nome)
+		for _, value := range list.Values {
+			enum = append(enum, value.Name)
 		}
-		props[nome] = map[string]any{"type": "string", "enum": enum}
-		required = append(required, nome)
+		props[name] = map[string]any{"type": "string", "enum": enum}
+		required = append(required, name)
 	}
 	return map[string]any{
 		"type":                 "object",

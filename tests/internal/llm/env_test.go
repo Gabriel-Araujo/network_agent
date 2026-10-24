@@ -22,7 +22,7 @@ func TestReadEnvKey(t *testing.T) {
 	path := writeEnvFile(t, `# comentário
 MODEL_NAME=deepseek
 DATABASE_URL=postgres://user:pass@localhost:5432/frr_rag
-EMBEDDING_MODEL="text-embedding-qwen3-embedding-8b"
+EMBEDDING_MODEL="text-embedding-qwen3-embedding-4b"
 LINHA_SEM_IGUAL
 `)
 
@@ -30,7 +30,7 @@ LINHA_SEM_IGUAL
 		key, want string
 	}{
 		{"DATABASE_URL", "postgres://user:pass@localhost:5432/frr_rag"},
-		{"EMBEDDING_MODEL", "text-embedding-qwen3-embedding-8b"},
+		{"EMBEDDING_MODEL", "text-embedding-qwen3-embedding-4b"},
 		{"MODEL_NAME", "deepseek"},
 		{"NAO_EXISTE", ""},
 	}

@@ -3,7 +3,7 @@ CREATE TABLE documents (
                             question    TEXT NOT NULL,            -- chunk original
                             answer      TEXT NOT NULL,            -- chunk original
                             metadata    JSONB,                    -- fonte, página, data etc.
-                            embedding   VECTOR(4096)             -- dimensão depende do modelo
+                            embedding   VECTOR(2560)             -- dimensão depende do modelo
 
 );
 
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS frr_docs (
     parent_content  TEXT NOT NULL,                  -- seção completa, pra expandir contexto
     source_url      TEXT NOT NULL,
     token_count     INT NOT NULL,
-    embedding       VECTOR(4096) NOT NULL,
+    embedding       VECTOR(2560) NOT NULL,
     content_tsv     TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
 );
 

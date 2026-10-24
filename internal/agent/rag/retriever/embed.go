@@ -40,7 +40,7 @@ func embedTexts(ctx context.Context, cfg rag.Config, texts []string) ([][]float6
 }
 
 // ProbeEmbeddingDim embeds uma string de probe no 1º uso e confere a
-// dimensão (4096) contra a coluna VECTOR(4096). Mismatch -> erro claro.
+// dimensão contra a coluna VECTOR(2560). Mismatch -> erro claro.
 func ProbeEmbeddingDim(ctx context.Context, cfg rag.Config, store *db.DB) error {
 	if store.CheckedDim {
 		return nil
@@ -49,7 +49,7 @@ func ProbeEmbeddingDim(ctx context.Context, cfg rag.Config, store *db.DB) error 
 	if err != nil {
 		return fmt.Errorf("probe de dimensão: %w", err)
 	}
-	want := 4096
+	want := rag.EmbeddingDimension
 	if got := len(vecs[0]); got != want {
 		return fmt.Errorf("dimensão do embedding é %d, esperava %d — alinhe modelo ou ALTER TABLE", got, want)
 	}

@@ -103,7 +103,7 @@ func TestRetrieveIntegration(t *testing.T) {
 		{Query: "OSPF stuck Exstart MTU mismatch"},
 	}
 	// Conjunto único de filtros por busca, aplicado a todas as queries.
-	filtros := rag.Filtros{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
+	filtros := rag.Filters{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
 
 	results, err := retriever.Retrieve(context.Background(), cfg, queries, filtros)
 	if err != nil {

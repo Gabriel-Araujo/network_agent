@@ -14,21 +14,24 @@ and pgvector can be installed using the instructions in [here](https://github.co
 
 ### Using Docker
 
-Or alternatively, you can use the docker-compose file in the docker folder (.agentcontainer) to set up a docker container with postgres and pgvector using the following command:
+Alternatively, use the Compose file in `.dockercontainer` to start PostgreSQL with
+pgvector:
 
 ```bash
-docker compose -f ./.agentcontainer/docker-compose.yml up -d 
+docker compose -f ./.dockercontainer/docker-compose.yml up -d
 ```
 
-Or run the Dockerfile:
-```bash
-docker build --tag network-agent --file Dockerfile .
-docker run -p 5433:5432 --name network-agent --detach network-agent 
-```
 #### Observations
 
-- check the [.agentcontainer/.env](.agentcontainer/.env) file for database configuration params.
-- in the container the database is reachable at localhost:5433.
+- Check the [.dockercontainer/.env](.dockercontainer/.env) file for database
+  configuration parameters.
+- A process running on the host connects through the published port with
+  `localhost:5433`.
+- A process running on the Compose network connects to the database service at
+  `db:5432`. Inside a container, `localhost` refers to that container itself,
+  not to the `db` service.
+- Verify the published port with
+  `docker compose -f ./.dockercontainer/docker-compose.yml port db 5432`.
 
 ## Build from source
 just exec the go build command

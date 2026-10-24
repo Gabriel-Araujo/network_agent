@@ -58,7 +58,7 @@ func FuseRRF(vec, fts map[string]int, k, limit int) []rag.ScoredChunk {
 // Result por query, com o conjunto único de filtros aplicado a todas elas.
 // Se a query não retornar nada, ainda assim o Result aparece com Response
 // vazio, preservando seus metadados.
-func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion, filtros rag.Filtros) ([]rag.Result, error) {
+func Retrieve(ctx context.Context, cfg rag.Config, queries []rag.QuerySuggestion, filtros rag.Filters) ([]rag.Result, error) {
 	cfg = cfg.WithDefaults()
 
 	if len(queries) == 0 {

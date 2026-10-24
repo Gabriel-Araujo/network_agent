@@ -21,7 +21,7 @@ func TestE2EDoIntegration(t *testing.T) {
 	}
 
 	input := "meu ospf não converge entre o core e o edge"
-	filtros := rag.Filtros{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
+	filtros := rag.Filters{Protocol: "ospf", Daemon: "ospfd", ChunkType: "concept"}
 	cfg := rag.Config{
 		DSN:            dsn,
 		EmbeddingModel: rag.DefaultEmbeddingModel,

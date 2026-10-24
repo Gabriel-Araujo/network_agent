@@ -19,11 +19,11 @@ type respostaCanned struct {
 }
 
 type chamada struct {
-	msgs   []mensagem
+	msgs   []message
 	schema map[string]any
 }
 
-func (f *fakeCompletar) completar(ctx context.Context, msgs []mensagem, schema map[string]any) (string, error) {
+func (f *fakeCompletar) completar(ctx context.Context, msgs []message, schema map[string]any) (string, error) {
 	f.chamadas = append(f.chamadas, chamada{msgs: copiarMsgs(msgs), schema: schema})
 	if len(f.fila) == 0 {
 		panic("fakeCompletar: sem respostas na fila")
@@ -33,49 +33,49 @@ func (f *fakeCompletar) completar(ctx context.Context, msgs []mensagem, schema m
 	return r.texto, r.err
 }
 
-func copiarMsgs(msgs []mensagem) []mensagem {
-	copia := make([]mensagem, len(msgs))
+func copiarMsgs(msgs []message) []message {
+	copia := make([]message, len(msgs))
 	copy(copia, msgs)
 	return copia
 }
 
-func listasDeTeste() []Lista {
-	return []Lista{
-		{Nome: "protocol", Valores: []Valor{
-			{Nome: "bgp", Descricao: "BGP routing"},
-			{Nome: "ospf"},
+func listasDeTeste() []List {
+	return []List{
+		{Name: "protocol", Values: []Value{
+			{Name: "bgp", Description: "BGP routing"},
+			{Name: "ospf"},
 		}},
-		{Nome: "daemon", Valores: []Valor{
-			{Nome: "bgpd"},
-			{Nome: "ospfd"},
+		{Name: "daemon", Values: []Value{
+			{Name: "bgpd"},
+			{Name: "ospfd"},
 		}},
 	}
 }
 
 // conferirPertencimento é a verificação de pertencimento exigida pelo aceite:
 // todo valor de saída é "" ou pertence à lista, em todos os caminhos.
-func conferirPertencimento(t *testing.T, got map[string]string, listas []Lista) {
+func conferirPertencimento(t *testing.T, got map[string]string, listas []List) {
 	t.Helper()
 	if len(got) != len(listas) {
 		t.Errorf("saída tem %d entradas, want %d (%v)", len(got), len(listas), got)
 	}
 	for _, l := range listas {
-		v, ok := got[l.Nome]
+		v, ok := got[l.Name]
 		if !ok {
-			t.Errorf("lista %q sem entrada na saída", l.Nome)
+			t.Errorf("lista %q sem entrada na saída", l.Name)
 			continue
 		}
 		if v == "" {
 			continue
 		}
 		pertence := false
-		for _, cand := range l.Valores {
-			if cand.Nome == v {
+		for _, cand := range l.Values {
+			if cand.Name == v {
 				pertence = true
 			}
 		}
 		if !pertence {
-			t.Errorf("valor %q da lista %q não pertence à lista", v, l.Nome)
+			t.Errorf("valor %q da lista %q não pertence à lista", v, l.Name)
 		}
 	}
 }
@@ -84,7 +84,7 @@ func conferirPertencimento(t *testing.T, got map[string]string, listas []Lista) 
 func TestEscolhaValida(t *testing.T) {
 	fake := &fakeCompletar{fila: []respostaCanned{{texto: `{"protocol":"bgp","daemon":"bgpd"}`}}}
 
-	got, err := classificar(context.Background(), "Quero configurar uma sessão BGP", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Quero configurar uma sessão BGP", listasDeTeste(), false, fake.completar)
 	if err != nil {
 		t.Fatalf("classificar: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestEscolhaValida(t *testing.T) {
 func TestNadaSeEncaixa(t *testing.T) {
 	fake := &fakeCompletar{fila: []respostaCanned{{texto: `{"protocol":"","daemon":""}`}}}
 
-	got, err := classificar(context.Background(), "Como faço backup do switch?", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Como faço backup do switch?", listasDeTeste(), false, fake.completar)
 	if err != nil {
 		t.Fatalf("classificar: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestValorForaDaLista_Refaz(t *testing.T) {
 		{texto: `{"protocol":"ospf","daemon":"ospfd"}`},
 	}}
 
-	got, err := classificar(context.Background(), "Configurar OSPF", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Configurar OSPF", listasDeTeste(), false, fake.completar)
 	if err != nil {
 		t.Fatalf("classificar: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestValorForaDaLista_Refaz(t *testing.T) {
 		t.Fatalf("chamadas = %d, want 2", len(fake.chamadas))
 	}
 	correcao := fake.chamadas[1].msgs[len(fake.chamadas[1].msgs)-1]
-	if correcao.Papel != "user" || !strings.Contains(correcao.Conteudo, "frr") || !strings.Contains(correcao.Conteudo, "bgp") {
+	if correcao.Role != "user" || !strings.Contains(correcao.Content, "frr") || !strings.Contains(correcao.Content, "bgp") {
 		t.Errorf("correção da 2ª chamada = %+v, want menciona o valor rejeitado e os permitidos", correcao)
 	}
 	conferirPertencimento(t, got, listasDeTeste())
@@ -143,15 +143,15 @@ func TestValorForaDaLista_Esgota(t *testing.T) {
 		{texto: `{"protocol":"cisco","daemon":"bgpd"}`},
 	}}
 
-	got, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
 	if err == nil {
 		t.Fatalf("classificar devolveu %v sem erro, want erro", got)
 	}
 	if got != nil {
 		t.Errorf("saída = %v, want nil (valor inventado não vaza)", got)
 	}
-	if len(fake.chamadas) != maxTentativas {
-		t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxTentativas)
+	if len(fake.chamadas) != maxAttempts {
+		t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxAttempts)
 	}
 	if !strings.Contains(err.Error(), "frr") && !strings.Contains(err.Error(), "cisco") {
 		t.Errorf("erro = %v, want menciona o valor rejeitado", err)
@@ -166,15 +166,15 @@ func TestJSONMalformado(t *testing.T) {
 		{texto: "```json\n{protocol: bgp}\n```"},
 	}}
 
-	got, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
 	if err == nil {
 		t.Fatalf("classificar devolveu %v sem erro, want erro", got)
 	}
 	if got != nil {
 		t.Errorf("saída = %v, want nil", got)
 	}
-	if len(fake.chamadas) != maxTentativas {
-		t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxTentativas)
+	if len(fake.chamadas) != maxAttempts {
+		t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxAttempts)
 	}
 }
 
@@ -194,15 +194,15 @@ func TestRespostaQueIgnoraSchema(t *testing.T) {
 			fake := &fakeCompletar{fila: []respostaCanned{
 				{texto: c.bruto}, {texto: c.bruto}, {texto: c.bruto},
 			}}
-			got, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
+			got, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
 			if err == nil {
 				t.Fatalf("classificar devolveu %v sem erro, want erro", got)
 			}
 			if got != nil {
 				t.Errorf("saída = %v, want nil", got)
 			}
-			if len(fake.chamadas) != maxTentativas {
-				t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxTentativas)
+			if len(fake.chamadas) != maxAttempts {
+				t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxAttempts)
 			}
 		})
 	}
@@ -215,7 +215,7 @@ func TestJSONEmFence(t *testing.T) {
 		{texto: "```json\n{\"protocol\":\"bgp\",\"daemon\":\"bgpd\"}\n```"},
 	}}
 
-	got, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
 	if err != nil {
 		t.Fatalf("classificar: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestNormalizacaoCanonica(t *testing.T) {
 		{texto: `{"protocol":"BGP (primary)","daemon":"  bgpd  "}`},
 	}}
 
-	got, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
 	if err != nil {
 		t.Fatalf("classificar: %v", err)
 	}
@@ -246,22 +246,22 @@ func TestNormalizacaoCanonica(t *testing.T) {
 func TestEntradaInvalida(t *testing.T) {
 	casos := []struct {
 		nome   string
-		listas []Lista
+		listas []List
 	}{
 		{"nenhuma lista", nil},
-		{"lista sem nome", []Lista{{Nome: "  ", Valores: []Valor{{Nome: "bgp"}}}}},
-		{"lista sem valores", []Lista{{Nome: "protocol"}}},
-		{"valor sem nome", []Lista{{Nome: "protocol", Valores: []Valor{{Nome: ""}}}}},
-		{"valores equivalentes", []Lista{{Nome: "protocol", Valores: []Valor{{Nome: "BGP"}, {Nome: "bgp"}}}}},
-		{"lista repetida", []Lista{
-			{Nome: "protocol", Valores: []Valor{{Nome: "bgp"}}},
-			{Nome: "protocol", Valores: []Valor{{Nome: "ospf"}}},
+		{"lista sem nome", []List{{Name: "  ", Values: []Value{{Name: "bgp"}}}}},
+		{"lista sem valores", []List{{Name: "protocol"}}},
+		{"valor sem nome", []List{{Name: "protocol", Values: []Value{{Name: ""}}}}},
+		{"valores equivalentes", []List{{Name: "protocol", Values: []Value{{Name: "BGP"}, {Name: "bgp"}}}}},
+		{"lista repetida", []List{
+			{Name: "protocol", Values: []Value{{Name: "bgp"}}},
+			{Name: "protocol", Values: []Value{{Name: "ospf"}}},
 		}},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
 			fake := &fakeCompletar{} // sem fila: panic se o modelo for chamado
-			got, err := classificar(context.Background(), "Configurar BGP", c.listas, false, fake.completar)
+			got, err := classify(context.Background(), "Configurar BGP", c.listas, false, fake.completar)
 			if err == nil {
 				t.Fatalf("classificar devolveu %v sem erro, want erro", got)
 			}
@@ -274,7 +274,7 @@ func TestEntradaInvalida(t *testing.T) {
 
 func TestInputVazio(t *testing.T) {
 	fake := &fakeCompletar{}
-	if _, err := classificar(context.Background(), "   ", listasDeTeste(), false, fake.completar); err == nil {
+	if _, err := classify(context.Background(), "   ", listasDeTeste(), false, fake.completar); err == nil {
 		t.Fatal("classificar aceitou input vazio")
 	}
 	if len(fake.chamadas) != 0 {
@@ -289,15 +289,15 @@ func TestErroDoProvedor(t *testing.T) {
 		{err: foraDoAr}, {err: foraDoAr}, {err: foraDoAr},
 	}}
 
-	got, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
+	got, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar)
 	if err == nil {
 		t.Fatalf("classificar devolveu %v sem erro, want erro", got)
 	}
 	if !strings.Contains(err.Error(), "fora do ar") {
 		t.Errorf("erro = %v, want menciona o motivo do provedor", err)
 	}
-	if len(fake.chamadas) != maxTentativas {
-		t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxTentativas)
+	if len(fake.chamadas) != maxAttempts {
+		t.Errorf("chamadas = %d, want %d", len(fake.chamadas), maxAttempts)
 	}
 }
 
@@ -305,7 +305,7 @@ func TestErroDoProvedor(t *testing.T) {
 // com os valores permitidos e o vazio explícito, tudo required, sem extras.
 func TestSchema(t *testing.T) {
 	fake := &fakeCompletar{fila: []respostaCanned{{texto: `{"protocol":"bgp","daemon":"bgpd"}`}}}
-	if _, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar); err != nil {
+	if _, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), false, fake.completar); err != nil {
 		t.Fatalf("classificar: %v", err)
 	}
 	schema := fake.chamadas[0].schema
@@ -336,18 +336,18 @@ func TestSchema(t *testing.T) {
 
 // A flag é o Modo RAG: parâmetro da chamada que muda o comportamento interno
 // (prompt), não a forma do contrato.
-func TestModoRAG(t *testing.T) {
+func TestRAGMode(t *testing.T) {
 	for _, modoRAG := range []bool{false, true} {
 		fake := &fakeCompletar{fila: []respostaCanned{{texto: `{"protocol":"bgp","daemon":"bgpd"}`}}}
-		if _, err := classificar(context.Background(), "Configurar BGP", listasDeTeste(), modoRAG, fake.completar); err != nil {
+		if _, err := classify(context.Background(), "Configurar BGP", listasDeTeste(), modoRAG, fake.completar); err != nil {
 			t.Fatalf("classificar(modoRAG=%v): %v", modoRAG, err)
 		}
 		system := fake.chamadas[0].msgs[0]
-		if system.Papel != "system" {
-			t.Errorf("primeira mensagem = %q, want system", system.Papel)
+		if system.Role != "system" {
+			t.Errorf("primeira mensagem = %q, want system", system.Role)
 		}
-		if contem := strings.Contains(system.Conteudo, "Modo RAG"); contem != modoRAG {
-			t.Errorf("prompt do sistema menciona Modo RAG = %v, want %v", contem, modoRAG)
+		if contains := strings.Contains(system.Content, "RAG Mode"); contains != modoRAG {
+			t.Errorf("system prompt mentions RAG Mode = %v, want %v", contains, modoRAG)
 		}
 	}
 }

@@ -21,7 +21,7 @@ func Embed(texts []string, client openai.Client) ([][]float64, error) {
 	}
 
 	resp, err := client.Embeddings.New(context.Background(), openai.EmbeddingNewParams{
-		Model: "text-embedding-qwen3-embedding-8b",
+		Model: rag.DefaultEmbeddingModel,
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: texts,
 		},

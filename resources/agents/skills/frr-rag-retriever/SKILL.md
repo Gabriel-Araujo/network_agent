@@ -31,7 +31,7 @@ Devices, Connections, Problem/goal summary, Execution pipeline, and a
    LLM rewrite queries from sections 1/4/5 (Classification, summary,
    pipeline), respecting the `frr_docs` column vocabulary.
 3. **Embed** — batch-embed all queries with the SAME model used at ingest
-   (`text-embedding-qwen3-embedding-8b`, 4096 dims; configurable via
+   (`text-embedding-qwen3-embedding-4b`, 2560 dims; configurable via
    `EMBEDDING_MODEL`).
 4. **Hybrid search per query** — vector (`embedding <=> $1::vector`, via
    diskann) + full-text (`content_tsv @@ plainto_tsquery`, via GIN), both
@@ -64,7 +64,7 @@ Devices, Connections, Problem/goal summary, Execution pipeline, and a
 ## Environment
 
 - `DATABASE_URL` — postgres DSN for `frr_docs` (required).
-- `EMBEDDING_MODEL` — optional; defaults to `text-embedding-qwen3-embedding-8b`.
+- `EMBEDDING_MODEL` — optional; defaults to `text-embedding-qwen3-embedding-4b`.
 - Embeddings use the same OpenAI-compatible endpoint as the agent (`.env`).
 
 ## Verification

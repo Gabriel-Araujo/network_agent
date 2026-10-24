@@ -152,7 +152,7 @@ internal/agent/rag/
    ├─ constants.go                   → ChunkType*, RetrievalDir, DefaultEmbeddingModel, RrfK
    ├─ retriever/                     (mecanismo de busca — sem IO de arquivo)
    │   ├─ retriever.go               → Retrieve, VectorLiteral, FuseRRF, buildResponse
-   │   ├─ embed.go                   → embeddings em lote + ProbeEmbeddingDim (4096)
+   │   ├─ embed.go                   → embeddings em lote + ProbeEmbeddingDim (2560)
    │   ├─ db.go                      → SQL híbrido (vetorial + FTS) + lookup de chunks
    │   └─ queries.go                 → constantes SQL
    └─ env/env.go                     → LoadEnv (DATABASE_URL / EMBEDDING_MODEL), Probe
@@ -222,14 +222,14 @@ busca inteira se perde por causa da reescrita.
 ### 4.4 `internal/agent/rag/retriever` — embeddings e consistência de dimensão
 
 `embedTexts` usa `client.Embeddings.New(...)` com o **mesmo modelo do
-ingester** (`text-embedding-qwen3-embedding-8b`, `rag.DefaultEmbeddingModel`).
+ingester** (`text-embedding-qwen3-embedding-4b`, `rag.DefaultEmbeddingModel`).
 Isso é um requisito físico: se a query fosse embedded por um modelo diferente
 do que gerou os vetores do banco, a similaridade de cosseno perderia o
 significado (espaços vetoriais diferentes).
 
 **`ProbeEmbeddingDim`** embeds uma string de teste no primeiro uso e assert
-`len == 4096`. Se o modelo trocar, o erro é claro ("dimensão X, esperava
-4096") em vez de uma busca silenciosamente sem sentido.
+`len == 2560`. Se o modelo trocar, o erro é claro ("dimensão X, esperava
+2560") em vez de uma busca silenciosamente sem sentido.
 
 ### 4.5 `internal/agent/rag/retriever` — SQL híbrido
 
@@ -294,11 +294,11 @@ Existem **dois clientes** no projeto:
 O `cmd/cli/main.go` (função `runRetrieval`) usa **`LoadEmbbedAgent()`** como
 fonte do `Embedder` e do `EmbeddingModel`. Por quê? O provedor remoto usado
 para o chat **não serve o modelo de embedding**
-(`text-embedding-qwen3-embedding-8b` dá 404/"model does not exist"), enquanto o
-LM Studio local o serve com as mesmas 4096 dimensões usadas no ingest.
+(`text-embedding-qwen3-embedding-4b` dá 404/"model does not exist"), enquanto o
+LM Studio local o serve com as mesmas 2560 dimensões usadas no ingest.
 Misturar os dois quebraria a similaridade vetorial — então embeddings têm seu
 **próprio agente**, isolado do chat. (Isso foi validado na integração:
-`len(embedding) == 4096`.)
+`len(embedding) == 2560`.)
 
 ---
 

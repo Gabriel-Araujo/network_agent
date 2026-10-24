@@ -47,7 +47,7 @@ func main() {
 	fmt.Println("Network Agent started. Type your message (or 'exit' to quit):")
 	reader := bufio.NewReader(os.Stdin)
 
-	listas := rag.Listas()
+	listas := rag.Lists()
 
 	var transcript []history.Message
 
@@ -82,11 +82,11 @@ func main() {
 			log.Warn("classificação genérica falhou — sem exibição", "err", err)
 		} else {
 			for _, l := range listas {
-				valor := generica[l.Nome]
+				valor := generica[l.Name]
 				if valor == "" {
 					valor = "(vazio)"
 				}
-				fmt.Printf("%s=%s\n", l.Nome, valor)
+				fmt.Printf("%s=%s\n", l.Name, valor)
 			}
 		}
 
@@ -94,12 +94,12 @@ func main() {
 		// filtros vazios (idêntico a "nada se encaixa") e a comparação zera —
 		// sem estado meio atualizado, o próximo turno busca de novo.
 		classificacao, err := classifier.Do(ctx, userInput, listas, true, agent)
-		var filtros rag.Filtros
+		var filtros rag.Filters
 		if err != nil {
 			log.Warn("classificador RAG falhou — seguindo com filtros vazios", "err", err)
 			classificacao = nil
 		} else {
-			filtros = rag.FiltrosFrom(classificacao)
+			filtros = rag.FiltersFrom(classificacao)
 		}
 
 		// Skip rule: o retrieval só roda quando a classificação RAG difere do
@@ -107,7 +107,7 @@ func main() {
 		contextoJSON := ""
 		if deveBuscar(classificacao, classificacaoAnterior) {
 			resultados, espelho, err := runRetrieval(ctx, agent, userInput, filtros)
-			if err != nil && !errors.Is(err, ragretriever.ErrEspelhoNaoGravado) {
+			if err != nil && !errors.Is(err, ragretriever.ErrMirrorNotSaved) {
 				log.Warn("retrieval falhou, seguindo sem contexto RAG", "err", err)
 			} else {
 				if err != nil {
@@ -172,14 +172,14 @@ func jsonDoContexto(resultados []rag.Result) string {
 // e executa ragretriever.Do para o input textual, com o conjunto de filtros
 // do Classificador. A composição do turno (chamadas ao Classificador, skip
 // rule, recovered_context) é de Religar o fluxo E2E do CLI (08).
-func runRetrieval(ctx context.Context, agent *agentapi.Agent, input string, filtros rag.Filtros) ([]rag.Result, string, error) {
+func runRetrieval(ctx context.Context, agent *agentapi.Agent, input string, filtros rag.Filters) ([]rag.Result, string, error) {
 	dsn, _ := env.LoadEnv()
 	if dsn == "" {
 		return nil, "", fmt.Errorf("DATABASE_URL ausente — adicione ao .env ou exporte no ambiente")
 	}
 
 	// Embeddings vêm do LoadEmbbedAgent (LM Studio em localhost: 1234),
-	// que serve o MESMO modelo usado no ingester (4096 dims).
+	// que serve o MESMO modelo usado no ingester (2560 dims).
 	embAgent := agentapi.LoadEmbbedAgent()
 	cfg := rag.Config{
 		DSN:            dsn,

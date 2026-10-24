@@ -9,7 +9,7 @@ import (
 
 // searchVector devolve map[chunk_id]rank para a busca vetorial de uma
 // query, com top-K = limit*FetchFactor.
-func searchVector(ctx context.Context, s *db.DB, cfg rag.Config, filtros rag.Filtros, vec []float64) (map[string]int, error) {
+func searchVector(ctx context.Context, s *db.DB, cfg rag.Config, filtros rag.Filters, vec []float64) (map[string]int, error) {
 	limit := cfg.Limit * cfg.FetchFactor
 	rows, err := s.Pool.Query(ctx, vectorSearchSQL,
 		VectorLiteral(vec),
@@ -38,7 +38,7 @@ func searchVector(ctx context.Context, s *db.DB, cfg rag.Config, filtros rag.Fil
 }
 
 // searchFTS devolve map[chunk_id]rank para a busca full-text de uma query.
-func searchFTS(ctx context.Context, s *db.DB, cfg rag.Config, query string, filtros rag.Filtros) (map[string]int, error) {
+func searchFTS(ctx context.Context, s *db.DB, cfg rag.Config, query string, filtros rag.Filters) (map[string]int, error) {
 	limit := cfg.Limit * cfg.FetchFactor
 	rows, err := s.Pool.Query(ctx, ftsSearchSQL,
 		query,

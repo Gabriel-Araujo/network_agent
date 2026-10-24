@@ -20,18 +20,18 @@ import (
 
 var log = logger.Named("RAG-RETRIEVER")
 
-// ErrEspelhoNaoGravado sinaliza a falha de gravação do espelho em
+// ErrMirrorNotSaved sinaliza a falha de gravação do espelho em
 // .agent/tmp/retrieval: o valor em memória volta completo e o path vem
 // vazio — o espelho nunca derruba o caminho (checável com errors.Is).
-var ErrEspelhoNaoGravado = errors.New("espelho do retrieval não gravado")
+var ErrMirrorNotSaved = errors.New("espelho do retrieval não gravado")
 
 // Do gera as queries a partir do input textual (caminho primário; degrada com
 // aviso explícito para uma query única do input cru), executa a busca híbrida
 // com o conjunto único de filtros e grava o espelho
 // .agent/tmp/retrieval/<slug>-<hash8>.json. Retorna os resultados em memória,
-// o path do espelho e o erro — sentinela ErrEspelhoNaoGravado quando só o
+// o path do espelho e o erro — sentinela ErrMirrorNotSaved quando só o
 // espelho falhou (resultados completos e path vazio nesse caso).
-func Do(ctx context.Context, input string, filtros rag.Filtros, cfg rag.Config) ([]rag.Result, string, error) {
+func Do(ctx context.Context, input string, filtros rag.Filters, cfg rag.Config) ([]rag.Result, string, error) {
 	queries := BuildQueries(ctx, input, filtros, cfg.QueryGen)
 
 	results, err := retriever.Retrieve(ctx, cfg, queries, filtros)
@@ -42,7 +42,7 @@ func Do(ctx context.Context, input string, filtros rag.Filtros, cfg rag.Config) 
 	path, err := SaveResults(input, results)
 	if err != nil {
 		log.Warn("espelho do retrieval não gravado — resultados devolvidos em memória", "err", err)
-		return results, "", fmt.Errorf("%w: %w", ErrEspelhoNaoGravado, err)
+		return results, "", fmt.Errorf("%w: %w", ErrMirrorNotSaved, err)
 	}
 	return results, path, nil
 }
@@ -79,7 +79,7 @@ func SaveResults(input string, results []rag.Result) (string, error) {
 // gerador — a busca degrada com aviso explícito para uma única query do input
 // cru. Nunca falha silenciosa; nunca a busca inteira se perde por causa da
 // reescrita.
-func BuildQueries(ctx context.Context, input string, filtros rag.Filtros, gen rag.QueryGenerator) []rag.QuerySuggestion {
+func BuildQueries(ctx context.Context, input string, filtros rag.Filters, gen rag.QueryGenerator) []rag.QuerySuggestion {
 	if gen != nil {
 		queries, err := gen.GenerateQueries(ctx, input, filtros)
 		switch {
@@ -106,12 +106,12 @@ type LLMQueryGenerator struct {
 // GenerateQueries pede ao modelo que reescreva o input em queries de busca
 // para a tabela frr_docs, recebendo os filtros escolhidos (e o vocabulário
 // das Listas) para orientar a reescrita.
-func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, input string, filtros rag.Filtros) ([]rag.QuerySuggestion, error) {
+func (g *LLMQueryGenerator) GenerateQueries(ctx context.Context, input string, filtros rag.Filters) ([]rag.QuerySuggestion, error) {
 	resp, err := g.Client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: g.ModelName,
 		// Mesma restrição do intent-analyser: só pode haver system na primeira
 		// posição, e o servidor mapeia developer para system.
-		Instructions: openai.String(montarPrompt(filtros)),
+		Instructions: openai.String(buildPrompt(filtros)),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
 				responses.ResponseInputItemParamOfMessage(input, responses.EasyInputMessageRoleUser),
