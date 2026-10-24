@@ -1,0 +1,41 @@
+[
+  {
+    "chunk_id": "frr-reload:concept:the-frr-reload-py-script:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "frr-reload",
+    "section_path": "The frr-reload.py script",
+    "command": null,
+    "content": "The ``frr-reload.py`` script attempts to update the configuration of running\ndaemons. It takes as argument the path of the configuration file that we want\nto apply. The script will attempt to retrieve the running configuration from\ndaemons, calculate the delta between that config and the intended one, and\nexecute the required sequence of vtysh commands to enforce the changes.",
+    "parent_content": "The ``frr-reload.py`` script attempts to update the configuration of running\ndaemons. It takes as argument the path of the configuration file that we want\nto apply. The script will attempt to retrieve the running configuration from\ndaemons, calculate the delta between that config and the intended one, and\nexecute the required sequence of vtysh commands to enforce the changes.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/frr-reload.rst",
+    "token_count": 94,
+    "order": 0
+  },
+  {
+    "chunk_id": "frr-reload:concept:the-frr-reload-py-script-options:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "frr-reload",
+    "section_path": "The frr-reload.py script > Options",
+    "command": null,
+    "content": "There are several options that control the behavior of ``frr-reload``:",
+    "parent_content": "There are several options that control the behavior of ``frr-reload``:\n\n* ``--input INPUT``: uses the specified input file as the running configuration\n  instead of retrieving it from a ``show running-config`` in vtysh\n* ``--reload``: applies the configuration delta to the daemons. Either this or\n  ``--test`` MUST be specified.\n* ``--test``: only outputs the configuration delta, without enforcing it.\n  Either this or ``--reload`` MUST be specified.\n* ``--debug``: enable debug messages\n* ``--stdout``: print output to stdout\n* ``--bindir BINDIR``: path to the vtysh executable\n* ``--confdir CONFDIR``: path to the existing daemon config files\n* ``--logfile FILENAME``: file (with path) to logfile for the reload operation.\n  Default is ``/var/log/frr/frr-reload.log``\n* ``--rundir RUNDIR``: path to a folder to be used to write the temporary files\n  needed by the script to do its job. The script should have write access to it\n* ``--daemon DAEMON``: by default ``frr-reload.py`` assumes that we are using\n  integrated config and attempting to update the configuration for all daemons.\n  If this is not the case, e.g. each daemon has its individual config file,\n  then the delta can only be computed on a per-daemon basis. This option allows\n  the user to specify the daemon for which the config is intended. DAEMON\n  should be one of the keywords allowed in vtysh as an option for ``show\n  running-config``.\n* ``--vty_socket VTY_SOCKET``: the socket to be used by vtysh to connect to the\n  running daemons.\n* ``--overwrite``: overwrite the existing daemon config file with the new\n  config after the delta has been applied. The file name will be ``frr.conf``\n  for integrate config, or ``DAEMON.conf`` when using per-daemon config files.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/frr-reload.rst",
+    "token_count": 17,
+    "order": 1
+  },
+  {
+    "chunk_id": "frr-reload:concept:the-frr-reload-py-script-options:0001",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "frr-reload",
+    "section_path": "The frr-reload.py script > Options",
+    "command": null,
+    "content": "* ``--input INPUT``: uses the specified input file as the running configuration\n  instead of retrieving it from a ``show running-config`` in vtysh\n* ``--reload``: applies the configuration delta to the daemons. Either this or\n  ``--test`` MUST be specified.\n* ``--test``: only outputs the configuration delta, without enforcing it.\n  Either this or ``--reload`` MUST be specified.\n* ``--debug``: enable debug messages\n* ``--stdout``: print output to stdout\n* ``--bindir BINDIR``: path to the vtysh executable\n* ``--confdir CONFDIR``: path to the existing daemon config files\n* ``--logfile FILENAME``: file (with path) to logfile for the reload operation.\n  Default is ``/var/log/frr/frr-reload.log``\n* ``--rundir RUNDIR``: path to a folder to be used to write the temporary files\n  needed by the script to do its job. The script should have write access to it\n* ``--daemon DAEMON``: by default ``frr-reload.py`` assumes that we are using\n  integrated config and attempting to update the configuration for all daemons.\n  If this is not the case, e.g. each daemon has its individual config file,\n  then the delta can only be computed on a per-daemon basis. This option allows\n  the user to specify the daemon for which the config is intended. DAEMON\n  should be one of the keywords allowed in vtysh as an option for ``show\n  running-config``.\n* ``--vty_socket VTY_SOCKET``: the socket to be used by vtysh to connect to the\n  running daemons.\n* ``--overwrite``: overwrite the existing daemon config file with the new\n  config after the delta has been applied. The file name will be ``frr.conf``\n  for integrate config, or ``DAEMON.conf`` when using per-daemon config files.",
+    "parent_content": "There are several options that control the behavior of ``frr-reload``:\n\n* ``--input INPUT``: uses the specified input file as the running configuration\n  instead of retrieving it from a ``show running-config`` in vtysh\n* ``--reload``: applies the configuration delta to the daemons. Either this or\n  ``--test`` MUST be specified.\n* ``--test``: only outputs the configuration delta, without enforcing it.\n  Either this or ``--reload`` MUST be specified.\n* ``--debug``: enable debug messages\n* ``--stdout``: print output to stdout\n* ``--bindir BINDIR``: path to the vtysh executable\n* ``--confdir CONFDIR``: path to the existing daemon config files\n* ``--logfile FILENAME``: file (with path) to logfile for the reload operation.\n  Default is ``/var/log/frr/frr-reload.log``\n* ``--rundir RUNDIR``: path to a folder to be used to write the temporary files\n  needed by the script to do its job. The script should have write access to it\n* ``--daemon DAEMON``: by default ``frr-reload.py`` assumes that we are using\n  integrated config and attempting to update the configuration for all daemons.\n  If this is not the case, e.g. each daemon has its individual config file,\n  then the delta can only be computed on a per-daemon basis. This option allows\n  the user to specify the daemon for which the config is intended. DAEMON\n  should be one of the keywords allowed in vtysh as an option for ``show\n  running-config``.\n* ``--vty_socket VTY_SOCKET``: the socket to be used by vtysh to connect to the\n  running daemons.\n* ``--overwrite``: overwrite the existing daemon config file with the new\n  config after the delta has been applied. The file name will be ``frr.conf``\n  for integrate config, or ``DAEMON.conf`` when using per-daemon config files.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/frr-reload.rst",
+    "token_count": 417,
+    "order": 2
+  }
+]

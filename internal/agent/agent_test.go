@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
+	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -130,5 +131,60 @@ func TestChatReenviaOTurnoSemEstadoNoServidor(t *testing.T) {
 	}
 	if result["call_id"] != "call_1" {
 		t.Errorf("call id do resultado %v, esperava call_1 — sem ele o provedor não casa chamada e resultado", result["call_id"])
+	}
+}
+
+func TestConnectConfiguraJanelaDoLMStudioAntesDoChat(t *testing.T) {
+	const contextLength = int64(65536)
+	loaded := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/models":
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"models":[{"key":"modelo","loaded_instances":[{"config":{"context_length":8192}}]}]}`)
+			return
+
+		case "/api/v1/models/load":
+			var body struct {
+				Model         string `json:"model"`
+				ContextLength int64  `json:"context_length"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("corpo de carga ilegível: %v", err)
+			}
+			if body.Model != "modelo" {
+				t.Errorf("modelo carregado %q, esperava modelo", body.Model)
+			}
+			if body.ContextLength != contextLength {
+				t.Errorf("janela carregada %d, esperava %d", body.ContextLength, contextLength)
+			}
+			loaded = true
+			w.WriteHeader(http.StatusOK)
+			return
+
+		case "/v1/responses":
+			if !loaded {
+				http.Error(w, `{"error":{"message":"request exceeds the available context size (8192)"}}`, http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"id":"resp_1","object":"response","created_at":0,"status":"completed","model":"modelo","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"pronto","annotations":[]}]}],"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`)
+		}
+	}))
+	defer server.Close()
+
+	ag, err := Connect(types.Config{
+		Providers: []types.Provider{{
+			Name:   "LM Studio",
+			Url:    server.URL + "/v1",
+			Models: []types.Model{{Id: "modelo", ContextSize: contextLength}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Connect devolveu erro: %v", err)
+	}
+	if _, err := ag.Chat(context.Background(), nil, "pergunta"); err != nil {
+		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 }

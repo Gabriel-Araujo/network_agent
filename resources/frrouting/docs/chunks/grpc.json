@@ -1,0 +1,41 @@
+[
+  {
+    "chunk_id": "grpc:concept:northbound-grpc:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "grpc",
+    "section_path": "Northbound gRPC",
+    "command": null,
+    "content": ".. program:: configure\n\n*gRPC* provides a combined front end to all FRR daemons using the YANG\nnorthbound. It is currently disabled by default due its experimental\nstage, but it can be enabled with --enable-grpc option in the\nconfigure script.",
+    "parent_content": ".. program:: configure\n\n*gRPC* provides a combined front end to all FRR daemons using the YANG\nnorthbound. It is currently disabled by default due its experimental\nstage, but it can be enabled with --enable-grpc option in the\nconfigure script.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/grpc.rst",
+    "token_count": 60,
+    "order": 0
+  },
+  {
+    "chunk_id": "grpc:concept:northbound-grpc-northbound-grpc-features:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "grpc",
+    "section_path": "Northbound gRPC > Northbound gRPC Features",
+    "command": null,
+    "content": "* Get/set configuration using JSON/XML/XPath encodings.\n* Execute YANG RPC calls.\n* Lock/unlock configuration.\n* Create/edit/load/update/commit candidate configuration.\n* List/get transactions.\n\n.. note::\n\n   There is currently no support for YANG notifications.\n\n.. note::\n\n   You can find more information on how to code programs to interact\n   with FRR by reading the gRPC Programming Language Bindings section\n   in the `developer's documentation\n   <http://docs.frrouting.org/projects/dev-guide/en/latest/grpc.html>`_.",
+    "parent_content": "* Get/set configuration using JSON/XML/XPath encodings.\n* Execute YANG RPC calls.\n* Lock/unlock configuration.\n* Create/edit/load/update/commit candidate configuration.\n* List/get transactions.\n\n\n.. note::\n\n   There is currently no support for YANG notifications.\n\n\n.. note::\n\n   You can find more information on how to code programs to interact\n   with FRR by reading the gRPC Programming Language Bindings section\n   in the `developer's documentation\n   <http://docs.frrouting.org/projects/dev-guide/en/latest/grpc.html>`_.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/grpc.rst",
+    "token_count": 130,
+    "order": 1
+  },
+  {
+    "chunk_id": "grpc:concept:northbound-grpc-daemon-grpc-configuration:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "grpc",
+    "section_path": "Northbound gRPC > Daemon gRPC Configuration",
+    "command": null,
+    "content": "The *gRPC* module accepts the following run time option:\n\n- ``port``: the port to listen to (defaults to ``50051``).\n\n.. note::\n\n   At the moment only localhost connections with no SSL/TLS are\n   supported.\n\nTo configure FRR daemons to listen to gRPC you need to append the\nfollowing parameter to the daemon's command line: ``-M grpc``\n(optionally ``-M grpc:PORT`` to specify listening port).\n\nTo do that in production you need to edit the ``/etc/frr/daemons`` file\nso the daemons get started with the command line argument. Example:\n\n::\n\n   # other daemons...\n   bfdd_options=\"  --daemon -A 127.0.0.1 -M grpc\"",
+    "parent_content": "The *gRPC* module accepts the following run time option:\n\n- ``port``: the port to listen to (defaults to ``50051``).\n\n\n.. note::\n\n   At the moment only localhost connections with no SSL/TLS are\n   supported.\n\n\nTo configure FRR daemons to listen to gRPC you need to append the\nfollowing parameter to the daemon's command line: ``-M grpc``\n(optionally ``-M grpc:PORT`` to specify listening port).\n\nTo do that in production you need to edit the ``/etc/frr/daemons`` file\nso the daemons get started with the command line argument. Example:\n\n::\n\n   # other daemons...\n   bfdd_options=\"  --daemon -A 127.0.0.1 -M grpc\"",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/grpc.rst",
+    "token_count": 152,
+    "order": 2
+  }
+]

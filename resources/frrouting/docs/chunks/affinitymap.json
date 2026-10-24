@@ -1,0 +1,54 @@
+[
+  {
+    "chunk_id": "affinitymap:concept:affinity-maps:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "affinitymap",
+    "section_path": "Affinity Maps",
+    "command": null,
+    "content": "Affinity maps provide a means of configuring Standard Admininistrative-Group\n(RFC3630, RFC5305 and RFC5329) and Extended Admininistrative-Group (RFC7308).\nAn affinity-map maps a specific bit position to a human readable-name.\n\nAn affinity refers to a color or a resource class in the Traffic Engineering\nterminology. The bit position means the position of the bit set starting from\nthe least significant bit. For example, if the affinity 'blue' has bit position\n0 the extended Admin-Group value will be 0x01. If the affinity 'red' bit\nposition 2 was added to a link in combination with the 'blue' affinity, the\nAdmin-Group value would be 0x05.",
+    "parent_content": "Affinity maps provide a means of configuring Standard Admininistrative-Group\n(RFC3630, RFC5305 and RFC5329) and Extended Admininistrative-Group (RFC7308).\nAn affinity-map maps a specific bit position to a human readable-name.\n\nAn affinity refers to a color or a resource class in the Traffic Engineering\nterminology. The bit position means the position of the bit set starting from\nthe least significant bit. For example, if the affinity 'blue' has bit position\n0 the extended Admin-Group value will be 0x01. If the affinity 'red' bit\nposition 2 was added to a link in combination with the 'blue' affinity, the\nAdmin-Group value would be 0x05.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/affinitymap.rst",
+    "token_count": 160,
+    "order": 0
+  },
+  {
+    "chunk_id": "affinitymap:cmd:affinity-map-name-bit-position-0-1023",
+    "chunk_type": "command_reference",
+    "daemon": "zebra",
+    "protocol": "affinitymap",
+    "section_path": "Affinity Maps > Command",
+    "command": "affinity-map NAME bit-position (0-1023)",
+    "content": "affinity-map NAME bit-position (0-1023)\n\nMap the affinity name NAME to the bit-position. The bit-position is the key\nso that only one name can be mapped to particular bit-position.",
+    "parent_content": ".. clicmd:: affinity-map NAME bit-position (0-1023)\n\n   Map the affinity name NAME to the bit-position. The bit-position is the key\n   so that only one name can be mapped to particular bit-position.\n\n.. clicmd:: no affinity-map NAME\n\n   Remove the affinity-map mapping.\n\nAffinity-maps with a bit-position value higher than 31 are not compatible with\nStandard Admininistrative-Group. The CLI disallow the usage of such\naffinity-maps when Standard Admininistrative-Groups are required.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/affinitymap.rst",
+    "token_count": 45,
+    "order": 1
+  },
+  {
+    "chunk_id": "affinitymap:cmd:no-affinity-map-name",
+    "chunk_type": "command_reference",
+    "daemon": "zebra",
+    "protocol": "affinitymap",
+    "section_path": "Affinity Maps > Command",
+    "command": "no affinity-map NAME",
+    "content": "no affinity-map NAME\n\nRemove the affinity-map mapping.",
+    "parent_content": ".. clicmd:: affinity-map NAME bit-position (0-1023)\n\n   Map the affinity name NAME to the bit-position. The bit-position is the key\n   so that only one name can be mapped to particular bit-position.\n\n.. clicmd:: no affinity-map NAME\n\n   Remove the affinity-map mapping.\n\nAffinity-maps with a bit-position value higher than 31 are not compatible with\nStandard Admininistrative-Group. The CLI disallow the usage of such\naffinity-maps when Standard Admininistrative-Groups are required.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/affinitymap.rst",
+    "token_count": 13,
+    "order": 2
+  },
+  {
+    "chunk_id": "affinitymap:concept:affinity-maps-command:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "affinitymap",
+    "section_path": "Affinity Maps > Command",
+    "command": null,
+    "content": "Affinity-maps with a bit-position value higher than 31 are not compatible with\nStandard Admininistrative-Group. The CLI disallow the usage of such\naffinity-maps when Standard Admininistrative-Groups are required.",
+    "parent_content": ".. clicmd:: affinity-map NAME bit-position (0-1023)\n\n   Map the affinity name NAME to the bit-position. The bit-position is the key\n   so that only one name can be mapped to particular bit-position.\n\n.. clicmd:: no affinity-map NAME\n\n   Remove the affinity-map mapping.\n\nAffinity-maps with a bit-position value higher than 31 are not compatible with\nStandard Admininistrative-Group. The CLI disallow the usage of such\naffinity-maps when Standard Admininistrative-Groups are required.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/affinitymap.rst",
+    "token_count": 53,
+    "order": 3
+  }
+]

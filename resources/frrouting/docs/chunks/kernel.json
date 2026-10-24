@@ -1,0 +1,28 @@
+[
+  {
+    "chunk_id": "kernel:concept:kernel-interface:0000",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "kernel",
+    "section_path": "Kernel Interface",
+    "command": null,
+    "content": "There are several different methods for reading kernel routing table\ninformation, updating kernel routing tables, and for looking up interfaces.\nFRR relies heavily on the Netlink (``man 7 netlink``) interface to\ncommunicate with the Kernel. However, other interfaces are still used\nin some parts of the code.\n\n- ioctl\n     This method is a very traditional way for reading or writing kernel\n     information. `ioctl` can be used for looking up interfaces and for\n     modifying interface addresses, flags, mtu settings and other types of\n     information. Also, `ioctl` can insert and delete kernel routing table\n     entries. It will soon be available on almost any platform which zebra\n     supports, but it is a little bit ugly thus far, so if a better method is\n     supported by the kernel, zebra will use that.",
+    "parent_content": "There are several different methods for reading kernel routing table\ninformation, updating kernel routing tables, and for looking up interfaces.\nFRR relies heavily on the Netlink (``man 7 netlink``) interface to\ncommunicate with the Kernel. However, other interfaces are still used\nin some parts of the code.\n\n- ioctl\n     This method is a very traditional way for reading or writing kernel\n     information. `ioctl` can be used for looking up interfaces and for\n     modifying interface addresses, flags, mtu settings and other types of\n     information. Also, `ioctl` can insert and delete kernel routing table\n     entries. It will soon be available on almost any platform which zebra\n     supports, but it is a little bit ugly thus far, so if a better method is\n     supported by the kernel, zebra will use that.\n\n- sysctl\n     This is a program that can lookup kernel information using MIB (Management\n     Information Base) syntax. Normally, it only provides a way of getting\n     information from the kernel. So one would usually want to change kernel\n     information using another method such as `ioctl`.\n\n- proc filesystem\n     This is a special filesystem mount that provides an easy way of getting\n     kernel information.\n\n- routing socket / Netlink\n     Netlink first appeared in Linux kernel 2.0. It makes asynchronous\n     communication between the kernel and FRR possible, similar to a routing\n     socket on BSD systems. Netlink communication is done by reading/writing\n     over Netlink socket.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/kernel.rst",
+    "token_count": 204,
+    "order": 0
+  },
+  {
+    "chunk_id": "kernel:concept:kernel-interface:0001",
+    "chunk_type": "concept",
+    "daemon": "zebra",
+    "protocol": "kernel",
+    "section_path": "Kernel Interface",
+    "command": null,
+    "content": "- sysctl\n     This is a program that can lookup kernel information using MIB (Management\n     Information Base) syntax. Normally, it only provides a way of getting\n     information from the kernel. So one would usually want to change kernel\n     information using another method such as `ioctl`.\n\n- proc filesystem\n     This is a special filesystem mount that provides an easy way of getting\n     kernel information.\n\n- routing socket / Netlink\n     Netlink first appeared in Linux kernel 2.0. It makes asynchronous\n     communication between the kernel and FRR possible, similar to a routing\n     socket on BSD systems. Netlink communication is done by reading/writing\n     over Netlink socket.",
+    "parent_content": "There are several different methods for reading kernel routing table\ninformation, updating kernel routing tables, and for looking up interfaces.\nFRR relies heavily on the Netlink (``man 7 netlink``) interface to\ncommunicate with the Kernel. However, other interfaces are still used\nin some parts of the code.\n\n- ioctl\n     This method is a very traditional way for reading or writing kernel\n     information. `ioctl` can be used for looking up interfaces and for\n     modifying interface addresses, flags, mtu settings and other types of\n     information. Also, `ioctl` can insert and delete kernel routing table\n     entries. It will soon be available on almost any platform which zebra\n     supports, but it is a little bit ugly thus far, so if a better method is\n     supported by the kernel, zebra will use that.\n\n- sysctl\n     This is a program that can lookup kernel information using MIB (Management\n     Information Base) syntax. Normally, it only provides a way of getting\n     information from the kernel. So one would usually want to change kernel\n     information using another method such as `ioctl`.\n\n- proc filesystem\n     This is a special filesystem mount that provides an easy way of getting\n     kernel information.\n\n- routing socket / Netlink\n     Netlink first appeared in Linux kernel 2.0. It makes asynchronous\n     communication between the kernel and FRR possible, similar to a routing\n     socket on BSD systems. Netlink communication is done by reading/writing\n     over Netlink socket.",
+    "source_url": "https://github.com/FRRouting/frr/blob/master/doc/user/kernel.rst",
+    "token_count": 173,
+    "order": 1
+  }
+]
