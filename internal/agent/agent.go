@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
@@ -134,12 +135,20 @@ func transcriptItems(transcript []history.Message) []responses.ResponseInputItem
 func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
 	var result responses.ResponseInputItemUnionParam
 
-	switch call.Name {
+	switch {
 
-	case skills.ToolUseSkill, skills.ToolReadSkillFile:
+	case !a.offers(call.Name):
+		// A tool this Agent was not given never runs, whatever the model
+		// named: it is how the Modifier stays without WriteFile and how a
+		// dispatched Subagente stays without sub_agent (no nesting).
+		log.Warn("tool não oferecida recusada", "name", call.Name)
+		result = responses.ResponseInputItemParamOfFunctionCallOutput(
+			fmt.Sprintf("Error: tool %q was not offered to you. Use only the tools in your list.", call.Name))
+
+	case call.Name == skills.ToolUseSkill, call.Name == skills.ToolReadSkillFile:
 		result = a.SkillCall(ctx, call)
 
-	case tools.SUB_AGENT_TOOL_NAME:
+	case call.Name == tools.SUB_AGENT_TOOL_NAME:
 		result = a.SubAgentCall(ctx, call)
 
 	default:
@@ -151,6 +160,15 @@ func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToo
 	}
 
 	return result
+}
+
+// offers reports whether this Agent's request carries the named tool. It is
+// the whole of the "refuse what was not offered" rule: availableTools is what
+// the provider was sent, so it is the only honest list.
+func (a *Agent) offers(name string) bool {
+	return slices.ContainsFunc(a.availableTools, func(t responses.ToolUnionParam) bool {
+		return t.OfFunction != nil && t.OfFunction.Name == name
+	})
 }
 
 // ToolCall executa uma tool de operação direta (ex.: leitura/escrita/edição

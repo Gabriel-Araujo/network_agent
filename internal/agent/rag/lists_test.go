@@ -2,18 +2,18 @@ package rag
 
 import "testing"
 
-// TestFiltersFromUsesListNames fixa a costura mapa → Filters: cada nome
-// de Lista que é coluna da frr_docs tem de cair no campo certo, sem tradução.
-// Se Lists() ganhar uma dimensão nova que seja coluna, este teste exige o
-// campo novo. A lista "agent" é dimensão de roteamento (qual agente responde),
-// não filtro da busca — fora da costura por decisão.
+// TestFiltersFromUsesListNames pins the map -> Filters seam: every List name
+// that is a frr_docs column must land in the right field, untranslated. If
+// Lists() gains a new dimension that is a column, this test demands the new
+// field. The "subagent" list is a routing dimension (which Subagente answers),
+// not a search filter — out of the seam by decision.
 func TestFiltersFromUsesListNames(t *testing.T) {
 	campo := map[string]func(Filters) string{
 		"protocol":   func(f Filters) string { return f.Protocol },
 		"daemon":     func(f Filters) string { return f.Daemon },
 		"chunk_type": func(f Filters) string { return f.ChunkType },
 	}
-	naoFiltro := map[string]bool{"agent": true}
+	naoFiltro := map[string]bool{SubagentListName: true}
 	for _, l := range Lists() {
 		if naoFiltro[l.Name] {
 			continue
@@ -28,9 +28,9 @@ func TestFiltersFromUsesListNames(t *testing.T) {
 		}
 	}
 
-	// "agent" não vaza para os filtros: FiltrosFrom o ignora.
-	if f := FiltersFrom(map[string]string{"agent": "builder"}); f != (Filters{}) {
-		t.Errorf(`FiltrosFrom({"agent":"builder"}) = %+v, want Filtros{}`, f)
+	// "subagent" must not leak into the filters: FiltersFrom ignores it.
+	if f := FiltersFrom(map[string]string{SubagentListName: "builder"}); f != (Filters{}) {
+		t.Errorf(`FiltersFrom({%q:"builder"}) = %+v, want Filters{}`, SubagentListName, f)
 	}
 }
 
@@ -42,5 +42,44 @@ func TestFiltersFromEmptyMeansNoFilter(t *testing.T) {
 	}
 	if f := FiltersFrom(nil); f != (Filters{}) {
 		t.Errorf("FiltrosFrom(nil) = %+v, want Filtros{}", f)
+	}
+}
+
+// TestSubagentListIsTheRoutingList pins the re-ask's list: SubagentList() is
+// the routing list of Lists(), the complement of FilterLists() — the turn's
+// targeted re-ask classifies with it and nothing else, so a Lists() reorder
+// must not hand it a filter list.
+func TestSubagentListIsTheRoutingList(t *testing.T) {
+	l := SubagentList()
+	if l.Name != SubagentListName {
+		t.Fatalf("SubagentList() = %q, want %q", l.Name, SubagentListName)
+	}
+	if len(l.Values) == 0 {
+		t.Fatal("SubagentList() came back with no values: the re-ask would be rejected by the classifier")
+	}
+	for _, f := range FilterLists() {
+		if f.Name == l.Name {
+			t.Errorf("SubagentList() is also in FilterLists(): %q", l.Name)
+		}
+	}
+}
+
+// TestFilterListsAreTheFilterColumns pins the boundary between the two calls:
+// FilterLists() is exactly the Lists with a Filters field — the only ones that
+// ride the RAG call and the skip rule comparison. The routing list stays out
+// on purpose: switching Subagente does not re-trigger the retrieval.
+func TestFilterListsAreTheFilterColumns(t *testing.T) {
+	esperados := []string{"protocol", "daemon", "chunk_type"}
+	filtraveis := FilterLists()
+	if len(filtraveis) != len(esperados) {
+		t.Fatalf("FilterLists() = %d listas, want %d", len(filtraveis), len(esperados))
+	}
+	for i, l := range filtraveis {
+		if l.Name != esperados[i] {
+			t.Errorf("FilterLists()[%d] = %q, want %q", i, l.Name, esperados[i])
+		}
+		if l.Name == SubagentListName {
+			t.Errorf("FilterLists() leva a Lista de roteamento %q", SubagentListName)
+		}
 	}
 }

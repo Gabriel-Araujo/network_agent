@@ -17,12 +17,29 @@ const DEFAULT_ROOT_DIRECTORY = "."
 
 var Tools = FileTools
 
-func GetSkillAndTools() []responses.ToolUnionParam {
-	reg := skills.LoadSkills()
-	skillsTools := reg.BuildTools()
+// GetFileAndSkillTools returns the toolset of a dispatched Subagente: the file
+// tools plus read_skill_file, and no use_skill — so no skill catalog reaches
+// it. Dropping the catalog is the cut, not filtering it: every skill in the
+// registry is either the generic's pipeline (frr-intent-analyzer, the
+// frr-file-builder stub, frr-rag-retriever, which no live prompt even names)
+// or "mermaid", already *mounted* in the prompt of the two Subagentes who draw
+// (promptSkills). So the catalog held nothing a dispatched Subagente could
+// use, while its descriptions ordered activation anyway: 12 of the 30 calls in
+// the ticket 28 batch went to the two pipeline skills, and t11 spent both its
+// calls there and never reached mermaid. read_skill_file stays, so the mermaid
+// references remain reachable — the Illustrator and Teacher configs name both
+// the tool and the skill, and HandleSkillCall resolves against the full
+// registry.
+func GetFileAndSkillTools() []responses.ToolUnionParam {
+	return append([]responses.ToolUnionParam{skills.ReadSkillFileTool()}, Tools...)
+}
 
-	all := append(skillsTools, Tools...)
-	return append(all, SubAgentTool)
+// GetSkillAndTools is the generic agent's toolset: file + the whole skills
+// catalog, plus the subagent tool.
+func GetSkillAndTools() []responses.ToolUnionParam {
+	skillsTools := skills.LoadSkills().BuildTools()
+
+	return append(append(skillsTools, Tools...), SubAgentTool)
 }
 
 func CallFunction(

@@ -17,7 +17,8 @@ func TestWriteFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Clean up generated files from previous runs to avoid "File found" errors
+	// Clean up generated files from previous runs so the new-file cases
+	// really create their file instead of replacing it.
 	files, _ := filepath.Glob(filepath.Join(genDir, "*"))
 	for _, f := range files {
 		os.RemoveAll(f)
@@ -26,6 +27,10 @@ func TestWriteFile(t *testing.T) {
 	originalWd, _ := os.Getwd()
 	os.Chdir(genDir)
 	defer os.Chdir(originalWd)
+
+	wd, _ := os.Getwd()
+	outsideAbs := filepath.Join(filepath.Dir(wd), "outside-abs.txt")
+	os.Remove(outsideAbs)
 
 	tests := []struct {
 		name       string
@@ -49,11 +54,11 @@ func TestWriteFile(t *testing.T) {
 			want:       "sub content",
 		},
 		{
-			name:       "Error file already exists",
+			name:       "Success replace existing file",
 			workingDir: ".",
 			filePath:   "existing.txt",
-			content:    "will fail",
-			want:       "Error: File found. Use file edit tool instead.",
+			content:    "replaced content",
+			want:       "Replaced existing file: existing.txt\nreplaced content",
 		},
 		{
 			name:       "Error path outside",
@@ -62,9 +67,16 @@ func TestWriteFile(t *testing.T) {
 			content:    "fail",
 			want:       "Error Filepath outside the permitted working directory",
 		},
+		{
+			name:       "Error absolute path outside",
+			workingDir: ".",
+			filePath:   outsideAbs,
+			content:    "fail",
+			want:       "Error Filepath outside the permitted working directory",
+		},
 	}
 
-	// Set up existing file for the error case
+	// Set up the existing file the replace case overwrites
 	os.WriteFile("existing.txt", []byte("exists"), 0644)
 
 	for _, tt := range tests {
@@ -73,6 +85,9 @@ func TestWriteFile(t *testing.T) {
 			if strings.HasPrefix(tt.want, "Error") {
 				if got != tt.want {
 					t.Errorf("WriteFile() = %q, want %q", got, tt.want)
+				}
+				if _, err := os.Stat(outsideAbs); err == nil {
+					t.Errorf("WriteFile() created %s outside the working directory", outsideAbs)
 				}
 			} else {
 				if got != tt.want {

@@ -1,6 +1,9 @@
 package util
 
 import (
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -36,16 +39,22 @@ func TestHash8(t *testing.T) {
 }
 
 func TestSafePath(t *testing.T) {
-	tests := []struct {
+	wd, err := filepath.Abs(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type safePathCase struct {
 		workingDir string
 		filePath   string
 		expected   string
 		wantErr    bool
-	}{
+	}
+	tests := []safePathCase{
 		{
 			workingDir: ".",
 			filePath:   "config/r1.cfg",
-			expected:   "config/r1.cfg",
+			expected:   filepath.FromSlash("config/r1.cfg"),
 			wantErr:    false,
 		},
 		{
@@ -66,6 +75,41 @@ func TestSafePath(t *testing.T) {
 			expected:   "",
 			wantErr:    true,
 		},
+		// An absolute path resolves on its own: accepted inside the
+		// working directory, rejected outside it.
+		{
+			workingDir: ".",
+			filePath:   filepath.Join(wd, "config", "r1.cfg"),
+			expected:   filepath.FromSlash("config/r1.cfg"),
+			wantErr:    false,
+		},
+		{
+			workingDir: ".",
+			filePath:   filepath.Join(filepath.Dir(wd), "x.conf"),
+			expected:   "",
+			wantErr:    true,
+		},
+	}
+
+	if runtime.GOOS == "windows" {
+		otherDrive := "D:"
+		if strings.EqualFold(filepath.VolumeName(wd), otherDrive) {
+			otherDrive = "E:"
+		}
+		tests = append(tests, []safePathCase{
+			// Drive-letter paths outside the working directory.
+			{".", `C:\Windows\x.conf`, "", true},
+			{".", otherDrive + `/x.conf`, "", true},
+			// Drive-relative: resolved against that drive's current directory.
+			{".", otherDrive + `x.conf`, "", true},
+			{".", filepath.VolumeName(wd) + `x.conf`, "x.conf", false},
+			// Rooted without a drive is not absolute on Windows: it stays inside.
+			{".", `/etc/frr/frr.conf`, `etc\frr\frr.conf`, false},
+			{".", `\etc\frr\frr.conf`, `etc\frr\frr.conf`, false},
+		}...)
+	} else {
+		// Rooted is absolute on Unix: outside the working directory.
+		tests = append(tests, safePathCase{".", "/etc/frr/frr.conf", "", true})
 	}
 
 	for _, tt := range tests {

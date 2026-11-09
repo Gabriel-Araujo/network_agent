@@ -1,6 +1,8 @@
 package filetools
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -18,6 +20,9 @@ func ReadFile(workingDirectory string, filePath string) string {
 	file, err := os.ReadFile(rel)
 	if err != nil {
 		log.Error("falha ao ler arquivo", "path", rel, "err", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return READ_NOT_FOUND_NOTICE + rel
+		}
 		return "Error: failed to read File content"
 	}
 

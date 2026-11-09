@@ -17,9 +17,7 @@ func WriteFile(workingDirectory string, filePath string, content string) string 
 	}
 
 	_, err = os.Stat(path)
-	if err == nil {
-		return "Error: File found. Use file edit tool instead."
-	}
+	replaced := err == nil
 
 	if len(content) > MAX_EDIT_FILE_SIZE {
 		return fmt.Sprintf("Error: Content is too large. Content has %s bu the limit is %s", util.FormatFileSize(int64(len(content))), util.FormatFileSize(int64(MAX_EDIT_FILE_SIZE)))
@@ -38,5 +36,8 @@ func WriteFile(workingDirectory string, filePath string, content string) string 
 		return "Error: failed to write File content"
 	}
 
+	if replaced {
+		return WRITE_REPLACED_NOTICE + filepath.ToSlash(path) + "\n" + content
+	}
 	return content
 }

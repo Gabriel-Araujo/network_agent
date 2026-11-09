@@ -2,11 +2,22 @@ package rag
 
 import "github.com/Gabriel-Araujo/network_agent/internal/skills/classifier"
 
-// Lists is the single source of truth for the RAG caller's lists: the dimensions
-// selected from the input. The first three become frr_docs filters; "agent" is
-// a routing dimension and is intentionally excluded from FiltersFrom.
-// Prompts derive their vocabulary from here rather than from copies.
+// SubagentListName names the routing list: the dimension that chooses which
+// Subagente answers the turn. It rides the generic call only (display +
+// routing), never the RAG call — switching Subagentes must not re-trigger the
+// retrieval (decision: .agent/roteamento/issues/05-roteamento-lista-subagent-e-despacho.md).
+const SubagentListName = "subagent"
+
+// Lists is the single source of truth for the lists of the generic call: the
+// dimensions selected from the input. The first three are the frr_docs filters
+// (FilterLists rides the RAG call); SubagentListName is a routing dimension and
+// is intentionally excluded from FiltersFrom. Prompts derive their vocabulary
+// from here rather than from copies.
 // Decision: .agent/classifier/issues/03-como-o-modo-rag-alimenta-a-busca.md.
+//
+// Every value of SubagentListName is also the folder name of its Subagente
+// configuration: resources/agents/<nome>/AGENT.md mounts the turn's system
+// prompt. These rows are the single source of that name -> folder table.
 //
 // This set is closed by contract and must not be derived from the database,
 // whose frr_docs contents vary with ingestion. Annotated spellings from the
@@ -55,19 +66,39 @@ func Lists() []classifier.List {
 			},
 		},
 		{
-			Name: "agent",
+			Name: SubagentListName,
 			Values: []classifier.Value{
-				{Name: "builder", Description: "Agent that creates config files"},
-				{Name: "modifier", Description: "Agent that modifies config files"},
-				{Name: "teacher", Description: "Agent that explain things"},
+				{Name: "builder", Description: "Request to create a new FRR configuration: writes a new config file, never edits an existing one"},
+				{Name: "modifier", Description: "Request to change an FRR configuration file that already exists: edits that file, never creates one"},
+				{Name: "illustrator", Description: "Request to draw or diagram a topology or a configuration: answers with a diagram, never prose"},
+				{Name: "teacher", Description: "Request to explain a concept or an existing file: answers in text, never writes or edits a file"},
 			},
 		},
 	}
 }
 
+// FilterLists returns the frr_docs filter lists: the only lists that ride the
+// RAG call, and therefore the only keys the skip rule compares — the routing
+// list is deliberately out, so changing Subagente does not re-trigger the
+// retrieval. It is the filter prefix of Lists(), whose shape the seam tests pin.
+func FilterLists() []classifier.List {
+	return Lists()[:3]
+}
+
+// SubagentList returns the routing list alone, for the turn's targeted re-ask:
+// when the generic classification names no Subagente but did fill a filter
+// list, the turn re-classifies with this list and nothing else — a narrower
+// question, which is what Temperature 0 requires of a second call
+// (decision: .agent/roteamento/issues/24-remedio-para-a-classificacao-vazia.md).
+// It is the routing complement of FilterLists, and the seam tests pin its
+// position in Lists().
+func SubagentList() classifier.List {
+	return Lists()[3]
+}
+
 // FiltersFrom converts classifier output (list name to canonical value) into
 // the retrieval filter set. Filter names match frr_docs columns, and "" means
-// no filter (the SQL NULL). The "agent" list is routing metadata, not a filter.
+// no filter (the SQL NULL). The routing list is routing metadata, not a filter.
 func FiltersFrom(result map[string]string) Filters {
 	return Filters{
 		Protocol:  result["protocol"],

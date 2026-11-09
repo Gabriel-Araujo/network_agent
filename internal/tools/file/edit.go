@@ -32,8 +32,11 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 	}
 
 	contentStr := string(content)
-	if !strings.Contains(contentStr, oldText) {
+	switch occurrences := strings.Count(contentStr, oldText); {
+	case occurrences == 0:
 		return "Error: old_text not found in file"
+	case occurrences > 1:
+		return fmt.Sprintf("%s%d", EDIT_MULTIPLE_MATCHES_NOTICE, occurrences)
 	}
 
 	statsAfterRead, err := os.Stat(rel)
@@ -46,7 +49,7 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 		return "Error: File was modified by another process since it was last accessed."
 	}
 
-	newContentStr := strings.ReplaceAll(contentStr, oldText, newText)
+	newContentStr := strings.Replace(contentStr, oldText, newText, 1)
 	err = os.WriteFile(rel, []byte(newContentStr), 0644)
 	if err != nil {
 		log.Error("falha ao escrever arquivo", "path", rel, "err", err)

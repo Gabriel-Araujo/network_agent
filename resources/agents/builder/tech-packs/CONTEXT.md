@@ -4,7 +4,7 @@ Per-technology reference material for this agent. One folder per routing
 technology, the same files in each, so a stage contract can name a file
 without knowing which technology the run picked.
 
-The shape below is local to the creator. Another agent with a `tech-packs/`
+The shape below is local to the builder. Another agent with a `tech-packs/`
 folder defines its own in its own `CONTEXT.md`.
 
 ## Contents of a Pack

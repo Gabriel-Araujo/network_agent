@@ -4,7 +4,7 @@ An LLM agent for network engineering with FRRouting, with context retrieval
 through RAG (PostgreSQL + pgvector) and executable skills.
 
 This glossary started with the logging subsystem and now covers the ICM
-pipeline, the conversation history and classification as well. Other domain terms enter as
+pipeline, the conversation history, classification and skills as well. Other domain terms enter as
 they are settled.
 
 ## Language
@@ -59,10 +59,12 @@ Run in flight. Only 3 and 4 appear in the Source column of an Inputs table.
 _Avoid_: tier, level
 
 **Tech pack**:
-A per-technology reference collection at `tech-packs/<slug>/`, the same five
-files in each. The slug picked at the start of a Run binds `{{TECH}}` for the
+The reference material for one technology in a Subagente's `tech-packs/`
+folder, named by a slug. Its shape is the one that folder's `CONTEXT.md`
+defines: the Builder keeps a folder of files per slug, the Teacher a single
+`<slug>.md`. In a Run, the slug picked at the start binds `{{TECH}}` for the
 whole Run.
-_Avoid_: module, plugin, technology folder
+_Avoid_: module, plugin, technology folder, guide
 
 **Checkpoint**:
 A row of a Contract's `## Checkpoints` table: a point where the Agent presents
@@ -145,6 +147,21 @@ A closed set of candidate values for one dimension, supplied to the **Classifica
 calls it; one value is chosen per list, or none.
 _Avoid_: opções, vocabulário, categorias
 
+**Subagente**:
+The persona that answers one turn with its own configuration: one of Builder, Modifier,
+Illustrator or Teacher, chosen by the `subagent` **Lista** of the **Classificador** and
+configured at `resources/agents/<name>/AGENT.md`. Exactly one answers a turn; an empty value may
+buy a **Re-pergunta do roteamento** and, failing that, falls back to the generic agent.
+_Avoid_: agente, agent, persona, roteador, router
+
+**Re-pergunta do roteamento**:
+The one extra classification a turn buys when the **Classificador** names no **Subagente** but
+did fill some search filter — the input was understood as in-domain and only the routing
+dimension came back empty. It classifies the `subagent` **Lista** alone, and its answer replaces
+the empty one in the turn's classification; empty twice falls back to the generic agent with one
+warning naming both attempts.
+_Avoid_: retry, votação, segunda chance, correção
+
 **Modo RAG**:
 The **Classificador**'s flag-on mode, in which it serves as the RAG's classifier instead of a
 generic caller. The flag is a call parameter: the caller decides the mode.
@@ -176,3 +193,41 @@ The JSON file a skill writes beside its in-memory result, named
 failure the value still comes back and the failure is a sentinel error. Both the
 **Briefing rico** and the retrieval write one.
 _Avoid_: output file, arquivo de saída, cache, log, backup
+
+### Skills
+
+**Skill**:
+A specialized procedure packaged as a folder with a `SKILL.md` — a name, a description and a body
+— in the common catalog. Its body reaches the model by one of two paths, **ativada** or
+**montada**; the same skill can be montada for one **Subagente** and ativada by another.
+_Avoid_: plugin, módulo, tool, procedimento
+
+**Skill ativada**:
+The path in which the model calls `use_skill` with the exact name and the body comes back as a
+tool result. Before the call the model knows only the name and description in the tool's catalog,
+so reading the body is the model's choice.
+_Avoid_: skill carregada, discovery, ativação de tool
+
+**Skill montada**:
+The path in which the loader concatenates the body into a **Subagente**'s system prompt, so the
+body is there before the turn starts and no call happens. Chosen when the content must not depend
+on the model electing to read it.
+_Avoid_: skill injetada, inlinada, pré-carregada, embutida
+
+### Diagramas
+
+**Bloco de diagrama**:
+One ` ```mermaid ` fence of a turn's reply. The **Subagente** Illustrator emits them as its answer
+and the Teacher may include them in an explanation; nothing writes them to a file. Every block of
+a reply goes through the turn's scanner, whoever wrote it — the check is of the text, not of the
+author.
+_Avoid_: diagrama, mermaid, gráfico, imagem
+
+**Bloco não reprovado**:
+A **Bloco de diagrama** that the turn's scanner did not accuse. It is **not** a valid block: the
+scanner is three narrow rules over the measured failure modes, not a Mermaid parser, so a block it
+stays silent on may still fail to render. The asymmetry is deliberate — the scanner is calibrated
+to never accuse a block that renders, and pays for it by missing modes it does not cover (a `note`
+inside a flowchart, a hyphenated state id). Whoever consumes the metadata must read silence as
+"these three rules found nothing", never as a render guarantee.
+_Avoid_: bloco válido, bloco verificado, diagrama que renderiza, valid

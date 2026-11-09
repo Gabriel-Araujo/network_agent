@@ -13,7 +13,7 @@ The implementation plan called the definition `Workspace` and the artifact tree
 rejected because the two names differ by one word that reads as an abbreviation
 of the other, so neither says which tree it is, and because the filesystem
 already votes the other way: the path is `.agent/workspace/`, and
-`creator/AGENT.md` already says "the agent workspace" for the artifact tree.
+`builder/CONTEXT.md` already says "the agent workspace" for the artifact tree.
 
 `Definition` instead of `Agent` was the runner-up. `Agent` won because
 `resources/agents/` and `AGENT.md` already name the tree that way, and because

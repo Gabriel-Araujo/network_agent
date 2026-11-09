@@ -34,12 +34,13 @@ pergunta do usuário
 ```
 
 O **Classificador** escolhe, para cada **Lista** passada na chamada, um valor
-canônico — ou `""` quando nada se encaixa. As Listas do chamador RAG são
-`protocol`/`daemon`/`chunk_type`/`agent` (fonte única: `rag.Listas()`), e o mapa
-de saída vira o **conjunto único de filtros** da busca via `rag.FiltrosFrom` —
-que considera só as três primeiras: `agent` é dimensão de **roteamento** (qual
-agente responde o input: `builder`/`modifier`/`teacher`), não filtro da
-`frr_docs`.
+canônico — ou `""` quando nada se encaixa. A chamada RAG leva só as três
+Listas de filtro — `protocol`/`daemon`/`chunk_type` (fonte única:
+`rag.FilterLists()`), e o mapa de saída vira o **conjunto único de filtros** da
+busca via `rag.FiltersFrom`. A Lista `subagent` é dimensão de **roteamento**
+(qual Subagente responde o input: `builder`/`modifier`/`illustrator`/`teacher`)
+e anda só na chamada genérica (display + roteamento) — fora dos filtros e da
+skip rule, então trocar de Subagente não re-dispara a busca.
 O **briefing rico** (`internal/skills/briefing`) é a skill preservada do antigo
 `intent-analyser` e está **fora do fluxo do CLI** (ver §12).
 
@@ -194,12 +195,13 @@ se encaixa), nunca um valor inventado. O contrato completo está em
   então toda resposta passa por pertencimento à Lista antes de sair; saída
   inválida é refeita no máximo 2× com o erro colado na tentativa seguinte e,
   esgotadas as tentativas, o erro sobe explícito.
-- **`rag.Listas()`** é a fonte única das Listas do chamador RAG —
-  `protocol`/`daemon`/`chunk_type`, com os nomes das colunas da `frr_docs`
-  (saída sem tradução). Conjunto fechado por contrato: **não** é derivado do
-  banco (o conteúdo da base varia com a ingesta). Os prompts que precisam do
-  vocabulário derivam da tabela.
-- **`rag.FiltrosFrom(resultado)`** converte o mapa no `rag.Filtros` da busca;
+- **`rag.Lists()`** é a fonte única das Listas da chamada genérica —
+  `protocol`/`daemon`/`chunk_type`/`subagent` — e **`rag.FilterLists()`**
+  devolve só as três de filtro (nomes das colunas da `frr_docs`, saída sem
+  tradução), as únicas que andam na chamada RAG. Conjunto fechado por contrato:
+  **não** é derivado do banco (o conteúdo da base varia com a ingesta). Os
+  prompts que precisam do vocabulário derivam da tabela.
+- **`rag.FiltersFrom(resultado)`** converte o mapa no `rag.Filters` da busca;
   `""` vira "sem filtro" (o `NULL` do SQL). O retriever **não revalida** os
   valores — a garantia de pertencimento é do Classificador.
 

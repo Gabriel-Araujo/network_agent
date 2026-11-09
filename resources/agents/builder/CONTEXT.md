@@ -1,13 +1,18 @@
-# FRR Config Creator
+# FRR Config Builder
 
 Produces FRRouting configuration files for one routing technology per run.
+One pipeline, one tech pack per run, six stages in numeric order.
+
+This file is the pipeline's map and its entry point. `AGENT.md` is the Builder's
+system prompt for a chat turn: a turn writes the configuration directly and runs
+none of these stages.
 
 ## Folder Map
 
 ```
-creator/
-├── AGENT.md           (you are here)
-├── CONTEXT.md         (start here for task routing)
+builder/
+├── AGENT.md           (system prompt of a chat turn, outside the pipeline)
+├── CONTEXT.md         (you are here: start here for task routing)
 ├── setup/             (onboarding questionnaire, run once)
 ├── shared/            (cross-stage rules every LLM stage loads)
 ├── tech-packs/        (per-technology reference: doctrine, syntax, checklist)
@@ -27,14 +32,46 @@ creator/
 | `setup` | Run the onboarding questionnaire in `setup/questionnaire.md` |
 | `status` | Show pipeline completion for every stage of the current run |
 
+## Tech Pack Selection
+
+Read the request and pick exactly one slug. The slug binds `{{TECH}}` for the
+whole run. A request for a different technology is a new run.
+
+| Slug | Covers |
+|------|--------|
+| `bgp` | eBGP/iBGP, route reflectors, policy, communities, aggregation, multihoming, BFD over BGP |
+
+If nothing fits, return `UNROUTABLE` with one sentence saying what was missing.
+Do not guess.
+
+## Task Routing
+
+| Task Type | Go To | Description |
+|-----------|-------|-------------|
+| Understand the request | `stages/01-intent/CONTEXT.md` | Briefing plus the questions that must be answered |
+| Ground it in the docs | `stages/02-evidence/CONTEXT.md` | Retrieval for the version of record, script |
+| Decide the shape | `stages/03-plan/CONTEXT.md` | Blocks, daemons, security posture, rollback. Human approves |
+| Emit the artifact | `stages/04-render/CONTEXT.md` | frr.conf and daemons from the approved plan |
+| Check it mechanically | `stages/05-validate/CONTEXT.md` | Syntax and dangling references, script |
+| Check it by judgment | `stages/06-review/CONTEXT.md` | Doctrine checklist plus operator commands |
+
 ## Routing
 
 | Task | Go To |
 |------|-------|
-| Any new config request | `CONTEXT.md`, pick a tech pack, then `stages/01-intent/CONTEXT.md` |
+| Any new config request | Tech Pack Selection above, then `stages/01-intent/CONTEXT.md` |
 | Resume after answering questions | `stages/01-intent/CONTEXT.md` |
 | Resume after approving a plan | `stages/04-render/CONTEXT.md` |
 | Validation failed, fix the artifact | `stages/04-render/CONTEXT.md` |
+
+## Shared Resources
+
+| Resource | Location | Contains |
+|----------|----------|----------|
+| Execution rules | `shared/execution-rules.md` | Boundaries, version of record, output register. Every LLM stage loads it |
+| Tech packs | `tech-packs/CONTEXT.md` | Routing into the per-technology reference collection |
+| Onboarding | `setup/questionnaire.md` | Agent level defaults, asked once, never per run |
+| Skills | `../skills/*/SKILL.md` | Executable procedures the script stages call |
 
 ## What to Load
 
@@ -51,6 +88,11 @@ is authoritative.
 | 05-validate | nothing, script stage | anything, no model runs here |
 | 06-review | `shared/execution-rules.md`, tech pack `checklist.md` | syntax, examples: the checklist is self-contained |
 
+## Context Rule
+
+No stage reads everything. A stage loads only what the Inputs table of its own
+CONTEXT.md declares. Reading on your own initiative is not allowed.
+
 ## Placeholders
 
 `{{TECH}}` in a stage Inputs table resolves to the tech pack slug chosen at
@@ -64,10 +106,10 @@ picks up the edit.
 
 Definition and execution live in different trees. This folder is the
 definition: versioned, read only. Artifacts go to
-`.agent/workspace/creator/<stage>/`, so a contract naming
+`.agent/workspace/builder/<stage>/`, so a contract naming
 `../01-intent/brief.json` resolves to
-`.agent/workspace/creator/01-intent/brief.json`, and an Outputs row naming
-`plan.md` is written to `.agent/workspace/creator/03-plan/plan.md`.
+`.agent/workspace/builder/01-intent/brief.json`, and an Outputs row naming
+`plan.md` is written to `.agent/workspace/builder/03-plan/plan.md`.
 
 One workspace per agent, one active run at a time. A new request reuses
 the same folders, so check `status` first if the previous run still
@@ -84,8 +126,8 @@ becomes the turn.
 | `Shared` | 3 | this folder | system prompt |
 | `Tech pack` | 3 | this folder, with `{{TECH}}` bound | system prompt |
 | `Reference` | 3 | the stage folder in this tree | system prompt |
-| `Previous stage` | 4 | `.agent/workspace/creator/` | the turn |
-| `Retry only` | 4 | `.agent/workspace/creator/`, only on a retry pass | the turn |
+| `Previous stage` | 4 | `.agent/workspace/builder/` | the turn |
+| `Retry only` | 4 | `.agent/workspace/builder/`, only on a retry pass | the turn |
 | `User` | 4 | the current message | the turn |
 
 Layer 3 is stable across runs and belongs in the system prompt, where it reads

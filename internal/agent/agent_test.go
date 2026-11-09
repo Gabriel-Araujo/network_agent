@@ -3,12 +3,19 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
+	"github.com/Gabriel-Araujo/network_agent/internal/paths"
+	"github.com/Gabriel-Araujo/network_agent/internal/skills"
+	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -186,5 +193,258 @@ func TestConnectConfiguraJanelaDoLMStudioAntesDoChat(t *testing.T) {
 	}
 	if _, err := ag.Chat(context.Background(), nil, "pergunta"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
+	}
+}
+
+// scriptedProvider serves the given response bodies in order and records every
+// request body it got. The last body is reused if the turn asks for more.
+func scriptedProvider(t *testing.T, bodies ...string) (*openai.Client, *[]map[string]any) {
+	t.Helper()
+	var requests []map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("corpo da requisição ilegível: %v", err)
+		}
+		requests = append(requests, body)
+
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, bodies[min(len(requests), len(bodies))-1])
+	}))
+	t.Cleanup(server.Close)
+
+	client := openai.NewClient(option.WithBaseURL(server.URL), option.WithAPIKey("teste"))
+	return &client, &requests
+}
+
+// callsOneTool is a provider response with a single function call.
+func callsOneTool(name, arguments string) string {
+	args, _ := json.Marshal(arguments)
+	return `{"id":"resp_1","object":"response","created_at":0,"status":"completed","model":"modelo",
+		"output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"` + name + `","arguments":` + string(args) + `,"status":"completed"}],
+		"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`
+}
+
+// answers is a provider response with a final message.
+func answers(text string) string {
+	return `{"id":"resp_2","object":"response","created_at":0,"status":"completed","model":"modelo",
+		"output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"` + text + `","annotations":[]}]}],
+		"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`
+}
+
+// toolOutputs returns the function_call_output texts the turn sent back to the
+// provider in its last request — what the model actually reads.
+func toolOutputs(t *testing.T, request map[string]any) []string {
+	t.Helper()
+	input, ok := request["input"].([]any)
+	if !ok {
+		t.Fatalf("input não é uma lista de itens: %v", request["input"])
+	}
+	var out []string
+	for _, item := range input {
+		m, ok := item.(map[string]any)
+		if ok && m["type"] == "function_call_output" {
+			out = append(out, fmt.Sprint(m["output"]))
+		}
+	}
+	return out
+}
+
+// subagentAgent builds the dispatched Agent of the named Subagente against a
+// throwaway configs root, so the test does not depend on the repo's AGENT.md.
+func subagentAgent(t *testing.T, client *openai.Client, name string) *Agent {
+	t.Helper()
+	root := t.TempDir()
+	dir := filepath.Join(root, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("creating the %s folder: %v", name, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte("You are the "+name+"."), 0o644); err != nil {
+		t.Fatalf("writing %s/AGENT.md: %v", name, err)
+	}
+	base := &Agent{Client: *client, ModelName: "modelo"}
+	sub, err := base.forSubagentAt(root, name)
+	if err != nil {
+		t.Fatalf("forSubagentAt(%q): %v", name, err)
+	}
+	return sub
+}
+
+// TestCallToolRefusesTheToolNotOffered: the Modifier that names WriteFile reads
+// the refusal and nothing reaches the disk. The prompt was not enough (ticket
+// 13, K2); the toolset plus this check is.
+func TestCallToolRefusesTheToolNotOffered(t *testing.T) {
+	client, requests := scriptedProvider(t,
+		callsOneTool("WriteFile", `{"filePath":"frr.conf","content":"router bgp 65001\n"}`),
+		answers("pronto"))
+	modifier := subagentAgent(t, client, "modifier")
+
+	// The file tools resolve relative paths against the working directory.
+	work := t.TempDir()
+	t.Chdir(work)
+
+	if _, err := modifier.Chat(context.Background(), nil, "edite o frr.conf"); err != nil {
+		t.Fatalf("Chat devolveu erro: %v", err)
+	}
+
+	if len(*requests) != 2 {
+		t.Fatalf("esperava 2 requisições ao provedor, veio %d", len(*requests))
+	}
+	got := toolOutputs(t, (*requests)[1])
+	if len(got) != 1 || !strings.Contains(got[0], "was not offered") {
+		t.Errorf("resultado da tool %q, esperava a recusa de WriteFile", got)
+	}
+	if _, err := os.Stat(filepath.Join(work, "frr.conf")); !os.IsNotExist(err) {
+		t.Errorf("o WriteFile recusado gravou o arquivo (stat err = %v)", err)
+	}
+}
+
+// TestCallToolRefusesSubAgentToADispatchedSubagente: "no nesting" is in the
+// code, not only in the map's Notes — the sub_agent named by a dispatched
+// Subagente never spawns anything (a spawned sub would hit the provider).
+func TestCallToolRefusesSubAgentToADispatchedSubagente(t *testing.T) {
+	client, requests := scriptedProvider(t,
+		callsOneTool("sub_agent", `{"task":"escreva o frr.conf"}`),
+		answers("pronto"))
+	builder := subagentAgent(t, client, "builder")
+
+	if _, err := builder.Chat(context.Background(), nil, "delegue"); err != nil {
+		t.Fatalf("Chat devolveu erro: %v", err)
+	}
+
+	if len(*requests) != 2 {
+		t.Fatalf("esperava 2 requisições (nenhum sub-agente rodou), veio %d", len(*requests))
+	}
+	got := toolOutputs(t, (*requests)[1])
+	if len(got) != 1 || !strings.Contains(got[0], "was not offered") {
+		t.Errorf("resultado da tool %q, esperava a recusa de sub_agent", got)
+	}
+}
+
+// TestCallToolKeepsSubAgentForTheGeneric: the refusal cuts only what was not
+// offered. The generic agent carries sub_agent, so it still spawns — the sub's
+// own trip to the provider is the proof.
+func TestCallToolKeepsSubAgentForTheGeneric(t *testing.T) {
+	client, requests := scriptedProvider(t,
+		callsOneTool("sub_agent", `{"task":"escreva o frr.conf"}`),
+		answers("sub pronto"),
+		answers("pronto"))
+	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools()}
+
+	if _, err := generic.Chat(context.Background(), nil, "delegue"); err != nil {
+		t.Fatalf("Chat devolveu erro: %v", err)
+	}
+
+	if len(*requests) != 3 {
+		t.Fatalf("esperava 3 requisições (a do meio é do sub-agente), veio %d", len(*requests))
+	}
+	got := toolOutputs(t, (*requests)[2])
+	if len(got) != 1 || got[0] != "sub pronto" {
+		t.Errorf("resultado da tool %q, esperava a resposta do sub-agente", got)
+	}
+}
+
+// TestPromptSkillsMountedInTheSubagentPrompt: the Illustrator's system prompt
+// carries the mermaid syntax before the turn starts, without the model calling
+// anything. The model never runs a consultative read (use_skill 0/15,
+// ReadFile of the tech pack 0/4), so an activation the model has to choose is
+// not a delivery mechanism. The control is the table: with the illustrator
+// entry gone the prompt loses the syntax and this test fails.
+func TestPromptSkillsMountedInTheSubagentPrompt(t *testing.T) {
+	root := t.TempDir()
+	agentMD := "You are the Illustrator."
+	dir := filepath.Join(root, "illustrator")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("creating the illustrator folder: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte(agentMD), 0o644); err != nil {
+		t.Fatalf("writing illustrator/AGENT.md: %v", err)
+	}
+
+	sub, err := (&Agent{}).forSubagentAt(root, "illustrator")
+	if err != nil {
+		t.Fatalf("forSubagentAt(illustrator): %v", err)
+	}
+
+	mermaid, ok := skills.LoadSkills().Get("mermaid")
+	if !ok {
+		t.Fatal("the mermaid skill is not in the registry")
+	}
+	if want := agentMD + "\n\n" + mermaid.Body; sub.systemPrompt != want {
+		t.Errorf("systemPrompt = %q,\nwant the AGENT.md then the mermaid body, blank line between", sub.systemPrompt)
+	}
+	if !strings.Contains(sub.systemPrompt, "Parentheses outside quotes break the diagram") {
+		t.Error("the mounted prompt does not carry the quotes rule, the one ticket 16 corrected")
+	}
+}
+
+// TestPromptSkillsUnknownNameIsAnExplicitError: a name in the table that the
+// registry does not have fails the dispatch, like a missing AGENT.md. The
+// table is code; a prompt silently without the syntax is the failure the
+// mounting fixes, so it must never be the quiet outcome.
+func TestPromptSkillsUnknownNameIsAnExplicitError(t *testing.T) {
+	previous := promptSkills
+	promptSkills = map[string][]string{"illustrator": {"no-such-skill"}}
+	t.Cleanup(func() { promptSkills = previous })
+
+	root := t.TempDir()
+	dir := filepath.Join(root, "illustrator")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("creating the illustrator folder: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte("You are the Illustrator."), 0o644); err != nil {
+		t.Fatalf("writing illustrator/AGENT.md: %v", err)
+	}
+
+	sub, err := (&Agent{}).forSubagentAt(root, "illustrator")
+	if err == nil {
+		t.Fatalf("forSubagentAt returned a prompt %q, want an error naming the missing skill", sub.systemPrompt)
+	}
+	if !strings.Contains(err.Error(), "no-such-skill") {
+		t.Errorf("err = %v, want the missing skill named", err)
+	}
+}
+
+// TestPromptSkillsLeavesTheBuilderAlone: the Builder does not draw, so its
+// prompt is its AGENT.md and nothing else. Mounting everywhere would be the
+// easy mistake; the table says who draws.
+func TestPromptSkillsLeavesTheBuilderAlone(t *testing.T) {
+	root := t.TempDir()
+	agentMD := "You are the Builder."
+	dir := filepath.Join(root, "builder")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("creating the builder folder: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte(agentMD), 0o644); err != nil {
+		t.Fatalf("writing builder/AGENT.md: %v", err)
+	}
+
+	sub, err := (&Agent{}).forSubagentAt(root, "builder")
+	if err != nil {
+		t.Fatalf("forSubagentAt(builder): %v", err)
+	}
+	if sub.systemPrompt != agentMD {
+		t.Errorf("systemPrompt = %q, want the AGENT.md untouched", sub.systemPrompt)
+	}
+}
+
+// TestActivationSentenceGoneFromTheDrawingPrompts: the two AGENT.md files no
+// longer tell the model to activate the skill. The sentence asked for
+// something already in the prompt and that the model never did; leaving it
+// would teach a call that buys nothing.
+func TestActivationSentenceGoneFromTheDrawingPrompts(t *testing.T) {
+	for _, name := range []string{"illustrator", "teacher"} {
+		path, err := paths.RepoFile(filepath.Join("resources/agents", name, "AGENT.md"))
+		if err != nil {
+			t.Fatalf("locating %s/AGENT.md: %v", name, err)
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s/AGENT.md: %v", name, err)
+		}
+		if strings.Contains(string(body), skills.ToolUseSkill) {
+			t.Errorf("%s/AGENT.md still names %s: the skill is mounted, not activated", name, skills.ToolUseSkill)
+		}
 	}
 }

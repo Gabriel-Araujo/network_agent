@@ -10,9 +10,13 @@ var log = logger.Named("TOOLS")
 
 // READ TOOL CONSTANTS
 const (
-	READ_MAX_CHARS_TO_READ = 10000
+	READ_MAX_CHARS_TO_READ = 64 * 1024 // 64 KiB (bytes); larger files come back truncated
 	READ_TOOL_NAME         = "ReadFile"
-	READ_TOOL_DESCRIPTION  = `
+	// READ_NOT_FOUND_NOTICE is the result when the target file does not exist,
+	// told apart from every other read failure; the path is appended to it, and
+	// the description below shows it to the model.
+	READ_NOT_FOUND_NOTICE = "Error: File not found. Nothing was read, and this tool never creates files. Do not say the file was written, created, edited or updated, and do not show configuration from the conversation as the content of this file. Tell the user the file does not exist: "
+	READ_TOOL_DESCRIPTION = `
 Reads and returns the content of a file from the local filesystem.
 ## Workflow & Logic:
 ### 1. Path Resolution (Mandatory Step):
@@ -23,7 +27,14 @@ Only proceed to reading the file once the absolute path is confirmed.
 
 ### 2. Content Retrieval:
 
-Once the absolute path is identified, retrieve the raw text content of the file.`
+Once the absolute path is identified, retrieve the raw text content of the file.
+
+### Error Handling:
+
+- Path outside the working directory: Error: Filepath outside the permitted working directory
+- Target file does not exist: ` + READ_NOT_FOUND_NOTICE + `<path>
+- Any other read failure (no permission, path is a directory): Error: failed to read File content
+- Content over the cap comes back cut, closed by a truncation marker.`
 )
 
 var READ_TOOL_PARAMETERS = openai.FunctionParameters{
@@ -39,14 +50,18 @@ var READ_TOOL_PARAMETERS = openai.FunctionParameters{
 
 // EDIT TOOL CONSTANTS
 const (
-	MAX_EDIT_FILE_SIZE    = 1024 * 1024 * 1024 // 1 GiB (stat bytes)
-	EDIT_TOOL_NAME        = "EditFile"
-	EDIT_TOOL_DESCRIPTION = `Performs exact substring replacement within a specific file on the local filesystem. This tool is used to modify existing configuration files.
+	MAX_EDIT_FILE_SIZE = 1024 * 1024 * 1024 // 1 GiB (stat bytes)
+	EDIT_TOOL_NAME     = "EditFile"
+	// EDIT_MULTIPLE_MATCHES_NOTICE opens the error when old_text matches more
+	// than once; the occurrence count is appended to it, and the description
+	// below shows it to the model.
+	EDIT_MULTIPLE_MATCHES_NOTICE = "Error: old_text is not unique in the file. Nothing was changed. Include more surrounding lines in old_text so it matches exactly once. Occurrences found: "
+	EDIT_TOOL_DESCRIPTION        = `Performs exact substring replacement within a specific file on the local filesystem. This tool is used to modify existing configuration files.
 
 ## Workflow & Logic:
 ### Mandatory Pre-conditions:
 
-1. Read-Before-Write: You must successfully execute the ReadFile tool on the target file within the current conversation before calling EditFile. The system will reject any edit attempt if the file content has not been loaded into the context via ReadFile.
+1. Read-Before-Write: Call ReadFile on the target file before EditFile, so old_string is copied from the current content of the file. The tool keeps no state between calls: it reads the file at call time and matches old_string against what is on disk.
 2. File Existence: Always prioritize modifying existing files. Do not attempt to use EditFile to create a new file; use WriteFile (or the designated creation tool) for new files.
 
 ### Operational Rules for String Matching:
@@ -56,7 +71,7 @@ const (
 2.1. When identifying the old_string from a ReadFile output that includes line numbers (e.g., 1:    interface eth0), you must ignore the line number and its separator (the prefix).
 2.2. The old_string must begin immediately after the prefix, capturing all original indentation (tabs or spaces) exactly as they appear in the file.
 2.3. Example: If ReadFile returns 10:  router bgp 65001, the old_string must be "  router bgp 65001" (including the two leading spaces), not "10:  router bgp 65001".
-3. Specificity: To avoid unintended side effects, ensure the old_string is as specific as possible to target the correct instance of the text, especially in repetitive configuration files.
+3. Uniqueness (enforced): the old_string must match exactly once in the file, and that single occurrence is replaced. If it matches more than once, the file is left untouched and the call fails. In repetitive configuration files, include the surrounding lines that make the target instance unique (for example, the neighbor line above the attribute being changed), instead of a short string that appears under every neighbor.
 
 ### Constraints:
 
@@ -66,7 +81,16 @@ const (
 
 ### Error Handling:
 
-- If the old_string is not found in the file, return: Error: Substring match failed. The provided 'old_string' does not exist in the file content. Please re-read the file and verify exact characters/indentation.`
+Any result other than "Success: File edited" means the file on disk was not changed.
+
+- Path outside the working directory: Error Filepath outside the permitted working directory
+- Target file does not exist: Error: File not found.
+- old_string absent from the file: Error: old_text not found in file
+- old_string matching more than once: ` + EDIT_MULTIPLE_MATCHES_NOTICE + `<occurrences>
+- File modified between the read and the write: Error: File was modified by another process since it was last accessed.
+- Checking the file for concurrent modification failed: Error: failed to check file staleness
+- Reading the file failed: Error: failed to read File content
+- Writing the file failed: Error: failed to write File content`
 )
 
 var EDIT_TOOL_PARAMETERS = openai.FunctionParameters{
@@ -90,18 +114,22 @@ var EDIT_TOOL_PARAMETERS = openai.FunctionParameters{
 
 // Write TOOL CONSTANTS
 const (
-	WRITE_TOOL_NAME        = "WriteFile"
+	WRITE_TOOL_NAME = "WriteFile"
+	// WRITE_REPLACED_NOTICE opens the result when WriteFile replaced an
+	// existing file; the description below explains it to the model.
+	WRITE_REPLACED_NOTICE  = "Replaced existing file: "
 	WRITE_TOOL_DESCRIPTION = `Writes content to a specified path on the local filesystem. This tool is primarily used for creating new configuration files or performing full-file replacements.
 ## Workflow & Logic:
 ### Operational Logic:
 
 1. Recursive Directory Creation:
 
-- If the provided path includes directories that do not currently exist (e.g., /etc/frr/vty/config.conf), the tool must attempt to create the entire directory tree required to house the target file (equivalent to mkdir -p).
+- If the provided path includes directories that do not currently exist (e.g., configs/r1/frr.conf), the tool must attempt to create the entire directory tree required to house the target file (equivalent to mkdir -p).
 
 2. Overwrite Behavior:
 
 - If a file already exists at the destination path, the WriteFile tool will overwrite it completely. The existing content will be discarded and replaced by the new content provided in the tool call. There is no "append" functionality.
+- The result tells the two cases apart. A new file returns the content written. A replaced file returns the line "` + WRITE_REPLACED_NOTICE + `<path>" followed by the content written; when you get it, tell the user that the existing file was replaced.
 
 3. Usage Policy (Strict Selection):
 
@@ -121,9 +149,9 @@ const (
 
 ### Error Handling:
 
-- If directory creation fails due to permissions or invalid paths: Error: Failed to create directory structure for path [path].
-- If writing to a protected system area fails: Error: Permission denied when attempting to write to [path].
-- If the provided path is syntactically invalid: Error: The provided path [path] is invalid.`
+- If the path resolves outside the working directory: Error Filepath outside the permitted working directory
+- If directory creation fails: Error: failed to create directory
+- If writing the file fails: Error: failed to write File content`
 )
 
 var WRITE_TOOL_PARAMETERS = openai.FunctionParameters{
@@ -160,7 +188,7 @@ const (
 - **: Performs a recursive search through all subdirectories (e.g., **/*.cfg matches any .cfg file in the entire directory tree).
 - ?: Matches exactly one character (e.g., router?.conf matches router1.conf).
 2.2. Example Use Cases:
-- To find all BGP configurations in a specific directory: SearchFiles(path="/etc/frr", pattern="**/*bgp*.conf")
+- To find all BGP configurations in a specific directory: SearchFiles(path="configs", pattern="**/*bgp*.conf")
 - To find any YAML file in the current directory: SearchFiles(path=".", pattern="*.yaml")
 
 ### Constraints:

@@ -9,11 +9,13 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - postgres-data:/var/lib/postgresql
+      - postgres-data:/home/postgres/pgdata
     ports:
       - "5433:5432"
     env_file:
-      # Ensure that the variables in .env match the same variables in devcontainer.json
       - .env
-    network_mode: host
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5

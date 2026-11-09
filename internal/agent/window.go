@@ -141,12 +141,23 @@ func (e windowEndpoint) fetch(ctx context.Context, apiKey string) int64 {
 // sob `models` e identifica o modelo por `key`; a doc já mostrou `data`/`id`,
 // então os dois nomes são aceitos — uma linha de estrutura por um provedor que
 // muda de forma entre versões.
+//
+// Os campos de estado da carga (`id` da instância, `parallel`, `quantization`)
+// não entram na janela: existem para o registro do estado do servidor no start
+// (ensureLMStudioContext), porque duas instâncias do mesmo modelo servem a
+// mesma requisição com janela e `parallel` diferentes
+// (decisão 7: .agent/roteamento/issues/24-remedio-para-a-classificacao-vazia.md).
 type lmStudioModel struct {
-	Key             string `json:"key"`
-	ID              string `json:"id"`
+	Key          string `json:"key"`
+	ID           string `json:"id"`
+	Quantization struct {
+		Name string `json:"name"`
+	} `json:"quantization"`
 	LoadedInstances []struct {
+		ID     string `json:"id"`
 		Config struct {
 			ContextLength int64 `json:"context_length"`
+			Parallel      int64 `json:"parallel"`
 		} `json:"config"`
 	} `json:"loaded_instances"`
 }

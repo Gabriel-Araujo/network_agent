@@ -1,0 +1,23 @@
+{
+  "report_md": "**Revisão SPEC — alterações não commitadas (vs HEAD), esforço `.agent/classifier/`**\n\n**(a) Lacunas**\n- **Ticket 09 (docs) não executado** — segue `Status: open`; `docs/RAG_RETRIEVER.md` ainda descreve o fluxo morto (linhas 21, 108, 136-137, 303, 332-334: `intent-analyser`, `ragQueries`, `ParseQueriesFromBriefing`, `ErrNoQueries`, \"fallback LLM\"), em vez do turno novo do ticket 09 (genérica→Modo RAG→`rag.Filtros`→skip rule→retriever→`<recovered_context>`). A varredura de \"outros docs\" também não rodou: `resources/agents/skills/frr-rag-retriever/SKILL.md` ainda documenta `ragQueries`/`intent-analyser` (mas `resources/agents` é ICM, fora de escopo declarado — decisão do dono). `CONTEXT.md` está ok (glossário Classificador/Lista/Modo RAG/Filtros de busca/Skip rule/Briefing rico/Espelho).\n- Fora isso, os tickets 02–08 estão cobertos: contrato do classificador (validação em 100% dos caminhos, retry ×2 com erro colado, erro explícito, `\"\"` explícito, grafia canônica, schema em `/v1/chat/completions`), `rag.Listas()` com os valores exatos do ticket 03, `rag.Filtros` como parâmetro de `Retrieve`, `QuerySuggestion` só com texto, caminho `ragQueries`/`ParseQueriesFromBriefing`/`ErrNoQueries` morto, briefing rico com espelho `.agent/tmp/<slug>-<hash8>.json` + `ErrEspelhoNaoGravado`, `Slugify`/`Hash8` determinístico em `pkg/util`, CLI com 2 classificações por turno, skip rule (`maps.Equal`), re-injeção do último retrieval e falhas degradando com aviso. O `intent-analyser` morreu por completo em código (nenhuma referência compilável; testes deletados) — só sobram comentários históricos e o `LoadTestAgent` órfão, cuja não-remoção está registrada no ticket 07.\n\n**(b) Scope creep**\n- `AGENTS.md` e `docs/agents/domain.md` não são pedidos por nenhum ticket nem citados no mapa (só `docs/agents/issue-tracker.md` é legitimado — map.md, \"convenções em docs/agents/issue-tracker.md\"). `cmd/ui` intocado (fora de escopo respeitado).\n\n**(c) Implementação errada**\n- **`null` tratado como vazio explícito no Classificador** — `internal/skills/classifier/classifier.go:153-159`: `json.Unmarshal` de `null` em `string` não erroa e deixa `\"\"`, então `{\"protocol\":null}` passa como \"nada se encaixa\". O ticket 02 fecha \"`null` não é vazio — só `\"\"`\". O briefing rejeita `null` (`briefing.go:148`) — comportamento inconsistente entre skills; não há teste de `null` no classificador.",
+  "findings": [
+    {
+      "type": "gap",
+      "what": "Ticket 09 (documentação do fluxo RAG) não executado: docs/RAG_RETRIEVER.md segue descrevendo o fluxo morto (intent-analyser, ragQueries, ParseQueriesFromBriefing, ErrNoQueries, fallback LLM) e a varredura de outros docs não rodou (resources/agents/skills/frr-rag-retriever/SKILL.md, ICM = fora de escopo declarado). CONTEXT.md está atualizado.",
+      "spec_ref": "issues/09-atualizar-a-documentacao-do-fluxo-rag.md, linhas 9-21 (\"docs/RAG_RETRIEVER.md ... descreve o fluxo morto ... atualizar a documentação para o fluxo novo\"; \"Varredura do restante (README, outros docs)\")",
+      "quote": "docs/RAG_RETRIEVER.md (e companhia) descreve o fluxo morto (briefing → ragQueries → retriever, intent-analyser no meio)."
+    },
+    {
+      "type": "scope-creep",
+      "what": "AGENTS.md e docs/agents/domain.md criados sem pedido de qualquer ticket; o mapa legitima apenas docs/agents/issue-tracker.md (referenciado como convenções do tracker).",
+      "spec_ref": "map.md, linha 18 (\"convenções em docs/agents/issue-tracker.md\") e 'Fora de escopo' (escopo é o pipeline do CLI; nenhum ticket 02-08 cita AGENTS.md/docs/agents/domain.md)",
+      "quote": "Tracker local: o mapa e os tickets moram aqui (.agent/classifier/) por decisão explícita; convenções em docs/agents/issue-tracker.md."
+    },
+    {
+      "type": "wrong",
+      "what": "classifier.go:153-159 (validarResposta): json.Unmarshal de null em string não erroa e devolve \"\", e o código trata como vazio explícito — {\"protocol\":null} aceito como 'nada se encaixa'. Verificado com Go (Unmarshal(\"null\", &s) → err=nil, s=\"\"). O briefing rejeita null (briefing.go:148); sem teste de null no classificador.",
+      "spec_ref": "issues/02-contrato-do-classificador.md, detalhes derivados (linha 69)",
+      "quote": "`null` não é vazio — só `\"\"`."
+    }
+  ]
+}
