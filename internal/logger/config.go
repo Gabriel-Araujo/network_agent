@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"strconv"
@@ -33,6 +34,16 @@ type Config struct {
 	File     string
 	MaxFiles int
 	Binary   string
+
+	// ConsoleTee é um segundo destino do sink de console: os mesmos bytes que
+	// vão ao stderr, para quem precisa deles dentro do processo — hoje a gaveta
+	// de Logs da UI. Não é um terceiro sink, e é por isso que a gaveta não pode
+	// divergir do terminal.
+	//
+	// Nil desliga o tee, e é o que todo binário fora da UI faz. Como o Binary,
+	// é campo programático: o ConfigFromEnv não o toca, porque um io.Writer não
+	// cabe numa env var.
+	ConsoleTee io.Writer
 }
 
 // ConfigFromEnv lê a config das env vars reais do processo.

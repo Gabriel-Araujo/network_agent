@@ -58,7 +58,9 @@ func TestWriteFile(t *testing.T) {
 			workingDir: ".",
 			filePath:   "existing.txt",
 			content:    "replaced content",
-			want:       "Replaced existing file: existing.txt\nreplaced content",
+			// SafePath devolve o absoluto contido, e é ele que o aviso de
+			// substituição mostra: diz onde a tool realmente gravou.
+			want: "Replaced existing file: " + filepath.ToSlash(filepath.Join(wd, "existing.txt")) + "\nreplaced content",
 		},
 		{
 			name:       "Error path outside",
@@ -103,5 +105,39 @@ func TestWriteFile(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWriteFileHonraDiretorioDeTrabalhoAbsoluto fixa o contrato que este
+// ticket existe para consertar: com um diretório de trabalho que NÃO é o CWD
+// do processo, o arquivo cai no diretório de trabalho, não no CWD. Antes de o
+// SafePath devolver o absoluto contido ele caía no CWD — pasta errada, sem
+// erro. Todo o resto da suíte usa workingDirectory ".", onde o relativo e o
+// absoluto coincidem e o defeito não aparece. É a pré-condição da pasta
+// escolhida pelo usuário (.agent/ui/issues/05-desenho-do-workspace-de-escrita.md).
+func TestWriteFileHonraDiretorioDeTrabalhoAbsoluto(t *testing.T) {
+	workspace := t.TempDir()
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+
+	const content = "hostname r1"
+	if got := filetools.WriteFile(workspace, "r1.cfg", content); got != content {
+		t.Fatalf("WriteFile() = %q, want %q", got, content)
+	}
+
+	data, err := os.ReadFile(filepath.Join(workspace, "r1.cfg"))
+	if err != nil {
+		t.Fatalf("não gravou dentro do diretório de trabalho: %v", err)
+	}
+	if string(data) != content {
+		t.Errorf("conteúdo = %q, want %q", data, content)
+	}
+	if _, err := os.Stat(filepath.Join(cwd, "r1.cfg")); err == nil {
+		t.Error("gravou no CWD do processo em vez do diretório de trabalho")
+	}
+
+	// A leitura resolve pela mesma raiz, não pelo CWD.
+	if got := filetools.ReadFile(workspace, "r1.cfg"); got != content {
+		t.Errorf("ReadFile() = %q, want o arquivo do diretório de trabalho", got)
 	}
 }

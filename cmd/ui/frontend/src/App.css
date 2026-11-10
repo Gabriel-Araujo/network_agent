@@ -281,6 +281,7 @@ button {
 /* icon-only variants, shown only when collapsed (desktop) */
 .sidebar__new-chat,
 .sidebar__expand,
+.sidebar__logs-icon,
 .sidebar__settings-icon {
   display: none;
 }
@@ -804,8 +805,9 @@ button {
   animation: tok-in 0.32s ease both;
 }
 
-/* bloco mermaid ainda incompleto durante o streaming */
-.mermaid-pending {
+/* o fonte do diagrama como texto: ainda incompleto durante o streaming, ou
+   um Bloco não renderizado abaixo do aviso de falha */
+.mermaid-source {
   white-space: pre-wrap;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 12.5px;
@@ -959,10 +961,34 @@ button {
   margin-left: -22px;
 }
 
-/* mermaid (rehype-mermaid) */
+/* diagrama (sintaxe Mermaid, renderizado pelo pele) */
 .md .mermaid {
   margin: 10px 0;
   text-align: center;
+
+  /* o SVG do pele traz defaults CLAROS embutidos (var(--pele-bg,#fff)): sem
+     estas definições o diagrama sai ilegível no app escuro. Escopado aqui, e
+     não no :root, para não vazar para o resto da UI. */
+  --pele-bg: var(--bg-base);
+  --pele-fg: var(--text);
+  --pele-muted: var(--text-dim);
+  --pele-line: var(--text-dim);
+  --pele-surface: var(--bg-elev-2);
+  --pele-surface-alt: var(--bg-elev);
+  --pele-border: var(--border-strong);
+  --pele-accent: var(--accent);
+  --pele-font: var(--font);
+  --pele-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* o aviso de Bloco não renderizado é texto, não diagrama: volta a alinhar à
+   esquerda e recebe a caixa vermelha do estado de erro */
+.md .mermaid--failed {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: linear-gradient(180deg, rgba(248, 113, 113, 0.12), rgba(248, 113, 113, 0.04));
 }
 
 /* fade-in da resposta concluída */
@@ -1134,6 +1160,9 @@ button {
   color: var(--text-dim);
   margin-bottom: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* a causa crua pode vir multilinha (o parse error do mermaid traz a linha e
+     uma linha de caret): sem isto o caret desalinha */
+  white-space: pre-wrap;
 }
 
 .error__next {
@@ -1502,6 +1531,7 @@ button {
       animation: fadeIn 0.32s ease both;
     }
 
+    .app--sidebar-collapsed .sidebar__logs-icon,
     .app--sidebar-collapsed .sidebar__settings-icon {
       display: inline-flex;
       animation: fadeIn 0.32s ease both;
@@ -1651,4 +1681,153 @@ button {
     font-family: var(--font);
     font-size: 12px;
   }
+}
+
+/* ---------- autor e avisos do turno (MessageBubble) ---------- */
+
+/* Quem respondeu o turno: o Subagente, ou "Agente" para o genérico. É o único
+   metadado do turno que vai à tela — classificação, filtros e contexto
+   recuperado ficam no log. capitalize: o nome vem do classificador em minúsculo
+   (teacher, builder, modifier, illustrator). */
+.author {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  color: var(--text-dim);
+}
+
+/* Avisos de degradação: o turno respondeu, mas com menos do que devia
+   (classificação que falhou, retrieval que não veio, Subagente que não
+   carregou). Discreto porque não é erro — o erro tem a bolha vermelha —, mas na
+   bolha, porque aviso que só vai ao arquivo de log é aviso silencioso. */
+.warnings {
+  margin: 12px 0 0;
+  padding: 8px 11px;
+  list-style: none;
+  border-left: 2px solid rgba(250, 204, 21, 0.45);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(250, 204, 21, 0.07);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.warnings__item + .warnings__item {
+  margin-top: 5px;
+}
+
+/* ---------- gaveta de Logs (LogDrawer) ---------- */
+
+/* Terceira coluna do grid, e não painel sobreposto: sem scrim e sem cobrir o
+   input, porque "ao vivo" é ver a linha entrar enquanto se digita o próximo
+   prompt (ticket 06). As duas sobrescritas abaixo herdam --logs-w daqui. */
+.app--logs-open {
+  --logs-w: min(460px, 42vw);
+  grid-template-columns: 264px 1fr var(--logs-w);
+}
+
+@media (max-width: 768px) {
+  .app--logs-open {
+    grid-template-columns: 1fr var(--logs-w);
+  }
+}
+
+@media (min-width: 769px) {
+  .app--sidebar-collapsed.app--logs-open {
+    grid-template-columns: 64px 1fr var(--logs-w);
+  }
+}
+
+.logs {
+  position: relative;
+  z-index: 18;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-elev);
+  border-left: 1px solid var(--border);
+}
+
+.logs__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logs__title {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.logs__count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.logs__spacer {
+  flex: 1;
+}
+
+.logs__body {
+  overflow: auto;
+  padding: 8px 12px 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* pre-wrap: a linha do console é larga (valor truncado em 512) e o diagnóstico
+   está no fim dela — quebrar é melhor que esconder atrás de scroll lateral. */
+.logs__line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+}
+
+/* Mensagem terminada em \n rende uma linha em branco — medido no drive: 3 das
+   15 linhas do run. O terminal mostra o branco, então a gaveta também mostra. */
+.logs__line:empty {
+  min-height: 1em;
+}
+
+/* As mesmas cores do console (console.go:25-30), mas lidas do token [INFO ]. */
+.logs__level {
+  font-weight: 650;
+}
+
+.logs__level--debug {
+  color: #22d3ee;
+}
+
+.logs__level--info {
+  color: #4ade80;
+}
+
+.logs__level--warn {
+  color: #facc15;
+}
+
+.logs__level--error {
+  color: #f87171;
+}
+
+.logs__empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.logs__foot {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
 }

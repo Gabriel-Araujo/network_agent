@@ -21,7 +21,7 @@ type GlobSearchOutput struct {
 func SearchPattern(workingDirectory, path, pattern string) string {
 	start := time.Now()
 
-	rel, err := util.SafePath(workingDirectory, path)
+	root, err := util.SafePath(workingDirectory, path)
 	if err != nil {
 		log.Error("caminho fora do diretório de trabalho", "path", path, "err", err)
 		return "Error: Path outside the permitted working directory"
@@ -36,7 +36,7 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 		// já que o WalkDir já percorre recursivamente.
 		matchPat := strings.ReplaceAll(pat, "**", "*")
 
-		err := filepath.WalkDir(rel, func(path string, d os.DirEntry, err error) error {
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -49,25 +49,27 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 					matched, _ = filepath.Match(matchPat, filepath.Base(path))
 				}
 
-				// Se ainda não deu match, tenta construir o caminho relativo ao diretório base 'rel'
+				// Se ainda não deu match, tenta construir o caminho relativo ao diretório base 'root'
 				if !matched {
-					if relPath, err := filepath.Rel(rel, path); err == nil {
+					if relPath, err := filepath.Rel(root, path); err == nil {
 						matched, _ = filepath.Match(matchPat, relPath)
 					}
 				}
 
 				if matched {
-					absMatch, _ := filepath.Abs(path)
-					if !seen[absMatch] {
+					// root é absoluto, logo o path do WalkDir também:
+					// serve de chave de deduplicação entre os padrões
+					// expandidos sem passar por filepath.Abs.
+					if !seen[path] {
 						allMatches = append(allMatches, path)
-						seen[absMatch] = true
+						seen[path] = true
 					}
 				}
 			}
 			return nil
 		})
 		if err != nil {
-			log.Error("falha ao percorrer diretório", "root", rel, "pattern", pat, "err", err)
+			log.Error("falha ao percorrer diretório", "root", root, "pattern", pat, "err", err)
 		}
 	}
 

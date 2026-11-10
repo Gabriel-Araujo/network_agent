@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
+	"github.com/Gabriel-Araujo/network_agent/internal/turn"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -43,6 +43,16 @@ type App struct {
 	// que o próximo input aguarde o término do atual.
 	busy    bool
 	busyMux sync.Mutex
+
+	// turnState guarda o State da composição do turno por Conversa. A skip
+	// rule do Modo RAG compara a classificação com a do turno anterior, então
+	// o State precisa sobreviver entre chamadas do AskAgent — e por Conversa,
+	// porque é a Conversa que tem turno anterior. Fica em memória de
+	// propósito: a economia de retrieval é dentro de uma sessão de trabalho,
+	// não entre reinícios do app, e no disco poria um campo opaco no
+	// histórico. Zera ao fechar o app.
+	turnState    map[string]turn.State
+	turnStateMux sync.Mutex
 }
 
 // activeModel é o que a última conexão sabe da configuração ativa: o nome do
@@ -71,7 +81,7 @@ func NewApp() *App {
 	// provedor configurado o agente fica nil e a UI orienta a configurar.
 	cfg, err := readConfig()
 	if err != nil {
-		fmt.Printf("[config] falha ao ler a configuração: %v\n", err)
+		log.Error("falha ao ler a configuração", "path", config.Path(), "err", err)
 		return a
 	}
 	config.Normalize(&cfg)
@@ -95,7 +105,7 @@ func (a *App) reconnect(cfg types.Config) {
 
 	newAgent, err := agent.Connect(cfg)
 	if err != nil {
-		fmt.Printf("[config] falha ao conectar ao provedor %q: %v\n", provider.Name, err)
+		log.Error("falha ao conectar ao provedor", "provider", provider.Name, "err", err)
 		a.agent = nil
 		a.active = activeModel{}
 		return
@@ -112,6 +122,26 @@ func (a *App) currentAgent() *agent.Agent {
 	a.agentMux.RLock()
 	defer a.agentMux.RUnlock()
 	return a.agent
+}
+
+// loadTurnState devolve o State da composição do turno da Conversa. O zero
+// value é o primeiro turno dela, que é o que uma Conversa desconhecida é.
+func (a *App) loadTurnState(convID string) turn.State {
+	a.turnStateMux.Lock()
+	defer a.turnStateMux.Unlock()
+	return a.turnState[convID]
+}
+
+// saveTurnState guarda o State que a composição devolveu. É chamado também no
+// turno que falhou: o turn.Run devolve o State atualizado nas duas saídas, e
+// perdê-lo faria o turno seguinte re-disparar o retrieval sem motivo.
+func (a *App) saveTurnState(convID string, state turn.State) {
+	a.turnStateMux.Lock()
+	defer a.turnStateMux.Unlock()
+	if a.turnState == nil {
+		a.turnState = map[string]turn.State{}
+	}
+	a.turnState[convID] = state
 }
 
 // activeConfig devolve o snapshot do provedor/modelo ativos sob lock de leitura.

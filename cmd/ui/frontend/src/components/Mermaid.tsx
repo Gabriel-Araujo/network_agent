@@ -1,44 +1,48 @@
-import { useEffect, useRef, useState } from 'react'
-import mermaid from 'mermaid'
+import { render } from 'pele'
 
-// Configuração do mermaid para o tema dark da aplicação.
-// startOnLoad:false -> a renderização é manual (via render()), evitando
-// que o mermaid tente processar tudo automaticamente.
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-})
+// O pele lança PeleError, cujo `message` já vem legível (traz a linha e a linha
+// de caret). O fallback cobre o que não for Error.
+function causa(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e)
+  // O aviso não pode ficar sem corpo: seria falha silenciosa.
+  return msg.trim() || 'O pele não informou a causa.'
+}
 
-let counter = 0
-
-// Renderiza um diagrama mermaid como SVG inline, no client-side.
-// Usa mermaid.render() de forma assíncrona (o mermaid é async), o que
-// evita o erro 'runSync finished async' do rehype-mermaid (SSR).
+// Renderiza um Bloco de diagrama (sintaxe Mermaid) como SVG inline, pelo pele.
+//
+// O render do pele é síncrono, não toca no DOM e não emite `id` no SVG, então o
+// componente é função pura: sem estado, sem efeito, sem contador de id. O SVG
+// existe já no primeiro render, logo o elemento nunca aparece vazio — era isso
+// que o render assíncrono do mermaid (mais o chunk do tipo de diagrama carregado
+// por demanda) deixava em branco por segundos.
+//
+// Segurança: o fonte é escrito pelo modelo. O pele escapa o texto de rótulo e só
+// deixa passar link de esquema conhecido (`linkSchemes` default: http, https,
+// mailto, tel), com `rel="noopener"` — um `click ... href "javascript:..."` não
+// vira link. O tema sai das variáveis `--pele-*` definidas no App.css.
+// Tudo medido em `.agent/ui/assets/03-fallback-diagrama/probe-pele.txt`.
 export default function Mermaid({ code }: { code: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [id] = useState(() => 'mermaid-' + ++counter)
+  let svg: string
+  try {
+    svg = render(code).svg
+  } catch (e) {
+    // o objeto inteiro fica no devtools do `wails dev`; só a mensagem vai para a
+    // tela, que é onde o usuário precisa dela.
+    console.error('diagrama: render falhou', e)
+    // Bloco não renderizado: o aviso usa o mesmo triplo o-quê/por-quê/próximo
+    // dos outros erros do app, e o fonte vai como texto — em JSX, para o React
+    // escapar, e não por innerHTML.
+    return (
+      <div className="mermaid mermaid--failed" role="alert">
+        <p className="error__title">O diagrama não renderizou</p>
+        <p className="error__why">{causa(e)}</p>
+        <p className="error__next">
+          O fonte está abaixo; peça o diagrama de novo se quiser tentar outra forma.
+        </p>
+        <pre className="mermaid-source">{code}</pre>
+      </div>
+    )
+  }
 
-  useEffect(() => {
-    let cancelled = false
-    async function render() {
-      try {
-        const { svg } = await mermaid.render(id, code)
-        if (!cancelled && ref.current) {
-          ref.current.innerHTML = svg
-        }
-      } catch (e) {
-        // fallback: mostra o código bruto se o diagrama falhar
-        if (!cancelled && ref.current) {
-          ref.current.innerHTML = `<pre class="mermaid-error">${code}</pre>`
-        }
-      }
-    }
-    render()
-    return () => {
-      cancelled = true
-    }
-  }, [code, id])
-
-  return <div ref={ref} className="mermaid" />
+  return <div className="mermaid" dangerouslySetInnerHTML={{ __html: svg }} />
 }

@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputDock from './components/InputDock'
 import SettingsModal from './components/SettingsModal'
+import LogDrawer from './components/LogDrawer'
 import WindowControls from './components/WindowControls'
 import {
   AppConfig,
@@ -51,6 +52,9 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // A gaveta de Logs ocupa uma terceira coluna do grid, sem scrim: a conversa
+  // fica usável ao lado, que é o ponto de ser ao vivo (ticket 06).
+  const [logsOpen, setLogsOpen] = useState(false)
   const [config, setConfig] = useState<AppConfig | null>(null)
   // bloqueia a UI até existir provedor + modelo configurados
   const [configReady, setConfigReady] = useState<boolean | null>(null)
@@ -429,7 +433,11 @@ function App() {
   }, [messages, contextWindow])
 
   return (
-    <div className={`app ${sidebarCollapsed ? 'app--sidebar-collapsed' : ''}`}>
+    <div
+      className={`app ${sidebarCollapsed ? 'app--sidebar-collapsed' : ''} ${
+        logsOpen ? 'app--logs-open' : ''
+      }`}
+    >
       <div className="app__bg" aria-hidden="true">
         <span className="app__glow app__glow--a" />
         <span className="app__glow app__glow--b" />
@@ -447,6 +455,7 @@ function App() {
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onNewChat={newChat}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenLogs={() => setLogsOpen((v) => !v)}
         onOpen={openConversation}
         onRename={renameConversation}
         onDelete={setPendingDelete}
@@ -558,6 +567,8 @@ function App() {
           }
         />
       </main>
+
+      <LogDrawer open={logsOpen} onClose={() => setLogsOpen(false)} />
     </div>
   )
 }

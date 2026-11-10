@@ -31,7 +31,7 @@ default applies.
    with a `SECURITY NOTE`.
 
 7. Where do configs get written relative to the working directory?
-   Default: the render stage folder in the agent workspace, never `/etc/frr`.
+   Default: the render stage folder in the Run tree, never `/etc/frr`.
 
 8. Should stage 03 always pause for approval, even for single parameter
    changes?

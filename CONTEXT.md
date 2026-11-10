@@ -15,19 +15,23 @@ The Interpretable Context Methodology (arXiv 2603.16021) splits an agent into
 layered context. The terms below are this repo's reading of it, which differs
 from the methodology in one place: ICM keeps a run's artifacts inside the
 definition tree, and this repo writes them to a separate one. See
-[ADR 0002](./docs/adr/0002-agent-and-workspace-are-different-trees.md).
+[ADR 0003](./docs/adr/0003-agent-and-run-tree-are-different-trees.md).
 
 **Agent**:
-The versioned, read-only definition of one pipeline, at
+The versioned, read-only definition of one pipeline, authored at
 `resources/agents/<name>/`. Holds layers 1 to 3: routing, stage contracts and
-reference material. Nothing writes into it at run time. The Go package
-`internal/llm/agent` is the LLM client, not an Agent in this sense.
-_Avoid_: workspace, definition tree, agent folder
+reference material. Nothing writes into it at run time. A running app reads it
+from the **Agent root**, `~/.network_agent/resources/agents/<name>/`, mirrored
+from the binary the material is embedded in — the read-only root of the pair
+whose writable half is the **Workspace**. The Go package `internal/llm/agent`
+is the LLM client, not an Agent in this sense.
+_Avoid_: run tree, definition tree, agent folder
 
-**Workspace**:
-Where one run writes its artifacts, at `.agent/workspace/<agent>/<stage>/`.
-Layer 4. One per Agent, one active Run at a time.
-_Avoid_: space, output folder, run directory
+**Run tree**:
+Where one run writes its artifacts, at `.agent/runs/<agent>/<stage>/`. Layer 4.
+One per Agent, one active Run at a time. Not the **Workspace**, which is the
+user's folder.
+_Avoid_: workspace, space, output folder
 
 **Pipeline**:
 An Agent's stages in numeric order, the structure a Run traverses. A property
@@ -41,7 +45,7 @@ _Avoid_: pipeline, session, execution
 
 **Stage**:
 One numbered step of the Pipeline, named `NN-name`. Owns a folder in the Agent
-holding its definition, and a folder in the Workspace holding its artifacts.
+holding its definition, and a folder in the Run tree holding its artifacts.
 _Avoid_: step, phase, node
 
 **Contract**:
@@ -81,7 +85,7 @@ _Avoid_: selector, filter, range
 
 **Artifact**:
 A file a Stage produces, declared in its Contract's `## Outputs` table and
-written to that Stage's folder in the Workspace.
+written to that Stage's folder in the Run tree.
 _Avoid_: output, result, deliverable
 
 **Executor**:
@@ -98,8 +102,10 @@ _Avoid_: orchestrator, engine, runner, driver
 ### Logging
 
 **Lugar**:
-The subsystem that emitted a log line, `MAIN`, `RAG`, `TOOLS`, named by hand
-through `logger.Named("RAG")`. It is the third field of the console format.
+The subsystem that emitted a log line, `MAIN`, `UI`, `RAG`, `TOOLS`, named by
+hand through `logger.Named("RAG")`. It is the third field of the console
+format. Two subsystems never share one Lugar: `MAIN` is the CLI's and `UI` is
+the desktop app's.
 _Avoid_: origin, source, caller, module
 
 **Source**:
@@ -118,7 +124,9 @@ _Avoid_: trace level, verbose, lowest level
 **Sink**:
 A log destination with its own format and rules. There are exactly two: the
 **console sink** (text, coloured, truncated values) and the **file sink**
-(JSON, with source, values intact).
+(JSON, with source, values intact). What defines a sink is its **rules**, not
+its destination: the console sink writes to stderr **and** to the UI's Logs
+drawer, and that is why the drawer shows exactly what the CLI shows.
 _Avoid_: handler, output, appender, writer
 
 ### Conversation history
@@ -231,3 +239,22 @@ to never accuse a block that renders, and pays for it by missing modes it does n
 inside a flowchart, a hyphenated state id). Whoever consumes the metadata must read silence as
 "these three rules found nothing", never as a render guarantee.
 _Avoid_: bloco válido, bloco verificado, diagrama que renderiza, valid
+
+**Bloco não renderizado**:
+A **Bloco de diagrama** the client failed to draw: `mermaid.render` threw in the UI, so no SVG
+exists and the bubble shows the parser's message plus the source as text. Orthogonal to **Bloco
+não reprovado** — this one is the render on the client, that one is the turn's scanner on the
+server. A block can be both, either or neither, and the two never imply each other: a block the
+scanner stayed silent on may fail to render, and a block it accused may draw fine.
+_Avoid_: diagrama quebrado, diagrama inválido, erro de mermaid, falha de render
+
+### Arquivos
+
+**Workspace**:
+The folder the user picks in the desktop app: the single root the file tools may
+write to, and the root a path from the user resolves against. Supplied by each
+front-end — the UI from the user's choice, the CLI from its working directory.
+Distinct from the **Run tree**, ICM's layer 4, and from the **Agent root**,
+which is read-only. See
+[ADR 0003](./docs/adr/0003-agent-and-run-tree-are-different-trees.md).
+_Avoid_: run tree, project folder, output folder

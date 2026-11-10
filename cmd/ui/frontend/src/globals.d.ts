@@ -15,12 +15,17 @@ declare global {
           RenameConversation(id: string, title: string): Promise<Conversation>
           DeleteConversation(id: string): Promise<void>
           AskAgent(convID: string, prompt: string): Promise<Conversation>
+          // Gaveta de Logs (ticket 12): as linhas do sink de console desta
+          // execução, e o arquivo onde elas também estão.
+          GetLogLines(): Promise<string[]>
+          GetLogPath(): Promise<string>
         }
       }
     }
     runtime?: {
       EventsOn(eventName: string, cb: (...args: unknown[]) => void): void
       EventsOff(...eventNames: string[]): void
+      ClipboardSetText(text: string): Promise<boolean>
     }
   }
 }

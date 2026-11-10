@@ -2,7 +2,10 @@ package main
 
 import (
 	"embed"
+	"path/filepath"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
+	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -12,7 +15,28 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+var log = logger.Named("UI")
+
 func main() {
+	// O log da UI mora ao lado do config.json e do histórico, em
+	// ~/.network_agent/logs/ui/. Um caminho relativo seria resolvido contra a
+	// raiz do módulo (internal/logger/file.go:88-96), e aí o arquivo da
+	// execução só existiria na máquina onde o binário foi compilado.
+	cfg := logger.ConfigFromEnv()
+	if cfg.File == "" {
+		cfg.File = filepath.Join(filepath.Dir(config.Path()), "logs")
+	}
+	// Binary fixo: sob `wails dev` o os.Args[0] é o binário temporário da
+	// geração de bindings, e cada nome abriria uma pasta própria. Fixo, as três
+	// formas de rodar a UI (dev, binário construído, go run) gravam na mesma.
+	cfg.Binary = "ui"
+	// A gaveta de Logs é um segundo destino do sink de console, ligado aqui:
+	// antes do Init, para o anel receber desde a primeira linha do run — as
+	// quatro que nascem no NewApp(), que é onde as falhas de configuração e de
+	// conexão com o provedor aparecem.
+	cfg.ConsoleTee = logs
+	logger.Init(cfg)
+
 	// Create an instance of the app structure
 	app := NewApp()
 
@@ -45,6 +69,6 @@ func main() {
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		log.Error("o wails encerrou com erro", "err", err)
 	}
 }

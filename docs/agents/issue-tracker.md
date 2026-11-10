@@ -20,7 +20,7 @@ Issues, specs e mapas deste repo vivem como arquivos markdown em `.agent/`.
 
 `.agent/` **não** está no `.gitignore`: os tickets são versionados junto do código.
 
-`.agent/` é também o Workspace de Run do ICM (layer 4, ver `CONTEXT.md`) — artefatos de execução
+`.agent/` é também o Run tree do ICM (layer 4, ver `CONTEXT.md`) — artefatos de execução
 do agente. Nada de dado de usuário entra aqui: dados de conversa, por exemplo, vivem em
 `~/.network_agent/`.
 

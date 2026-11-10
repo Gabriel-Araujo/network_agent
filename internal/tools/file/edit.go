@@ -9,14 +9,14 @@ import (
 )
 
 func EditFile(workingDirectory string, filePath string, oldText string, newText string) string {
-	rel, err := util.SafePath(workingDirectory, filePath)
+	path, err := util.SafePath(workingDirectory, filePath)
 
 	if err != nil {
 		log.Error("caminho inválido", "path", filePath, "err", err)
 		return fmt.Sprintf("Error %s", err)
 	}
 
-	stats, err := os.Stat(rel)
+	stats, err := os.Stat(path)
 	if err != nil {
 		return "Error: File not found."
 	}
@@ -25,9 +25,9 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 		return fmt.Sprintf("Error: File is too large. File has %s bu the limit is %s", util.FormatFileSize(stats.Size()), util.FormatFileSize(int64(MAX_EDIT_FILE_SIZE)))
 	}
 
-	content, err := os.ReadFile(rel)
+	content, err := os.ReadFile(path)
 	if err != nil {
-		log.Error("falha ao ler arquivo", "path", rel, "err", err)
+		log.Error("falha ao ler arquivo", "path", path, "err", err)
 		return "Error: failed to read File content"
 	}
 
@@ -39,9 +39,9 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 		return fmt.Sprintf("%s%d", EDIT_MULTIPLE_MATCHES_NOTICE, occurrences)
 	}
 
-	statsAfterRead, err := os.Stat(rel)
+	statsAfterRead, err := os.Stat(path)
 	if err != nil {
-		log.Error("falha ao checar modificação do arquivo", "path", rel, "err", err)
+		log.Error("falha ao checar modificação do arquivo", "path", path, "err", err)
 		return "Error: failed to check file staleness"
 	}
 
@@ -50,9 +50,9 @@ func EditFile(workingDirectory string, filePath string, oldText string, newText 
 	}
 
 	newContentStr := strings.Replace(contentStr, oldText, newText, 1)
-	err = os.WriteFile(rel, []byte(newContentStr), 0644)
+	err = os.WriteFile(path, []byte(newContentStr), 0644)
 	if err != nil {
-		log.Error("falha ao escrever arquivo", "path", rel, "err", err)
+		log.Error("falha ao escrever arquivo", "path", path, "err", err)
 		return "Error: failed to write File content"
 	}
 

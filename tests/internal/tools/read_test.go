@@ -21,6 +21,10 @@ func TestReadFile(t *testing.T) {
 	os.Chdir(genDir)
 	defer os.Chdir(originalWd)
 
+	// SafePath devolve o caminho absoluto contido, e é ele que o aviso de
+	// ausência carrega: diz ao turno onde a tool realmente procurou.
+	wd, _ := os.Getwd()
+
 	fileName := "test.txt"
 	content := "hello world"
 
@@ -51,7 +55,7 @@ func TestReadFile(t *testing.T) {
 			name:       "File not found",
 			workingDir: ".",
 			filePath:   "nonexistent.txt",
-			want:       filetools.READ_NOT_FOUND_NOTICE + "nonexistent.txt",
+			want:       filetools.READ_NOT_FOUND_NOTICE + filepath.Join(wd, "nonexistent.txt"),
 		},
 	}
 
@@ -123,8 +127,9 @@ func TestReadFileTellsAbsenceApart(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	wd, _ := os.Getwd()
 	absent := filetools.ReadFile(".", "no-such-file.conf")
-	if want := filetools.READ_NOT_FOUND_NOTICE + "no-such-file.conf"; absent != want {
+	if want := filetools.READ_NOT_FOUND_NOTICE + filepath.Join(wd, "no-such-file.conf"); absent != want {
 		t.Errorf("ReadFile(absent) = %q, want %q", absent, want)
 	}
 	for _, forbidden := range []string{"written", "created", "edited", "updated"} {

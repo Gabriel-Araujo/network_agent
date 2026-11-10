@@ -6,6 +6,7 @@ import {
   GearSix,
   PencilSimple,
   Plus,
+  Terminal,
   Trash,
 } from '@phosphor-icons/react'
 import { BridgeError, Conversation, groupConversations } from '../types'
@@ -28,6 +29,8 @@ interface SidebarProps {
   onToggleCollapse: () => void
   onNewChat: () => void
   onOpenSettings: () => void
+  /** Abre/fecha a gaveta de Logs da execução. */
+  onOpenLogs: () => void
   onOpen: (c: Conversation) => void
   /** Devolve true quando o título foi gravado (o input fecha só nesse caso). */
   onRename: (id: string, title: string) => Promise<boolean>
@@ -47,6 +50,7 @@ export default function Sidebar({
   onToggleCollapse,
   onNewChat,
   onOpenSettings,
+  onOpenLogs,
   onOpen,
   onRename,
   onDelete,
@@ -227,6 +231,18 @@ export default function Sidebar({
         </nav>
 
         <div className="sidebar__footer">
+          <button className="chat-item chat-item--subtle" onClick={onOpenLogs}>
+            <Terminal size={15} weight="regular" className="chat-item__icon" aria-hidden="true" />
+            <span className="chat-item__title">Logs</span>
+          </button>
+          <button
+            className="icon-btn sidebar__logs-icon"
+            onClick={onOpenLogs}
+            aria-label="Logs"
+            title="Logs"
+          >
+            <Terminal size={16} weight="regular" aria-hidden="true" />
+          </button>
           <button className="chat-item chat-item--subtle" onClick={onOpenSettings}>
             <GearSix size={15} weight="regular" className="chat-item__icon" aria-hidden="true" />
             <span className="chat-item__title">Configurações</span>

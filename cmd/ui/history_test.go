@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
+	"github.com/Gabriel-Araujo/network_agent/internal/turn"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/openai/openai-go/v3/packages/respjson"
 	"github.com/openai/openai-go/v3/responses"
@@ -228,7 +231,36 @@ func novoAppDeTeste(t *testing.T, url string, contextTotal int64) (*App, *eventC
 	if a.currentAgent() == nil {
 		t.Fatal("o agente não conectou ao provedor de mentira")
 	}
+
+	// Por padrão o turno é só a chamada do LLM: o que estes testes provam é o
+	// que o AskAgent faz com o resultado da composição, e a composição inteira
+	// tem os testes dela em internal/turn.
+	trocaOTurno(t, turnoSoDoChat)
 	return a, events
+}
+
+// composicao é o tipo da composição do turno — o runTurn de history.go.
+type composicao = func(context.Context, *agent.Agent, []history.Message, string, turn.State) (turn.Outcome, turn.State, error)
+
+// trocaOTurno põe uma composição de mentira no lugar do turn.Run pela duração
+// do teste. O turn.Run de verdade classifica duas vezes, busca no banco do RAG
+// e chama o LLM três vezes: nada que um teste de unidade tenha.
+func trocaOTurno(t *testing.T, fake composicao) {
+	t.Helper()
+	anterior := runTurn
+	runTurn = fake
+	t.Cleanup(func() { runTurn = anterior })
+}
+
+// turnoSoDoChat é a composição reduzida à chamada do LLM: sem classificação,
+// sem retrieval, sem scanner de Mermaid — o provedor de mentira recebe o
+// transcript e o prompt como os recebia antes da composição entrar.
+func turnoSoDoChat(ctx context.Context, ag *agent.Agent, transcript []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
+	resp, err := ag.Chat(ctx, transcript, input)
+	if err != nil {
+		return turn.Outcome{Prompt: input}, state, err
+	}
+	return turn.Outcome{Text: resp.OutputText(), Prompt: input, Usage: resp.Usage}, state, nil
 }
 
 // codigoDoErro exige que o erro seja o JSON estruturado da ponte e devolve o
@@ -762,5 +794,167 @@ func TestProjectUsageDistingueNaoReportadoDeZero(t *testing.T) {
 	}
 	if u.ContextSource != agent.WindowSourceProvider {
 		t.Errorf("origem %q, esperava %q", u.ContextSource, agent.WindowSourceProvider)
+	}
+}
+
+// TestAskAgentGravaOAutorEOsAvisosDoTurno prova o que a composição acrescenta à
+// mensagem gravada: quem respondeu (o Subagente; "" é o agente genérico) e os
+// avisos de degradação do turno. Os dois vão ao disco junto da resposta porque o
+// Store é append-only — aviso não gravado na hora se perde — e porque é a
+// resposta degradada que eles explicam.
+//
+// Prova também o prompt: o que fica na mensagem do usuário é o que ele digitou,
+// não o out.Prompt da composição. Na UI o Content é também o que o balão
+// renderiza, e o bloco <recovered_context> não é texto do usuário.
+func TestAskAgentGravaOAutorEOsAvisosDoTurno(t *testing.T) {
+	avisos := []string{
+		"RAG classification failed — continuing with empty filters: sem provedor",
+		"retrieval failed, continuing without RAG context: sem banco",
+	}
+
+	fp := &fakeProvider{reply: "ignorado"}
+	srv := httptest.NewServer(http.HandlerFunc(fp.handler))
+	defer srv.Close()
+
+	a, _ := novoAppDeTeste(t, srv.URL, 128000)
+	conv, err := a.CreateConversation("Conversa roteada")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+
+	trocaOTurno(t, func(_ context.Context, _ *agent.Agent, _ []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
+		return turn.Outcome{
+			Text:             "explicação do teacher",
+			Prompt:           input + "\n\n<recovered_context>\n[{\"doc\":1}]\n</recovered_context>",
+			Subagent:         "teacher",
+			Warnings:         avisos,
+			RecoveredContext: "[{\"doc\":1}]",
+		}, state, nil
+	})
+
+	got, err := a.AskAgent(conv.ID, "o que é route reflector?")
+	if err != nil {
+		t.Fatalf("AskAgent: %v", err)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("conversa com %d mensagens, esperava 2", len(got.Messages))
+	}
+	user, resposta := got.Messages[0], got.Messages[1]
+
+	if user.Content != "o que é route reflector?" {
+		t.Errorf("a mensagem do usuário guardou o prompt composto: %q", user.Content)
+	}
+	if user.Subagent != "" {
+		t.Errorf("a mensagem do usuário ganhou autor: %q", user.Subagent)
+	}
+	if resposta.Subagent != "teacher" {
+		t.Errorf("autor gravado %q, esperava o Subagente que respondeu", resposta.Subagent)
+	}
+	if !slices.Equal(resposta.Warnings, avisos) {
+		t.Errorf("avisos gravados %q, esperava %q", resposta.Warnings, avisos)
+	}
+
+	// O disco é a fonte: a conversa devolvida é a que foi gravada.
+	disk, err := a.store.Get(conv.ID)
+	if err != nil {
+		t.Fatalf("Get depois do turno: %v", err)
+	}
+	if disk.Messages[1].Subagent != "teacher" || !slices.Equal(disk.Messages[1].Warnings, avisos) {
+		t.Errorf("autor/avisos não chegaram ao disco: %+v", disk.Messages[1])
+	}
+
+	// Turno do agente genérico: autor vazio e nenhum aviso — é o contrato que
+	// o balão lê para escrever "Agente", o mesmo de uma conversa gravada antes
+	// desta decisão.
+	trocaOTurno(t, func(_ context.Context, _ *agent.Agent, _ []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
+		return turn.Outcome{Text: "resposta do genérico", Prompt: input}, state, nil
+	})
+	got, err = a.AskAgent(conv.ID, "e agora?")
+	if err != nil {
+		t.Fatalf("segundo turno: %v", err)
+	}
+	if generico := got.Messages[3]; generico.Subagent != "" || len(generico.Warnings) != 0 {
+		t.Errorf("turno limpo do genérico gravou autor/avisos: %+v", generico)
+	}
+}
+
+// TestAskAgentGravaOsAvisosDoTurnoQueFalhou prova que a degradação sobrevive ao
+// turno que morre: a composição pode ter avisado (classificação que falhou,
+// retrieval que não veio) antes de a chamada ao LLM matar o turno, e esses
+// avisos são o que o usuário tem para saber o que o turno tentou.
+func TestAskAgentGravaOsAvisosDoTurnoQueFalhou(t *testing.T) {
+	avisos := []string{"generic classification failed — answering with the generic agent: sem provedor"}
+
+	fp := &fakeProvider{reply: "ignorado"}
+	srv := httptest.NewServer(http.HandlerFunc(fp.handler))
+	defer srv.Close()
+
+	a, _ := novoAppDeTeste(t, srv.URL, 128000)
+	conv, err := a.CreateConversation("Conversa que falha degradada")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+
+	trocaOTurno(t, func(_ context.Context, _ *agent.Agent, _ []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
+		return turn.Outcome{Prompt: input, Warnings: avisos}, state, errors.New("o provedor caiu")
+	})
+
+	got, err := a.AskAgent(conv.ID, "vai falhar degradado")
+	if err != nil {
+		t.Fatalf("o erro do turno é dado, não exceção: %v", err)
+	}
+	falha := got.Messages[1]
+	if falha.Status != history.StatusError || falha.Error == nil {
+		t.Fatalf("o turno que falhou não foi gravado como erro: %+v", falha)
+	}
+	if !slices.Equal(falha.Warnings, avisos) {
+		t.Errorf("avisos do turno que falhou %q, esperava %q", falha.Warnings, avisos)
+	}
+}
+
+// TestAskAgentGuardaOStateDoTurnoPorConversa prova o State da composição entre
+// turnos: é guardado por Conversa (a skip rule compara com o turno anterior
+// DELA) e guardado também quando o turno falha — o turn.Run devolve o State
+// atualizado nas duas saídas, e perdê-lo faria o turno seguinte re-disparar o
+// retrieval sem motivo.
+//
+// O teste olha o mapa, não o valor: turn.State é opaco fora do internal/turn,
+// então de fora não há como construir dois States distinguíveis.
+func TestAskAgentGuardaOStateDoTurnoPorConversa(t *testing.T) {
+	fp := &fakeProvider{reply: "ok"}
+	srv := httptest.NewServer(http.HandlerFunc(fp.handler))
+	defer srv.Close()
+
+	a, _ := novoAppDeTeste(t, srv.URL, 128000)
+	primeira, err := a.CreateConversation("Primeira")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+	segunda, err := a.CreateConversation("Segunda")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+
+	if _, err := a.AskAgent(primeira.ID, "turno que dá certo"); err != nil {
+		t.Fatalf("turno da primeira conversa: %v", err)
+	}
+
+	// A segunda conversa falha no LLM: o State dela tem de ficar guardado do
+	// mesmo jeito.
+	trocaOTurno(t, func(_ context.Context, _ *agent.Agent, _ []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
+		return turn.Outcome{Prompt: input}, state, errors.New("o provedor caiu")
+	})
+	if _, err := a.AskAgent(segunda.ID, "turno que falha"); err != nil {
+		t.Fatalf("turno da segunda conversa: %v", err)
+	}
+
+	if len(a.turnState) != 2 {
+		t.Fatalf("o app guardou %d States, esperava um por Conversa: %v", len(a.turnState), a.turnState)
+	}
+	if _, ok := a.turnState[primeira.ID]; !ok {
+		t.Error("o State do turno que deu certo não foi guardado")
+	}
+	if _, ok := a.turnState[segunda.ID]; !ok {
+		t.Error("o State do turno que falhou não foi guardado — o próximo turno re-buscaria sem motivo")
 	}
 }

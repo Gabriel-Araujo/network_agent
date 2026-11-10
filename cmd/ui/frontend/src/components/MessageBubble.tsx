@@ -98,6 +98,23 @@ function TokenUsageFooter({
   )
 }
 
+/**
+ * Os avisos de degradação do turno. Ficam na bolha do turno em que
+ * aconteceram: é a resposta degradada que eles explicam, e um aviso que só
+ * chega ao arquivo de log é um aviso silencioso.
+ */
+function WarningList({ warnings }: { warnings: string[] }) {
+  return (
+    <ul className="warnings" role="status">
+      {warnings.map((w, i) => (
+        <li key={i} className="warnings__item">
+          {w}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
@@ -111,6 +128,7 @@ export default function MessageBubble({ message }: { message: Message }) {
 
   const streaming = message.status === 'streaming'
   const isEmpty = message.content.trim() === ''
+  const warnings = message.warnings?.length ? <WarningList warnings={message.warnings} /> : null
 
   return (
     <div className="msg msg--agent" data-msg-id={message.id}>
@@ -119,9 +137,18 @@ export default function MessageBubble({ message }: { message: Message }) {
           <p className="error__title">{message.error.what}</p>
           <p className="error__why">{message.error.why}</p>
           <p className="error__next">{message.error.next}</p>
+          {warnings}
         </div>
       ) : (
         <div className={`bubble bubble--agent ${streaming ? 'bubble--streaming' : ''}`}>
+          {/* Quem respondeu. Só depois do stream: o autor chega com a conversa
+              gravada, e enquanto os tokens correm a mensagem na tela ainda não
+              o tem — dizer "Agente" para depois trocar por "Teacher" seria
+              mostrar um autor que não é o do turno. Vazio É o agente genérico,
+              e aparece como tal: nada escrito não distinguiria o genérico de
+              uma conversa gravada antes de o autor existir. */}
+          {!streaming && <span className="author">{message.subagent || 'Agente'}</span>}
+
           {message.toolCalls && message.toolCalls.length > 0 && (
             <div className="bubble__tools">
               {message.toolCalls.map((tc) => (
@@ -135,6 +162,8 @@ export default function MessageBubble({ message }: { message: Message }) {
           ) : (
             <Markdown content={message.content} streaming={streaming} />
           )}
+
+          {warnings}
 
           {message.status === 'done' && message.time && (
             <span className="msg-ts msg-ts--meta">

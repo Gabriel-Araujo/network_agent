@@ -6,9 +6,11 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - **`CONTEXT.md`** at the repo root: the glossary. It started with the logging subsystem and now
   covers the ICM pipeline; other terms enter as they are settled.
-- **`docs/adr/`**: read the ADRs that touch the area you're about to work in. There are two —
+- **`docs/adr/`**: read the ADRs that touch the area you're about to work in. Two are in force —
   `0001-trace-is-a-channel-not-a-level.md` and
-  `0002-agent-and-workspace-are-different-trees.md`.
+  `0003-agent-and-run-tree-are-different-trees.md`. The third,
+  `0002-agent-and-workspace-are-different-trees.md`, is superseded by 0003 on naming and kept for
+  the record.
 
 There is no `CONTEXT-MAP.md`: this is a **single-context** repo.
 
@@ -25,7 +27,7 @@ Single-context repo:
 /
 ├── CONTEXT.md          ← the glossary
 ├── docs/
-│   ├── adr/            ← 0001, 0002
+│   ├── adr/            ← 0001, 0003 (0002 superseded by 0003)
 │   └── agents/         ← tracker, domain and triage conventions for the skills
 ├── cmd/                ← ui (Wails) and cli front-ends
 ├── internal/           ← agent, config, logger, skills, tools, types
@@ -46,4 +48,4 @@ language the project doesn't use (reconsider) or there's a real gap (note it for
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
-> _Contradicts ADR-0002 (agent and workspace are different trees), but worth reopening because…_
+> _Contradicts ADR-0003 (agent and run tree are different trees), but worth reopening because…_

@@ -9,11 +9,11 @@ interface MarkdownProps {
   streaming?: boolean
 }
 
-// Renderiza markdown com suporte a GFM (tabelas, listas de tarefas) e mermaid.
-// Os estilos dos elementos ficam em App.css (classe .md-*), combinando com
-// o dark glass azulado da aplicação.
-// Mermaid é renderizado client-side pelo componente <Mermaid> (via pacote
-// 'mermaid'), evitando a dependência de playwright do rehype-mermaid (SSR).
+// Renderiza markdown com suporte a GFM (tabelas, listas de tarefas) e Blocos de
+// diagrama. Os estilos dos elementos ficam em App.css (classe .md-*),
+// combinando com o dark glass azulado da aplicação.
+// O Bloco de diagrama é renderizado client-side pelo componente <Mermaid>, que
+// usa o 'pele' — a sintaxe continua sendo Mermaid, a biblioteca não.
 export default function Markdown({ content, streaming = false }: MarkdownProps) {
   return (
     <div className="md">
@@ -39,7 +39,7 @@ export default function Markdown({ content, streaming = false }: MarkdownProps) 
               // Durante o streaming o diagrama ainda está incompleto: mostra o
               // código cru e só renderiza o SVG quando a resposta fecha.
               if (streaming) {
-                return <pre className="mermaid-pending">{code}</pre>
+                return <pre className="mermaid-source">{code}</pre>
               }
               return <Mermaid code={code} />
             }

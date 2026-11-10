@@ -10,10 +10,13 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/pkg/exception"
 )
 
-// SafePath returns filePath relative to workingDirectory, or InvalidFilePath
-// when it resolves outside it. A path that names its own root or volume
-// (C:\x, D:x, \\host\share\x; /x on Unix) resolves on its own and must land
-// inside; any other path is joined to workingDirectory.
+// SafePath returns filePath resolved inside workingDirectory as an absolute
+// path, or InvalidFilePath when it resolves outside it. The return is
+// absolute on purpose: callers hand it straight to os.*, and a path relative
+// to workingDirectory would be read or written against the process CWD
+// instead — the wrong directory, with no error. A path that names its own
+// root or volume (C:\x, D:x, \\host\share\x; /x on Unix) resolves on its own
+// and must land inside; any other path is joined to workingDirectory.
 func SafePath(workingDirectory string, filePath string) (string, error) {
 	absolutePath, err := filepath.Abs(workingDirectory)
 	if err != nil {
@@ -34,7 +37,7 @@ func SafePath(workingDirectory string, filePath string) (string, error) {
 		return "", exception.InvalidFilePath
 	}
 
-	return rel, nil
+	return targetPath, nil
 }
 
 func FormatFileSize(size int64) string {

@@ -1,5 +1,10 @@
 # Agent and Workspace are different trees
 
+> **Superseded by [ADR 0003](./0003-agent-and-run-tree-are-different-trees.md)**
+> on naming only. The split below stands; the artifact tree is now the **Run
+> tree** at `.agent/runs/<agent>/<stage>/`, and `Workspace` names the folder the
+> user picks in the desktop app.
+
 The ICM definition of a pipeline is versioned and read-only; the artifacts a run
 produces are neither. This repo keeps them in two trees, and the two need names
 that say which is which. We decided that **Agent** is the definition at

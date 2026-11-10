@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
+	"github.com/Gabriel-Araujo/network_agent/internal/turn"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3/responses"
@@ -155,6 +155,37 @@ func (a *App) DeleteConversation(id string) error {
 
 // ---------- o turno ----------
 
+// runTurn é a composição do turno (internal/turn). É variável de pacote pelo
+// mesmo motivo do seam de teste do próprio internal/turn (`var retrieval =
+// retrieve`): a composição de verdade classifica duas vezes, busca no banco do
+// RAG e chama o LLM, e nada disso um teste de unidade tem. A produção nunca a
+// troca.
+var runTurn = turn.Run
+
+// logTurn registra o metadado do turno que NÃO vai à tela: a classificação
+// genérica, os filtros de busca, o tamanho do contexto recuperado e o resultado
+// do scanner de Mermaid. Só o autor e os avisos ficam na mensagem (o usuário não
+// infere nenhum dos dois do texto); o resto é observabilidade, e aqui ele existe
+// em vez de desaparecer.
+//
+// Os avisos também saem no log, em Warn: a bolha os mostra no turno em que
+// aconteceram, e o arquivo é onde o turno de ontem ainda pode ser lido.
+func logTurn(convID string, out turn.Outcome) {
+	log.Debug("turno composto",
+		"conv", convID,
+		"subagente", out.Subagent,
+		"classificacao", out.Generic,
+		"filtros", out.Filters,
+		"contexto_chars", len(out.RecoveredContext),
+		"mermaid_checado", out.MermaidChecked,
+		"mermaid_blocos", len(out.MermaidBlocks),
+		"mermaid_repetido", out.MermaidRetried,
+	)
+	for _, warning := range out.Warnings {
+		log.Warn(warning, "conv", convID)
+	}
+}
+
 // AskAgent executa um turno na conversa convID e devolve a conversa como ela
 // ficou no disco.
 //
@@ -163,8 +194,25 @@ func (a *App) DeleteConversation(id string) error {
 // tempos das mensagens são cunhados aqui, e o `usage` vem do que o provedor
 // reportou. A ordem do turno é: lê o transcript, grava a mensagem do usuário
 // ANTES de chamar o provedor (um turno interrompido deixa o prompt no disco),
-// chama o Chat, grava a resposta e só então transmite os tokens — texto que a
-// UI mostra já está persistido.
+// roda a composição (turn.Run), grava a resposta e só então transmite os
+// tokens — texto que a UI mostra já está persistido.
+//
+// O que fica gravado na mensagem do usuário é o que ele digitou, NÃO o
+// out.Prompt da composição (o prompt com o bloco <recovered_context> junto),
+// que é o que o cmd/cli grava. São duas razões, e as duas são da UI:
+//   - o Content da mensagem é também o que o balão renderiza, então o
+//     out.Prompt despejaria o JSON do contexto recuperado dentro do balão do
+//     usuário;
+//   - a mensagem vai ao disco antes da chamada, e o Store é append-only: o
+//     out.Prompt só existe depois, e gravá-lo exigiria trocar a ordem e perder
+//     o prompt do turno interrompido.
+//
+// O custo é que o transcript reenviado não leva os blocos de contexto dos
+// turnos passados — que é justamente o que o aceite do Roteamento mediu como
+// problema (entrada de 49.731 tokens em 6 turnos, modelo repetindo a resposta
+// anterior) e virou o esforço de política de transcript. O contexto do turno
+// corrente nunca se perde: a skip rule reinjeta o último recuperado a cada
+// turno em que a classificação não muda.
 //
 // O turno que falha também é gravado, com status error e o AgentError montado
 // aqui (é quem tem o erro do provedor e quem grava); o reenvio descarta essa
@@ -223,7 +271,7 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 		return history.Conversation{}, errHistory(err)
 	}
 
-	fmt.Printf("[AskAgent] conversa=%s turno: prompt=%q\n", convID, prompt)
+	log.Debug("turno iniciado", "conv", convID, "prompt", prompt)
 	a.emitStatus("Processando")
 
 	started := time.Now()
@@ -239,9 +287,20 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 		window <- contextWindow{Total: total, Source: source}
 	}()
 
-	resp, err := ag.Chat(a.ctx, conv.Messages, prompt)
+	// O turno inteiro é a composição (classificação genérica + roteamento,
+	// Modo RAG com skip rule, retrieval, <recovered_context>, scanner de
+	// Mermaid, chamada ao LLM). Daqui para baixo este método só persiste e
+	// transmite o que ela devolveu.
+	out, state, err := runTurn(a.ctx, ag, conv.Messages, prompt, a.loadTurnState(convID))
+
+	// O State é guardado ANTES de olhar o erro: ele vale nas duas saídas do
+	// turn.Run, e perdê-lo num turno que falhou faria o seguinte re-disparar
+	// o retrieval sem motivo.
+	a.saveTurnState(convID, state)
+	logTurn(convID, out)
+
 	if err != nil {
-		return a.recordFailedTurn(convID, err)
+		return a.recordFailedTurn(convID, err, out.Warnings)
 	}
 	elapsed := time.Since(started)
 	win := <-window
@@ -251,11 +310,13 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 	agentMsg := history.Message{
 		ID:        uuid.NewString(),
 		Role:      history.RoleAgent,
-		Content:   resp.OutputText(),
+		Content:   out.Text,
 		Time:      history.NowStamp(),
 		Status:    history.StatusDone,
 		ElapsedMs: int(elapsed.Milliseconds()),
-		Usage:     projectUsage(resp.Usage, win),
+		Usage:     projectUsage(out.Usage, win),
+		Subagent:  out.Subagent,
+		Warnings:  out.Warnings,
 	}
 	if agentMsg.Usage != nil {
 		agentMsg.Tokens = agentMsg.Usage.Output
@@ -293,12 +354,17 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 // mensagem de status error com o AgentError montado no Go, e a conversa volta
 // como ficou no disco — o front-end mostra o erro pela mensagem. Se nem isso o
 // disco aceitar, o erro de disco é o que sobe.
-func (a *App) recordFailedTurn(convID string, cause error) (history.Conversation, error) {
+//
+// Os avisos de degradação do turno vão junto: a composição já pode ter
+// degradado (classificação que falhou, retrieval que não veio) antes de a
+// chamada ao LLM matar o turno, e esses avisos explicam o que o turno tentou.
+func (a *App) recordFailedTurn(convID string, cause error, warnings []string) (history.Conversation, error) {
 	conv, err := a.store.Append(convID, history.Message{
-		ID:     uuid.NewString(),
-		Role:   history.RoleAgent,
-		Time:   history.NowStamp(),
-		Status: history.StatusError,
+		ID:       uuid.NewString(),
+		Role:     history.RoleAgent,
+		Time:     history.NowStamp(),
+		Status:   history.StatusError,
+		Warnings: warnings,
 		Error: &history.AgentError{
 			What: "O provedor não completou o turno",
 			Why:  cause.Error(),
@@ -306,7 +372,7 @@ func (a *App) recordFailedTurn(convID string, cause error) (history.Conversation
 		},
 	})
 	if err != nil {
-		fmt.Printf("[AskAgent] conversa=%s falha ao gravar o turno que falhou: %v (erro original: %v)\n", convID, err, cause)
+		log.Error("falha ao gravar o turno que falhou", "conv", convID, "err", err, "cause", cause)
 		return history.Conversation{}, errHistory(err)
 	}
 	return conv, nil

@@ -38,8 +38,17 @@ func TestHash8(t *testing.T) {
 	}
 }
 
+// TestSafePath: o retorno é o caminho ABSOLUTO contido, não o relativo à
+// raiz — é o que os chamadores entregam ao os.*, e um relativo resolveria
+// contra o CWD do processo em vez da raiz. Cada expected é por isso a raiz
+// resolvida mais o caminho pedido. Os casos de recusa provam que o contrato
+// novo não afrouxou a contenção.
 func TestSafePath(t *testing.T) {
 	wd, err := filepath.Abs(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp, err := filepath.Abs("/tmp")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,13 +63,13 @@ func TestSafePath(t *testing.T) {
 		{
 			workingDir: ".",
 			filePath:   "config/r1.cfg",
-			expected:   filepath.FromSlash("config/r1.cfg"),
+			expected:   filepath.Join(wd, "config", "r1.cfg"),
 			wantErr:    false,
 		},
 		{
 			workingDir: "/tmp",
 			filePath:   "test.txt",
-			expected:   "test.txt",
+			expected:   filepath.Join(tmp, "test.txt"),
 			wantErr:    false,
 		},
 		{
@@ -76,11 +85,12 @@ func TestSafePath(t *testing.T) {
 			wantErr:    true,
 		},
 		// An absolute path resolves on its own: accepted inside the
-		// working directory, rejected outside it.
+		// working directory, rejected outside it. Inside, it comes back
+		// unchanged — the contract is a no-op on an already-safe absolute.
 		{
 			workingDir: ".",
 			filePath:   filepath.Join(wd, "config", "r1.cfg"),
-			expected:   filepath.FromSlash("config/r1.cfg"),
+			expected:   filepath.Join(wd, "config", "r1.cfg"),
 			wantErr:    false,
 		},
 		{
@@ -102,10 +112,10 @@ func TestSafePath(t *testing.T) {
 			{".", otherDrive + `/x.conf`, "", true},
 			// Drive-relative: resolved against that drive's current directory.
 			{".", otherDrive + `x.conf`, "", true},
-			{".", filepath.VolumeName(wd) + `x.conf`, "x.conf", false},
+			{".", filepath.VolumeName(wd) + `x.conf`, filepath.Join(wd, "x.conf"), false},
 			// Rooted without a drive is not absolute on Windows: it stays inside.
-			{".", `/etc/frr/frr.conf`, `etc\frr\frr.conf`, false},
-			{".", `\etc\frr\frr.conf`, `etc\frr\frr.conf`, false},
+			{".", `/etc/frr/frr.conf`, filepath.Join(wd, "etc", "frr", "frr.conf"), false},
+			{".", `\etc\frr\frr.conf`, filepath.Join(wd, "etc", "frr", "frr.conf"), false},
 		}...)
 	} else {
 		// Rooted is absolute on Unix: outside the working directory.

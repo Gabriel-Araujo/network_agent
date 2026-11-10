@@ -67,6 +67,8 @@ export namespace history {
 	    usage?: TokenUsage;
 	    toolCalls?: ToolCall[];
 	    error?: AgentError;
+	    subagent?: string;
+	    warnings?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Message(source);
@@ -84,6 +86,8 @@ export namespace history {
 	        this.usage = this.convertValues(source["usage"], TokenUsage);
 	        this.toolCalls = this.convertValues(source["toolCalls"], ToolCall);
 	        this.error = this.convertValues(source["error"], AgentError);
+	        this.subagent = source["subagent"];
+	        this.warnings = source["warnings"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

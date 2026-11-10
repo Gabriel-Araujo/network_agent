@@ -51,8 +51,16 @@ type consoleHandler struct {
 }
 
 func newConsoleHandler(cfg Config) slog.Handler {
+	// O tee entra aqui e não num sink próprio: assim os dois destinos recebem
+	// os mesmos bytes do mesmo Handle, e a igualdade é por construção. A cor
+	// continua resolvida contra o os.Stderr — quem lê o tee é que decide o que
+	// fazer com o escape.
+	var w io.Writer = os.Stderr
+	if cfg.ConsoleTee != nil {
+		w = io.MultiWriter(os.Stderr, cfg.ConsoleTee)
+	}
 	return &consoleHandler{
-		w:        os.Stderr,
+		w:        w,
 		mu:       &sync.Mutex{},
 		level:    cfg.Level,
 		color:    useColor(cfg.Color, os.Stderr),

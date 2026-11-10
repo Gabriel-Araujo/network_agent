@@ -46,6 +46,19 @@ export interface Message {
   usage?: TokenUsage
   toolCalls?: ToolCall[]
   error?: AgentError
+  /**
+   * Quem respondeu o turno: o Subagente (`teacher`, `builder`, `modifier`,
+   * `illustrator`) ou vazio para o agente genérico. É quem DE FATO respondeu,
+   * não quem a classificação nomeou. Conversa gravada antes desta decisão vem
+   * sem o campo — e o turno dela foi do genérico, que é o mesmo vazio.
+   */
+  subagent?: string
+  /**
+   * Avisos de degradação do turno, na ordem em que saíram: classificação que
+   * falhou, retrieval que não veio, Subagente que não carregou. O turno
+   * respondeu — degradação nunca mata o turno —, mas com menos do que devia.
+   */
+  warnings?: string[]
 }
 
 /** Conversa como o Go a devolve (`history.Conversation`): transcript junto, updatedAt desc. */

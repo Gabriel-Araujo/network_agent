@@ -105,6 +105,20 @@ type Message struct {
 	Usage     *TokenUsage `json:"usage,omitempty"`
 	ToolCalls []ToolCall  `json:"toolCalls,omitempty"`
 	Error     *AgentError `json:"error,omitempty"`
+
+	// Subagent é quem respondeu o turno, "" para o agente genérico. É quem
+	// DE FATO respondeu, não quem a classificação nomeou: Subagente cuja
+	// configuração não carregou responde com o genérico e fica vazio
+	// (turn.Outcome.Subagent). Conversa gravada antes desta decisão vem sem
+	// o campo — e o turno dela foi do genérico, que é o mesmo vazio.
+	Subagent string `json:"subagent,omitempty"`
+
+	// Warnings são os avisos de degradação do turno, na ordem em que
+	// saíram (turn.Outcome.Warnings): classificação que falhou, retrieval
+	// que não veio, Subagente que não carregou. Ficam na mensagem porque o
+	// Store é append-only — aviso não gravado junto da resposta se perde —
+	// e porque é a resposta degradada que eles explicam.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // Conversation é uma conversa completa, com o transcript.

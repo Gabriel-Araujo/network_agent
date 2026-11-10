@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/paths"
@@ -82,6 +83,21 @@ func newFileHandler(cfg Config) slog.Handler {
 	}
 }
 
+// filePath é o caminho do arquivo desta execução. Guardado porque ninguém fora
+// do pacote tem como descobri-lo: recalcular nameLayout+binaryName seria uma
+// segunda fonte de verdade, e listar a pasta pelo mais recente erraria na
+// colisão de mesmo segundo que o O_APPEND trata de propósito.
+var filePath atomic.Pointer[string]
+
+// FilePath devolve o caminho do arquivo desta execução, ou vazio quando o sink
+// de arquivo não subiu (Config.File vazio, ou falha ao abrir).
+func FilePath() string {
+	if p := filePath.Load(); p != nil {
+		return *p
+	}
+	return ""
+}
+
 // openLogFile resolve <File>/<binario>/<YYMMDD-HHMMSS>.log, cria a árvore, abre
 // o arquivo e poda os antigos.
 func openLogFile(cfg Config) (*os.File, error) {
@@ -108,6 +124,7 @@ func openLogFile(cfg Config) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	filePath.Store(&path)
 
 	// Depois de abrir, para o arquivo desta execução contar no total mantido.
 	prune(dir, cfg.MaxFiles)

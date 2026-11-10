@@ -100,18 +100,18 @@ the start of the run, for example `tech-packs/bgp/`.
 
 ## Stage Handoffs
 
-Each stage writes its artifacts to its own folder in the agent workspace. The
+Each stage writes its artifacts to its own folder in the Run tree. The
 next stage reads them from there. If a human edits an artifact, the next stage
 picks up the edit.
 
 Definition and execution live in different trees. This folder is the
 definition: versioned, read only. Artifacts go to
-`.agent/workspace/builder/<stage>/`, so a contract naming
+`.agent/runs/builder/<stage>/`, so a contract naming
 `../01-intent/brief.json` resolves to
-`.agent/workspace/builder/01-intent/brief.json`, and an Outputs row naming
-`plan.md` is written to `.agent/workspace/builder/03-plan/plan.md`.
+`.agent/runs/builder/01-intent/brief.json`, and an Outputs row naming
+`plan.md` is written to `.agent/runs/builder/03-plan/plan.md`.
 
-One workspace per agent, one active run at a time. A new request reuses
+One Run tree per agent, one active run at a time. A new request reuses
 the same folders, so check `status` first if the previous run still
 matters.
 
@@ -126,8 +126,8 @@ becomes the turn.
 | `Shared` | 3 | this folder | system prompt |
 | `Tech pack` | 3 | this folder, with `{{TECH}}` bound | system prompt |
 | `Reference` | 3 | the stage folder in this tree | system prompt |
-| `Previous stage` | 4 | `.agent/workspace/builder/` | the turn |
-| `Retry only` | 4 | `.agent/workspace/builder/`, only on a retry pass | the turn |
+| `Previous stage` | 4 | `.agent/runs/builder/` | the turn |
+| `Retry only` | 4 | `.agent/runs/builder/`, only on a retry pass | the turn |
 | `User` | 4 | the current message | the turn |
 
 Layer 3 is stable across runs and belongs in the system prompt, where it reads
