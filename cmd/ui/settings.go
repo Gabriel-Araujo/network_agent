@@ -3,10 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 var configMux sync.Mutex
@@ -45,6 +47,47 @@ func (a *App) GetConfig() (types.Config, error) {
 	}
 	config.Normalize(&cfg)
 	return cfg, nil
+}
+
+// PickWorkspace abre o diálogo nativo de pasta e grava a escolha como o
+// Workspace do app: a única raiz de escrita das file tools. A pasta é do app e
+// não da Conversa (ticket 05, §4), então é um valor só.
+//
+// Cancelar devolve a configuração como está: cancelar o diálogo não apaga a
+// pasta que já estava escolhida.
+func (a *App) PickWorkspace() (types.Config, error) {
+	configMux.Lock()
+	defer configMux.Unlock()
+	cfg, err := readConfig()
+	if err != nil {
+		return cfg, err
+	}
+
+	// O runtime do Wails com ctx nil chama log.Fatalf (medido no ticket 06):
+	// sem a janela no ar o diálogo derrubaria o app em vez de falhar.
+	if a.ctx == nil {
+		return cfg, fmt.Errorf("a janela ainda não está no ar")
+	}
+
+	opts := runtime.OpenDialogOptions{Title: "Escolha a pasta de trabalho do agente"}
+	// DefaultDirectory inexistente é erro do próprio runtime — e "o Workspace
+	// sumiu" é justamente um dos casos que trazem o usuário até aqui.
+	if info, err := os.Stat(cfg.Workspace); err == nil && info.IsDir() {
+		opts.DefaultDirectory = cfg.Workspace
+	}
+
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, opts)
+	if err != nil {
+		log.Error("falha ao abrir o diálogo de pasta", "err", err)
+		return cfg, fmt.Errorf("falha ao abrir o diálogo de pasta: %w", err)
+	}
+	if dir == "" {
+		return cfg, nil
+	}
+
+	log.Info("Workspace escolhido", "path", dir)
+	cfg.Workspace = dir
+	return a.persist(cfg)
 }
 
 // SelectProvider define qual provedor está em uso (índice Selected).

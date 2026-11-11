@@ -583,6 +583,14 @@ button {
   text-decoration: underline dotted;
 }
 
+/* O mesmo pill, clicável: é o indicador do Workspace, e o clique abre
+   Configurações, que é onde a pasta se escolhe. */
+.model-pill--action {
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
 /* ---------- chat ---------- */
 
 .chat {

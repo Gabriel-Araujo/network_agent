@@ -638,6 +638,19 @@ function App() {
             </div>
           )}
           <div className="topbar__spacer" />
+          {/* O Workspace ativo, fora de Configurações: o texto do modelo é
+              onde o usuário descobre que a escrita foi recusada, e a tela é
+              onde ele resolve (ticket 05, §3). Clicar abre a tela que grava. */}
+          <button
+            className="model-pill model-pill--action"
+            style={{ '--wails-draggable': 'no-drag' } as any}
+            onClick={() => setSettingsOpen(true)}
+            title={config?.workspace || 'Nenhuma pasta escolhida — o agente não grava arquivos.'}
+          >
+            <span className="model-pill__provider">Workspace</span>
+            <span className="model-pill__sep" aria-hidden="true">·</span>
+            <span className="model-pill__model">{config?.workspace || 'nenhum'}</span>
+          </button>
           <span className="model-pill" style={{ '--wails-draggable': 'no-drag' } as any}>
             {active ? (
               <>

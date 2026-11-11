@@ -156,6 +156,18 @@ export default function SettingsModal({
     }
   }
 
+  // O diálogo é nativo e mora no Go; cancelar devolve a configuração como
+  // está, então não há caso de "cancelei e perdi a pasta".
+  const pickWorkspace = async () => {
+    const a = api()
+    if (!a?.PickWorkspace) return setError('Bindings do Go indisponíveis.')
+    try {
+      apply(await a.PickWorkspace())
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
   const useProvider = async (idx: number) => {
     const a = api()
     if (!a) return
@@ -199,6 +211,25 @@ export default function SettingsModal({
           </p>
         )}
         {error && <p className="settings__error">{error}</p>}
+
+        {/* O Workspace é do app, não do provedor (ticket 05, §4): fica acima
+            do grid de provedores, não dentro do formulário de um deles. */}
+        <div className="field settings__workspace">
+          <span className="field__label">Workspace — a única pasta onde o agente grava</span>
+          <div className="settings__workspace-row">
+            <span
+              className={`field__input settings__workspace-path ${
+                config.workspace ? '' : 'settings__workspace-path--empty'
+              }`}
+              title={config.workspace || ''}
+            >
+              {config.workspace || 'Nenhuma pasta escolhida — o agente não grava arquivos.'}
+            </span>
+            <button className="btn-ghost btn-ghost--sm" onClick={pickWorkspace}>
+              {config.workspace ? 'Trocar...' : 'Escolher...'}
+            </button>
+          </div>
+        </div>
 
         <div className="settings__body">
           <nav className="settings__list" aria-label="Provedores">

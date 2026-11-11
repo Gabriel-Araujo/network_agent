@@ -54,6 +54,10 @@ export function ListConversations() {
   return window['go']['main']['App']['ListConversations']();
 }
 
+export function PickWorkspace() {
+  return window['go']['main']['App']['PickWorkspace']();
+}
+
 export function Reconnect() {
   return window['go']['main']['App']['Reconnect']();
 }

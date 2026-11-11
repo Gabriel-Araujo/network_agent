@@ -389,3 +389,93 @@ func TestDriveDaConexaoComOModeloDescarregado(t *testing.T) {
 	}
 	t.Logf("janelas carregadas depois da conexão: %v", janelas)
 }
+
+// TestDriveAoVivoWorkspace é o drive do ticket 11: a pasta escolhida chega ao
+// Agent e o arquivo do usuário cai NELA, e a pasta que sumiu tem a recusa dela,
+// não a de "nenhuma escolhida".
+//
+// O que um binário de teste não alcança é o clique no diálogo nativo: o
+// PickWorkspace grava o que o diálogo devolve, e aqui a escolha entra pelo
+// MESMO campo (types.Config.Workspace) com um t.TempDir() no lugar do clique.
+// A persistência do campo é medida no internal/config; o pixel do diálogo fica
+// para a conferência de app rodando.
+func TestDriveAoVivoWorkspace(t *testing.T) {
+	a := appAoVivo(t)
+
+	// A escolha entra na configuração em memória: o config.json do usuário não
+	// é cobaia de drive.
+	escolhida := t.TempDir()
+	cfg, err := readConfig()
+	if err != nil {
+		t.Fatalf("readConfig: %v", err)
+	}
+	config.Normalize(&cfg)
+	cfg.Workspace = escolhida
+	a.reconnect(cfg)
+	esperaConectar(t, a)
+	t.Logf("Workspace escolhido: %s", escolhida)
+
+	conv, err := a.CreateConversation("drive ao vivo do Workspace")
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+
+	// O pedido traz todos os fatos que o builder exige: medido, com um prompt
+	// sem o router-id e sem o prefixo ele pergunta em vez de gravar — e o que
+	// este drive precisa é da escrita, não da conversa.
+	turnoDoDrive(t, a, conv.ID, "builder", "Crie um arquivo de configuração FRR novo, "+
+		"chamado frr.conf, para um roteador com BGP no AS 65001, router-id 10.0.0.1, "+
+		"anunciando o prefixo 192.168.10.0/24, com o vizinho 10.0.0.2 no AS 65002. "+
+		"Grave o arquivo.")
+
+	// A prova do §1: o que o modelo gravou está na pasta escolhida. Antes deste
+	// ticket a UI entregava "" ao Connect, e toda escrita era recusada.
+	entradas, err := os.ReadDir(escolhida)
+	if err != nil {
+		t.Fatalf("ReadDir da pasta escolhida: %v", err)
+	}
+	if len(entradas) == 0 {
+		t.Fatal("a pasta escolhida está vazia: ou a escrita foi recusada, ou o modelo não chamou tool nenhuma")
+	}
+	for _, e := range entradas {
+		info, _ := e.Info()
+		t.Logf("na pasta escolhida: %s (%d bytes)", e.Name(), info.Size())
+	}
+
+	// §2: a pasta que sumiu. A recusa é a cada chamada (não no startup), então
+	// apagar a pasta no meio da sessão é exatamente o caso do drive que sai.
+	sumida := filepath.Join(t.TempDir(), "drive-que-saiu")
+	if err := os.MkdirAll(sumida, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.RemoveAll(sumida); err != nil {
+		t.Fatalf("RemoveAll: %v", err)
+	}
+	cfg.Workspace = sumida
+	a.reconnect(cfg)
+	esperaConectar(t, a)
+	t.Logf("Workspace apontando para um caminho removido: %s", sumida)
+
+	antes := len(a.GetLogLines())
+	turnoDoDrive(t, a, conv.ID, "builder-sem-pasta", "Grave agora esse mesmo frr.conf.")
+
+	// A recusa vai ao log da execução — o .log É o asset —, e as duas causas
+	// têm linha própria: confundi-las manda o usuário consertar a coisa errada.
+	var gone, nenhuma bool
+	for _, linha := range a.GetLogLines()[antes:] {
+		if strings.Contains(linha, "o Workspace não existe mais") {
+			gone = true
+			t.Logf("recusa no log: %s", linha)
+		}
+		if strings.Contains(linha, "nenhum Workspace escolhido") {
+			nenhuma = true
+			t.Logf("recusa ERRADA no log: %s", linha)
+		}
+	}
+	if !gone {
+		t.Error("nenhuma recusa de 'o Workspace não existe mais' no log: o modelo não tentou gravar?")
+	}
+	if nenhuma {
+		t.Error("a recusa foi a de 'nenhum Workspace escolhido': a pasta estava escolhida, só não existe mais")
+	}
+}

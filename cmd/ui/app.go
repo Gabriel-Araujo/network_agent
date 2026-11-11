@@ -116,6 +116,12 @@ func NewApp() *App {
 	return a
 }
 
+// connect monta o agente da configuração. É variável de pacote pelo mesmo
+// motivo do runTurn: o Connect de verdade carrega o modelo no provedor, e o
+// teste que prova que o Workspace chega ao Agent não pode depender de um LM
+// Studio no ar.
+var connect = agent.Connect
+
 // reconnect troca o agente ativo conforme a configuração e atualiza o par
 // provedor/modelo que a conversa nova grava. É chamado no startup e a cada
 // gravação vinda da tela de Configurações.
@@ -142,11 +148,11 @@ func (a *App) reconnect(cfg types.Config) {
 	a.agentMux.Unlock()
 
 	go func() {
-		// Workspace vazio: a escolha da pasta — campo no types.Config, diálogo
-		// em Configurações — é o ticket 11. Até ele, as file tools recusam todo
-		// caminho de material do usuário com "nenhuma pasta escolhida", que é o
-		// estado decidido no ticket 05 (§3), não falha silenciosa.
-		newAgent, err := agent.Connect(cfg, "")
+		// O Workspace vem da configuração: é a pasta que o usuário escolheu em
+		// Configurações, e vazia significa "nenhuma escolhida" — estado que as
+		// file tools recusam com texto próprio (ticket 05, §3), não falha
+		// silenciosa.
+		newAgent, err := connect(cfg, cfg.Workspace)
 
 		a.agentMux.Lock()
 		defer a.agentMux.Unlock()

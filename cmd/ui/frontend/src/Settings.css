@@ -460,6 +460,33 @@
   color: var(--text);
 }
 
+/* ---- Workspace: a pasta do usuário, escolhida no diálogo nativo ---- */
+
+/* Fora do grid de provedores, então a margem lateral é a mesma do aviso. */
+.settings__workspace {
+  margin: 12px 20px 0;
+}
+
+.settings__workspace-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* O caminho ocupa a linha e trunca (o completo fica no title); o botão fica
+   fixo ao lado. */
+.settings__workspace-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings__workspace-path--empty {
+  color: var(--text-faint);
+}
+
 .settings__pane-actions {
   display: flex;
   align-items: center;

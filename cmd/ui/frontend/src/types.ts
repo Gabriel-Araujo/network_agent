@@ -257,6 +257,13 @@ export interface ProviderConfig {
 export interface AppConfig {
   selected: number
   providers: ProviderConfig[]
+  /**
+   * A pasta que o usuário escolheu: a única raiz de escrita das file tools.
+   * Ausente ou vazia é "nenhuma escolhida" — Builder e Modifier recusam
+   * gravar, Teacher e Illustrator seguem inteiros, porque o material do
+   * agente não depende dessa escolha.
+   */
+  workspace?: string
 }
 
 export const EMPTY_PROVIDER: ProviderConfig = {

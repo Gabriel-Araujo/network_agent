@@ -247,6 +247,7 @@ export namespace types {
 	export class Config {
 	    selected: number;
 	    providers: Provider[];
+	    workspace?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -256,6 +257,7 @@ export namespace types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.selected = source["selected"];
 	        this.providers = this.convertValues(source["providers"], Provider);
+	        this.workspace = source["workspace"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

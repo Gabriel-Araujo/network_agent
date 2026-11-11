@@ -30,6 +30,8 @@ export function GetLogPath():Promise<string>;
 
 export function ListConversations():Promise<Array<history.Conversation>>;
 
+export function PickWorkspace():Promise<types.Config>;
+
 export function Reconnect():Promise<main.connection>;
 
 export function RenameConversation(arg1:string,arg2:string):Promise<history.Conversation>;
