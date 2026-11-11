@@ -9,20 +9,14 @@ import (
 
 // tempHome aponta o diretório de dados do app para um t.TempDir() e descarta a
 // memoização da semeadura, para cada teste medir uma "primeira abertura" sua
-// sem tocar no ~/.network_agent da máquina. É a costura que o ticket pediu: a
-// raiz do home é sobrescrevível, no mesmo pacote.
+// sem tocar no ~/.network_agent da máquina. A costura é o SetDir exportado —
+// os dois espelhos que gravam no home moram fora deste pacote e precisam da
+// mesma troca.
 func tempHome(t *testing.T) string {
 	t.Helper()
 
 	home := t.TempDir()
-	saved := fileLocation
-	fileLocation = filepath.Join(home, configFileName)
-	materialRoot = sync.OnceValues(seedMaterial)
-
-	t.Cleanup(func() {
-		fileLocation = saved
-		materialRoot = sync.OnceValues(seedMaterial)
-	})
+	t.Cleanup(SetDir(home))
 
 	return home
 }

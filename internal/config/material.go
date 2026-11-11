@@ -19,6 +19,21 @@ func Dir() string {
 	return filepath.Dir(fileLocation)
 }
 
+// SetDir aponta o diretório de dados do app para dir e devolve a função que
+// restaura o anterior (molde do SetCreator, para t.Cleanup). É a costura de
+// teste do home, exportada porque quem grava nele mora fora deste pacote — o
+// espelho do retrieval e o do briefing —, e um teste que não possa trocar o
+// home escreveria no ~/.network_agent da máquina que roda o teste.
+func SetDir(dir string) (restore func()) {
+	saved := fileLocation
+	fileLocation = filepath.Join(dir, configFileName)
+	materialRoot = sync.OnceValues(seedMaterial)
+	return func() {
+		fileLocation = saved
+		materialRoot = sync.OnceValues(seedMaterial)
+	}
+}
+
 // materialRoot projeta o espelho na primeira chamada e devolve a raiz dele.
 // sync.OnceValues e não sync.Once: o erro da semeadura é memoizado junto da
 // raiz, então a segunda leitura de material recebe a mesma resposta sem

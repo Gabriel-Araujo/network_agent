@@ -5,10 +5,11 @@ const (
 	ChunkTypeConcept          = "concept"
 )
 
-// RetrievalDir é o diretório onde as saídas de busca são salvas, relativo
-// ao diretório de trabalho atual. (.agent não está no .gitignore — os
-// espelhos em .agent/tmp são artefatos de execução do agente.)
-const RetrievalDir = ".agent/tmp/retrieval"
+// RetrievalDir é o diretório onde as saídas de busca são salvas, relativo ao
+// diretório de dados do app (config.Dir()) e nunca ao diretório de trabalho:
+// o espelho é artefato de execução, da família do logs/ e do history/, e o
+// CWD do processo é o front-end que manda nele (sob a UI é cmd/ui).
+const RetrievalDir = "tmp/retrieval"
 
 // EmbeddingDimension é a dimensão dos vetores persistidos em frr_docs.
 const EmbeddingDimension = 2560

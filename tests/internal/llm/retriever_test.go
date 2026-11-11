@@ -10,6 +10,7 @@ import (
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/retriever"
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
@@ -136,8 +137,8 @@ func testEmbedderClient() openai.Client {
 // espelho: <slug>-<hash8>.json derivado do input (molde do briefing — o mesmo
 // input regrava o mesmo espelho).
 func TestSaveResults(t *testing.T) {
-	tmp := t.TempDir()
-	t.Chdir(tmp)
+	t.Cleanup(config.SetDir(t.TempDir()))
+	t.Chdir(t.TempDir())
 
 	input := "meu ospf não converge entre o core e o edge"
 
@@ -201,14 +202,11 @@ func TestSaveResults(t *testing.T) {
 // de gravação sobe como erro (o Do a embrulha na sentinela
 // ErrEspelhoNaoGravado) e o valor em memória volta completo.
 func TestSaveResultsFalhaDeGravacao(t *testing.T) {
-	tmp := t.TempDir()
-	t.Chdir(tmp)
+	home := t.TempDir()
+	t.Cleanup(config.SetDir(home))
 
-	// .agent/tmp como ARQUIVO impede o MkdirAll do espelho.
-	if err := os.MkdirAll(".agent", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(".agent/tmp", []byte("bloqueio"), 0o644); err != nil {
+	// O "tmp" do home como ARQUIVO impede o MkdirAll do espelho.
+	if err := os.WriteFile(filepath.Join(home, "tmp"), []byte("bloqueio"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

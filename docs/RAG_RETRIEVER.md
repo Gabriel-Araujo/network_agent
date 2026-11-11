@@ -4,7 +4,7 @@
 > (PostgreSQL + pgvector), alimentado pelo **Classificador** em Modo RAG
 > (`internal/skills/classifier`) e por um gerador de queries LLM.
 > Saída híbrida: resultados em memória **+** espelho JSON em
-> `.agent/tmp/retrieval/`.
+> `~/.network_agent/tmp/retrieval/`.
 > Forma do resultado: `[{"query": string, "protocol": string, "daemon": string, "chunk_type": string, "response": string}]`.
 
 ---
@@ -87,7 +87,7 @@ gera um `rag.Result` por query:
   `response` vazio, preservando os metadados.
 
 O retorno é **híbrido**: os resultados completos voltam em memória e o mesmo
-conteúdo é gravado no espelho `.agent/tmp/retrieval/<slug>-<hash8>.json`
+conteúdo é gravado no espelho `~/.network_agent/tmp/retrieval/<slug>-<hash8>.json`
 (§7). Se só a gravação do espelho falhar, o valor em memória volta completo,
 o path vem vazio e o erro é a sentinela
 `ragretriever.ErrEspelhoNaoGravado` (checável com `errors.Is`) — o espelho
@@ -158,7 +158,7 @@ internal/agent/rag/
    │   └─ queries.go                 → constantes SQL
    └─ env/env.go                     → LoadEnv (DATABASE_URL / EMBEDDING_MODEL), Probe
 pkg/db                                → pgxpool lazy singleton
-pkg/util                              → Slugify, Hash8 (determinístico), SafePath
+pkg/util                              → Slugify, Hash8 (determinístico)
 ```
 
 ### 4.1 `internal/skills/rag-retriever/retriever.go` — orquestração (a skill)
@@ -169,7 +169,7 @@ pkg/util                              → Slugify, Hash8 (determinístico), Safe
   memória + path do espelho** (sentinela `ErrEspelhoNaoGravado` quando só a
   gravação falha).
 - **`SaveResults(input, results)`** grava o JSON em
-  `.agent/tmp/retrieval/<slug>-<hash8>.json` (slug + hash derivados do input,
+  `~/.network_agent/tmp/retrieval/<slug>-<hash8>.json` (slug + hash derivados do input,
   molde do espelho do briefing), retornando o caminho do arquivo criado.
 - **`BuildQueries(ctx, input, filtros, gen)`** usa o gerador como caminho
   primário; sem gerador, ou com geração falha/vazia, **degrada com aviso
@@ -327,15 +327,17 @@ Por quê **RRF** em vez de soma de scores normalizados?
 
 ## 7. Filesystem de Trabalho
 
-- **Espelho do retrieval**: `.agent/tmp/retrieval/<slug>-<hash8>.json` —
+- **Espelho do retrieval**: `~/.network_agent/tmp/retrieval/<slug>-<hash8>.json` —
   gravado por `ragretriever.SaveResults(...)`, nome derivado do input via
   `pkg/util.Slugify`/`Hash8`. O **Hash8 é determinístico**: o mesmo input
   regrava o mesmo espelho (sobrescreve, sem histórico de execuções).
-- **Espelho do briefing rico**: `.agent/tmp/<slug>-<hash8>.json` — gravado
+- **Espelho do briefing rico**: `~/.network_agent/tmp/<slug>-<hash8>.json` — gravado
   pela skill `briefing` (fora do fluxo do CLI, §12), mesma convenção de nome.
-- `.agent/` **é versionado** (os tickets do tracker moram em
-  `.agent/<effort>/`); os espelhos em `.agent/tmp/` são artefatos de execução
-  do agente, não confundir com os tickets.
+- A raiz dos dois é o **diretório de dados do app** (`config.Dir()`,
+  `~/.network_agent`), nunca o diretório de trabalho: o espelho é artefato de
+  execução, da família do `logs/` e do `history/`, e o CWD é o front-end que
+  manda nele (sob a UI é `cmd/ui`). `.agent/` é do tracker e não é versionado
+  (`git ls-files .agent` = 0).
 
 O `cmd/cli/main.go` injeta o JSON dos resultados no prompt do passo [3] dentro
 de um bloco `<recovered_context>...</recovered_context>`, dando ao LLM
@@ -486,7 +488,7 @@ go test -count=1 <pacotes citados>
 só as partes ricas (devices, conexões, resumo do problema e pipeline de
 execução). Entrada: o input textual. Saída:
 `Do(ctx, input, agent) (Briefing, string, error)` — valor em memória **+**
-espelho `.agent/tmp/<slug>-<hash8>.json` (sentinela
+espelho `~/.network_agent/tmp/<slug>-<hash8>.json` (sentinela
 `briefing.ErrEspelhoNaoGravado`), validação/retry ×2 como o Classificador.
 O contrato está em
 [Desenho da skill do briefing rico](../.agent/classifier/issues/04-desenho-da-skill-do-briefing-rico.md).

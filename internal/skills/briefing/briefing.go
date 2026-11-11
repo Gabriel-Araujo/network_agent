@@ -15,14 +15,15 @@ import (
 	"strings"
 
 	llm "github.com/Gabriel-Araujo/network_agent/internal/agent"
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 )
 
 var log = logger.Named("BRIEFING")
 
-// ErrEspelhoNaoGravado sinaliza a falha de gravação do espelho em
-// .agent/tmp: o briefing volta completo em memória e o path vem vazio — o
+// ErrEspelhoNaoGravado sinaliza a falha de gravação do espelho do briefing: o
+// briefing volta completo em memória e o path vem vazio — o
 // espelho nunca derruba o caminho (checável com errors.Is).
 var ErrEspelhoNaoGravado = errors.New("espelho do briefing não gravado")
 
@@ -57,10 +58,11 @@ type Briefing struct {
 // tentativas, o erro sobe explícito — sem fallback silencioso.
 const maxTentativas = 3
 
-// espelhoDir é o diretório do espelho, relativo ao diretório de trabalho
-// atual. A nominação <slug>-<hash8>.json vive em pkg/util (compartilhada com
-// o espelho do retrieval).
-const espelhoDir = ".agent/tmp"
+// espelhoDir é o diretório do espelho, relativo ao diretório de dados do app
+// (config.Dir()) e nunca ao diretório de trabalho. A nominação
+// <slug>-<hash8>.json vive em pkg/util (compartilhada com o espelho do
+// retrieval).
+const espelhoDir = "tmp"
 
 // completarFunc devolve o conteúdo cru da resposta do provedor. É a costura de
 // teste: os testes injetam respostas canned, sem rede.
@@ -73,7 +75,7 @@ type mensagem struct {
 }
 
 // Do gera o briefing rico de input: o valor em memória, o path do espelho
-// .agent/tmp/<slug>-<hash8>.json e o erro — sentinela ErrEspelhoNaoGravado
+// <config.Dir()>/tmp/<slug>-<hash8>.json e o erro — sentinela ErrEspelhoNaoGravado
 // quando só o espelho falhou (briefing completo e path vazio nesse caso).
 func Do(ctx context.Context, input string, agent *llm.Agent) (Briefing, string, error) {
 	if agent == nil {
@@ -198,14 +200,13 @@ func extrairObjeto(bruto string) (map[string]json.RawMessage, error) {
 // <slug>-<hash8>.json derivado do input — o mesmo input regrava o mesmo
 // espelho (sobrescreve, sem histórico de execuções). Retorna o caminho do
 // arquivo criado.
+//
+// Sem SafePath, pela mesma razão do espelho do retrieval: o nome vem do
+// util.Slugify, que não deixa separador, ponto nem ".." no caminho.
 func salvarEspelho(input string, b Briefing) (string, error) {
 	name := util.Slugify(input) + "-" + util.Hash8(input) + ".json"
 
-	dir, err := util.SafePath(".", espelhoDir)
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(dir, name)
+	path := filepath.Join(config.Dir(), espelhoDir, name)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}

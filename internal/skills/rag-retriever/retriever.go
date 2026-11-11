@@ -12,6 +12,7 @@ import (
 
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/retriever"
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 	"github.com/openai/openai-go/v3"
@@ -20,15 +21,15 @@ import (
 
 var log = logger.Named("RAG-RETRIEVER")
 
-// ErrMirrorNotSaved sinaliza a falha de gravação do espelho em
-// .agent/tmp/retrieval: o valor em memória volta completo e o path vem
-// vazio — o espelho nunca derruba o caminho (checável com errors.Is).
+// ErrMirrorNotSaved sinaliza a falha de gravação do espelho do retrieval: o
+// valor em memória volta completo e o path vem vazio — o espelho nunca
+// derruba o caminho (checável com errors.Is).
 var ErrMirrorNotSaved = errors.New("espelho do retrieval não gravado")
 
 // Do gera as queries a partir do input textual (caminho primário; degrada com
 // aviso explícito para uma query única do input cru), executa a busca híbrida
 // com o conjunto único de filtros e grava o espelho
-// .agent/tmp/retrieval/<slug>-<hash8>.json. Retorna os resultados em memória,
+// <config.Dir()>/tmp/retrieval/<slug>-<hash8>.json. Retorna os resultados em memória,
 // o path do espelho e o erro — sentinela ErrMirrorNotSaved quando só o
 // espelho falhou (resultados completos e path vazio nesse caso).
 func Do(ctx context.Context, input string, filtros rag.Filters, cfg rag.Config) ([]rag.Result, string, error) {
@@ -47,18 +48,18 @@ func Do(ctx context.Context, input string, filtros rag.Filters, cfg rag.Config) 
 	return results, path, nil
 }
 
-// SaveResults grava o JSON de []rag.Result em .agent/tmp/retrieval com o nome
-// <slug>-<hash8>.json derivado do input — molde do briefing: o mesmo input
-// regrava o mesmo espelho (sobrescreve, sem histórico de execuções).
+// SaveResults grava o JSON de []rag.Result em <config.Dir()>/tmp/retrieval com
+// o nome <slug>-<hash8>.json derivado do input — molde do briefing: o mesmo
+// input regrava o mesmo espelho (sobrescreve, sem histórico de execuções).
 // Retorna o caminho do arquivo criado.
+//
+// Sem SafePath: util.Slugify troca tudo fora de [a-z0-9] por "-", então o nome
+// derivado do input não tem separador, ponto nem "..", e conter um literal
+// dentro de uma raiz não checaria nada.
 func SaveResults(input string, results []rag.Result) (string, error) {
 	name := util.Slugify(input) + "-" + util.Hash8(input) + ".json"
 
-	dir, err := util.SafePath(".", rag.RetrievalDir)
-	if err != nil {
-		return "", err
-	}
-	jsonPath := filepath.Join(dir, name)
+	jsonPath := filepath.Join(config.Dir(), rag.RetrievalDir, name)
 	if err := os.MkdirAll(filepath.Dir(jsonPath), 0o755); err != nil {
 		return "", err
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/pkg/util"
 )
 
@@ -61,17 +62,22 @@ const briefingExemplo = `{
 
 const inputExemplo = "meu ospf não converge entre o core (R1) e o edge (R2), os dois rodando FRR, ligados pela Gi0/1 em area 0"
 
-// chdirTmp tira o CWD do repo: os espelhos de teste gravam em .agent/tmp
-// relativo ao CWD e nunca podem sujar a árvore.
-func chdirTmp(t *testing.T) {
+// tempHome põe o diretório de dados do app num t.TempDir() — é onde o espelho
+// resolve agora, e sem a troca os testes gravariam no ~/.network_agent da
+// máquina — e tira o CWD do repo, para um espelho que volte a nascer no
+// diretório de trabalho aparecer num diretório vazio em vez de sujar a árvore.
+func tempHome(t *testing.T) string {
 	t.Helper()
+	home := t.TempDir()
+	t.Cleanup(config.SetDir(home))
 	t.Chdir(t.TempDir())
+	return home
 }
 
 // Caso 1: input de exemplo → briefing no formato decidido, com as quatro
 // partes extraídas e o espelho gravado com o JSON da mesma struct.
 func TestBriefingValido(t *testing.T) {
-	chdirTmp(t)
+	home := tempHome(t)
 	fake := &fakeCompletar{fila: []respostaCanned{{texto: briefingExemplo}}}
 
 	got, path, err := do(context.Background(), inputExemplo, fake.completar)
@@ -105,10 +111,10 @@ func TestBriefingValido(t *testing.T) {
 		t.Errorf("executionPipeline = %v, want 6 etapas numeradas", got.ExecutionPipeline)
 	}
 
-	// Espelho: <slug>-<hash8>.json com o JSON da mesma struct.
+	// Espelho: <home>/tmp/<slug>-<hash8>.json com o JSON da mesma struct.
 	wantNome := util.Slugify(inputExemplo) + "-" + util.Hash8(inputExemplo) + ".json"
-	if filepath.Base(path) != wantNome {
-		t.Errorf("nome do espelho = %q, want %q", filepath.Base(path), wantNome)
+	if want := filepath.Join(home, espelhoDir, wantNome); path != want {
+		t.Errorf("espelho = %q, want %q", path, want)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -127,7 +133,7 @@ func TestBriefingValido(t *testing.T) {
 
 // O mesmo input regrava o mesmo espelho (determinístico, sobrescreve).
 func TestEspelhoDeterministico(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{texto: briefingExemplo}, {texto: briefingExemplo},
 	}}
@@ -147,7 +153,7 @@ func TestEspelhoDeterministico(t *testing.T) {
 
 // Caso 2: chave ausente → retry com o erro colado na próxima tentativa.
 func TestChaveAusente_Refaz(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	semConnections := `{"devices": [], "problemAndGoalSummary": "x", "executionPipeline": {"1": "y"}}`
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{texto: semConnections}, {texto: briefingExemplo},
@@ -172,7 +178,7 @@ func TestChaveAusente_Refaz(t *testing.T) {
 // Caso 2 (esgotado): saída inválida que persiste → erro explícito, sem
 // fallback silencioso.
 func TestRespostaRejeitada_Esgota(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	tipoErrado := `{"devices": "não é lista", "connections": [], "problemAndGoalSummary": "x", "executionPipeline": {"1": "y"}}`
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{texto: tipoErrado}, {texto: tipoErrado}, {texto: tipoErrado},
@@ -195,7 +201,7 @@ func TestRespostaRejeitada_Esgota(t *testing.T) {
 
 // Caso 3: JSON malformado → erro após as tentativas.
 func TestJSONMalformado(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{texto: "Desculpe, não posso ajudar com isso."},
 		{texto: `{"devices": [`},
@@ -214,7 +220,7 @@ func TestJSONMalformado(t *testing.T) {
 // Rede de segurança: JSON válido dentro de code fence é aceito (modelos locais
 // emitem fences mesmo instruídos a não fazer).
 func TestJSONEmFence(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{texto: "Claro! ```json\n" + briefingExemplo + "\n```"},
 	}}
@@ -231,7 +237,7 @@ func TestJSONEmFence(t *testing.T) {
 // null não é seção vazia: a chave presente com null é rejeitada (o prompt manda
 // emitir []).
 func TestSecaoNula(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	comNull := `{"devices": null, "connections": [], "problemAndGoalSummary": "x", "executionPipeline": {"1": "y"}}`
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{texto: comNull}, {texto: comNull}, {texto: comNull},
@@ -249,12 +255,9 @@ func TestSecaoNula(t *testing.T) {
 // Falha de gravação do espelho: o briefing volta completo em memória, o path
 // vem vazio e o erro é a sentinela checável com errors.Is.
 func TestEspelhoNaoGravado(t *testing.T) {
-	chdirTmp(t)
-	// .agent/tmp como ARQUIVO impede o MkdirAll do espelho.
-	if err := os.MkdirAll(".agent", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(".agent/tmp", []byte("bloqueio"), 0o644); err != nil {
+	home := tempHome(t)
+	// O espelhoDir como ARQUIVO impede o MkdirAll do espelho.
+	if err := os.WriteFile(filepath.Join(home, espelhoDir), []byte("bloqueio"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	fake := &fakeCompletar{fila: []respostaCanned{{texto: briefingExemplo}}}
@@ -284,7 +287,7 @@ func TestInputVazio(t *testing.T) {
 
 // Erro do provedor: retry ×2 e depois erro explícito, com o motivo.
 func TestErroDoProvedor(t *testing.T) {
-	chdirTmp(t)
+	tempHome(t)
 	foraDoAr := errors.New("provedor fora do ar")
 	fake := &fakeCompletar{fila: []respostaCanned{
 		{err: foraDoAr}, {err: foraDoAr}, {err: foraDoAr},

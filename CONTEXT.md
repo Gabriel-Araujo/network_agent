@@ -206,7 +206,7 @@ _Avoid_: intent analysis, análise de intenção, briefing de intenção
 
 **Espelho**:
 The JSON file a skill writes beside its in-memory result, named
-`<slug>-<hash8>.json` under `.agent/tmp` — a mirror, not the product: on a write
+`<slug>-<hash8>.json`, in the app's data directory and never in the repo — a mirror, not the product: on a write
 failure the value still comes back and the failure is a sentinel error. Both the
 **Briefing rico** and the retrieval write one.
 _Avoid_: output file, arquivo de saída, cache, log, backup
