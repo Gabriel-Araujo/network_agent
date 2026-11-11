@@ -18,13 +18,18 @@ import "errors"
 // O caso inesperado (sem permissão, disco cheio, JSON que não serializa) não
 // tem sentinela: vai o erro cru do sistema, embrulhado com o que a tool estava
 // fazendo. Quem formata trata tipado o que conhece e mostra o cru no resto.
+//
+// O texto de cada sentinela é a **frase curta que o usuário lê** no Aviso
+// (ticket 19, §3, via Reason): por isso é português, e por isso é curto — a
+// ação, o caminho e a pasta são do Aviso, e repeti-los aqui faria a frase
+// dizer duas vezes onde a tool olhou.
 var (
 	// ErrOutsideRoot: o caminho pedido resolve fora da raiz dele.
 	ErrOutsideRoot = errors.New("caminho fora da raiz")
 
 	// ErrNotFound: o arquivo alvo não existe. A tool sabe onde olhou; não
 	// sabe se o arquivo existe em outro lugar.
-	ErrNotFound = errors.New("arquivo não encontrado na raiz em que a tool procurou")
+	ErrNotFound = errors.New("arquivo não encontrado")
 
 	// ErrNoWorkspace: nenhuma pasta foi escolhida para os arquivos do
 	// usuário, logo não há onde ler nem gravar. Só o usuário conserta.
@@ -36,7 +41,7 @@ var (
 
 	// ErrReadOnlyRoot: a escrita cai dentro do material do agente ou do
 	// diretório do app ao lado dele, que são só de leitura.
-	ErrReadOnlyRoot = errors.New("a raiz é só de leitura")
+	ErrReadOnlyRoot = errors.New("essa pasta é só de leitura")
 
 	// ErrTooLarge: o conteúdo a gravar, ou o arquivo a editar, passa do
 	// limite.
@@ -52,3 +57,35 @@ var (
 	// ErrStale: o arquivo mudou entre a leitura e a escrita do EditFile.
 	ErrStale = errors.New("arquivo modificado por outro processo")
 )
+
+// sentinelas são os casos tipados acima. A lista existe para o Reason abaixo,
+// e um sentinela novo entra nela junto da declaração — quem esquecer cai no
+// caso inesperado, que mostra o erro cru.
+var sentinelas = []error{
+	ErrOutsideRoot,
+	ErrNotFound,
+	ErrNoWorkspace,
+	ErrWorkspaceGone,
+	ErrReadOnlyRoot,
+	ErrTooLarge,
+	ErrTextNotFound,
+	ErrTextNotUnique,
+	ErrStale,
+}
+
+// Reason devolve o motivo curto da falha: a frase do caso tipado que err
+// carrega, ou o err cru quando o caso é inesperado. É a última metade do Aviso
+// que o usuário lê (ticket 19, §3).
+//
+// A frase é o texto do próprio sentinela, e não um segundo catálogo em quem
+// formata: o par caso ↔ frase mora num lugar só, aqui. O cru só no caso
+// inesperado porque o conhecido já vem embrulhado — o ErrOutsideRoot carrega
+// o erro do SafePath, que é uma frase em inglês, e o Aviso é em português.
+func Reason(err error) string {
+	for _, sentinela := range sentinelas {
+		if errors.Is(err, sentinela) {
+			return sentinela.Error()
+		}
+	}
+	return err.Error()
+}

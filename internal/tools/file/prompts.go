@@ -62,10 +62,17 @@ Rules:
 const (
 	READ_MAX_CHARS_TO_READ = 64 * 1024 // 64 KiB (bytes); larger files come back truncated
 	READ_TOOL_NAME         = "ReadFile"
-	// READ_NOT_FOUND_NOTICE is the result when the target file does not exist,
-	// told apart from every other read failure; the path is appended to it, and
-	// the description below shows it to the model.
-	READ_NOT_FOUND_NOTICE = "Error: File not found. Nothing was read, and this tool never creates files. Do not say the file was written, created, edited or updated, and do not show configuration from the conversation as the content of this file. Tell the user the file does not exist: "
+	// READ_NOT_FOUND_NOTICE is the result when the target file was not found
+	// under the root the path resolved against, told apart from every other
+	// read failure; the path is appended to it, and the description below shows
+	// it to the model.
+	//
+	// It reports the lookup, not the file: the tool knows where it looked and
+	// does not know whether the file exists elsewhere. The claim it used to
+	// make — "tell the user the file does not exist" — was measured turning
+	// into "check that the path is correct" with the user's path accused and
+	// the root at fault (ticket 19, §4).
+	READ_NOT_FOUND_NOTICE = "Error: File not found. Nothing was read, and this tool never creates files. Do not say the file was written, created, edited or updated, and do not show configuration from the conversation as the content of this file. Tell the user it was not found at the path this tool resolved: "
 	READ_TOOL_DESCRIPTION = `
 Reads and returns the content of a file from the local filesystem.
 ` + TWO_ROOTS_RULE + `

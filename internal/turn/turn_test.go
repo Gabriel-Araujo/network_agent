@@ -17,6 +17,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/paths"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills/classifier"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
+	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -85,6 +86,14 @@ type fakeLLM struct {
 	failReplyFrom      int
 	usage              int64
 	responseCalls      int
+
+	// toolCall, when set, makes the FIRST /responses call answer a ReadFile
+	// of that path instead of text — the only way a real tool failure
+	// reaches the turn through the fake. It is served once and does not
+	// consume a canned reply, so the replies queue keeps meaning "one per
+	// text answer".
+	toolCall       string
+	toolCallServed bool
 }
 
 // nextReply pops the next canned reply, repeating the last one once the queue
@@ -125,6 +134,15 @@ func (f *fakeLLM) start(t *testing.T) *httptest.Server {
 		case "/responses":
 			body, _ := io.ReadAll(r.Body)
 			f.lastResponseBody = body
+			if f.toolCall != "" && !f.toolCallServed {
+				f.toolCallServed = true
+				w.Header().Set("Content-Type", "application/json")
+				io.WriteString(w, `{"id":"resp_tool","object":"response","created_at":0,"status":"completed","model":"test-model",
+					"output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"`+filetools.READ_TOOL_NAME+`","arguments":`+
+					strconv.Quote(`{"filePath":"`+f.toolCall+`"}`)+`,"status":"completed"}],
+					"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`)
+				return
+			}
 			if f.failReplyFrom > 0 && f.responseCalls+1 >= f.failReplyFrom {
 				f.responseCalls++
 				http.Error(w, `{"error":{"message":"boom"}}`, http.StatusInternalServerError)
@@ -148,9 +166,17 @@ func (f *fakeLLM) start(t *testing.T) *httptest.Server {
 // newFakeAgent wires an Agent to the fake provider.
 func newFakeAgent(t *testing.T, f *fakeLLM) *agentapi.Agent {
 	t.Helper()
+	return newFakeAgentIn(t, f, t.TempDir())
+}
+
+// newFakeAgentIn is newFakeAgent with the Workspace named by the caller: the
+// Aviso of a tool failure says which folder the tool resolved against, and a
+// t.TempDir() the test cannot see is a root it cannot assert.
+func newFakeAgentIn(t *testing.T, f *fakeLLM, workspace string) *agentapi.Agent {
+	t.Helper()
 	ts := f.start(t)
 	client := openai.NewClient(option.WithBaseURL(ts.URL), option.WithAPIKey("test-key"))
-	return agentapi.Init(client, "", "", "test-model", 0, tools.GetSkillAndTools(), "generic prompt", t.TempDir())
+	return agentapi.Init(client, "", "", "test-model", 0, tools.GetSkillAndTools(), "generic prompt", workspace)
 }
 
 // systemFromBody extracts the system prompt sent in a recorded /responses

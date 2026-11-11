@@ -163,10 +163,11 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 		out.Prompt = input + "\n\n<recovered_context>\n" + recovered + "\n</recovered_context>"
 	}
 
-	// As falhas de tool do Chat ficam descartadas aqui de propósito: o ticket 18
-	// só abriu o canal, e quem as drena para out.Warnings é o 19, a fatia do
-	// Aviso na tela.
-	resp, _, err := turnAgent.Chat(ctx, transcript, out.Prompt)
+	// As falhas de tool do Chat são drenadas antes do erro, não depois: a
+	// lista é o que aconteceu no turno, e uma tool pode ter falhado no
+	// caminho de um turno que o provedor derrubou depois (ticket 18, §4).
+	resp, failures, err := turnAgent.Chat(ctx, transcript, out.Prompt)
+	warnFailures(&out, failures)
 	if err != nil {
 		return out, state, err
 	}
@@ -211,8 +212,11 @@ func recheckMermaid(ctx context.Context, turnAgent *agentapi.Agent, transcript [
 		history.Message{Role: history.RoleAgent, Content: out.Text, Status: history.StatusDone},
 	)
 
-	// Falhas de tool descartadas, como na chamada final: ticket 19.
-	resp, _, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
+	// As falhas do re-ask entram no mesmo campo da chamada final, e o dedup
+	// é o que impede a mesma recusa de aparecer duas vezes quando o modelo
+	// repete a tool na segunda tentativa.
+	resp, failures, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
+	warnFailures(out, failures)
 	if err != nil {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("diagram block faulted (%s, line %d) and the re-ask failed — shipping the first reply: %v", first[0].Violation, first[0].Line, err))
 		return
