@@ -1,0 +1,30 @@
+%% Leaf-spine topology with eBGP unnumbered
+flowchart TB
+    subgraph SPINE["Spines: AS 65000"]
+        S1["spine1"]
+        S2["spine2"]
+    end
+    subgraph LEAF["Leafs: unique private ASNs"]
+        L1["leaf1<br/>AS 65001"]
+        L2["leaf2<br/>AS 65002"]
+        L3["leaf3<br/>AS 65003"]
+    end
+    S1 --- L1
+    S1 --- L2
+    S1 --- L3
+    S2 --- L1
+    S2 --- L2
+    S2 --- L3
+    L1 --- SRV1(["Server A"])
+    L3 --- SRV2(["Server B"])
+
+%% FRR configuration (leaf1):
+%% router bgp 65001
+%%  bgp router-id 10.0.0.11
+%%  neighbor swp1 interface remote-as external
+%%  neighbor swp2 interface remote-as external
+%%  bgp bestpath as-path multipath-relax
+%%  address-family ipv4 unicast
+%%   redistribute connected
+%%   maximum-paths 64
+%%  exit-address-family

@@ -1,0 +1,14 @@
+%% BGP convergence after a link failure
+flowchart TD
+    F(["Link to neighbor goes down"]) --> BFD{"BFD configured?"}
+    BFD -- Yes --> B1["BFD detects in ms<br/>and tears down the session"]
+    BFD -- No --> B2["Wait for hold-time<br/>default 180s<br/>or fast-external-failover"]
+    B1 --> W["Neighbor routes are removed<br/>from Adj-RIB-In"]
+    B2 --> W
+    W --> R["Re-run the decision process"]
+    R --> Q{"Alternative path exists<br/>ECMP or backup?"}
+    Q -- Yes --> U["Update FIB with new best path"]
+    Q -- No --> WD["Send WITHDRAW<br/>to other neighbors"]
+    U --> ADV["Send UPDATE to neighbors"]
+    WD --> END(["Network reconverged"])
+    ADV --> END

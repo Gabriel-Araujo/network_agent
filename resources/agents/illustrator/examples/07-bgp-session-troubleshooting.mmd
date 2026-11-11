@@ -1,0 +1,13 @@
+%% BGP session troubleshooting
+flowchart TD
+    A(["BGP session will not come up"]) --> B{"show bgp summary:<br/>state?"}
+    B -- "Idle / Connect" --> C{"Ping/TCP 179<br/>to the neighbor ok?"}
+    C -- No --> C1["Check route, firewall,<br/>ACL and update-source"]
+    C -- Yes --> C2["Check neighbor config:<br/>remote-as and MD5 password"]
+    B -- Active --> D["Neighbor not answering:<br/>check remote side config"]
+    B -- "OpenSent / OpenConfirm" --> E{"Log shows<br/>NOTIFICATION?"}
+    E -- Yes --> E1["Check ASN, hold-time,<br/>duplicate router-id"]
+    E -- No --> E2["Check MTU and capabilities"]
+    B -- Established --> F{"Receiving prefixes?"}
+    F -- No --> F1["Check route-map, prefix-list<br/>and address-family activation"]
+    F -- Yes --> OK(["Session operational"])

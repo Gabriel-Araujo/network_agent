@@ -1,0 +1,10 @@
+%% eBGP vs iBGP route propagation rules
+flowchart TD
+    R(["Route received"]) --> FROM{"Learned from which<br/>neighbor type?"}
+    FROM -- eBGP --> E1["Advertise to<br/>all eBGP and iBGP neighbors"]
+    FROM -- iBGP --> I1{"Is the destination<br/>neighbor iBGP?"}
+    I1 -- No --> I2["Advertise to eBGP neighbors"]
+    I1 -- Yes --> I3{"Am I a Route Reflector<br/>for this client?"}
+    I3 -- No --> I4(["Do not advertise<br/>iBGP split-horizon rule"])
+    I3 -- Yes --> I5["Reflect the route"]
+    FROM -- Local --> L1["Advertise to all"]

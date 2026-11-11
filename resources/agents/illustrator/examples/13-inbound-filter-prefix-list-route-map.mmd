@@ -1,0 +1,23 @@
+%% Inbound filtering with prefix-list and route-map
+flowchart TD
+    IN(["UPDATE from neighbor"]) --> PL{"prefix-list<br/>permits the prefix?"}
+    PL -- No --> D1(["Drop"])
+    PL -- Yes --> RM{"route-map IN<br/>seq 10: AS-path<br/>matches bogon?"}
+    RM -- Yes --> D2(["deny: drop"])
+    RM -- No --> RM2{"seq 20: community<br/>65000:100 matches?"}
+    RM2 -- Yes --> S1["set local-preference 200"]
+    RM2 -- No --> S2["seq 30: set local-preference 100"]
+    S1 --> OK(["Accepted into Adj-RIB-In"])
+    S2 --> OK
+
+%% FRR configuration:
+%% bgp as-path access-list BOGON permit _(64496|64497)_
+%% ip prefix-list ALLOWED seq 5 permit 10.0.0.0/8 le 24
+%% !
+%% route-map IN deny 10
+%%  match as-path BOGON
+%% route-map IN permit 20
+%%  match community CUST-PRIMARY
+%%  set local-preference 200
+%% route-map IN permit 30
+%%  set local-preference 100

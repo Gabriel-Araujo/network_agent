@@ -1,0 +1,11 @@
+%% Remotely Triggered Black Hole (RTBH) via BGP community
+flowchart TD
+    A(["DDoS attack on IP 203.0.113.10"]) --> B["NOC announces 203.0.113.10/32<br/>with community 65535:666"]
+    B --> C["Edge router<br/>receives the UPDATE"]
+    C --> D{"Blackhole community<br/>present?"}
+    D -- No --> E["Normal processing"]
+    D -- Yes --> F{"Prefix is a /32<br/>owned by the customer?"}
+    F -- No --> G(["Reject: prevents abuse"])
+    F -- Yes --> H["set ip next-hop 192.0.2.1<br/>discard nexthop"]
+    H --> I["Install route to Null0"]
+    I --> J(["Attack traffic dropped at the edge"])

@@ -1,0 +1,13 @@
+%% FRRouting: route installation into the FIB
+flowchart TD
+    A["Protocol daemon<br/>receives/computes route"] --> B["Sends route to zebra via ZAPI"]
+    B --> C{"Other routes exist<br/>for the same prefix?"}
+    C -- No --> F["Route selected"]
+    C -- Yes --> D{"Compare<br/>administrative distance"}
+    D -- "Lowest AD wins" --> F
+    D -- "Equal AD" --> E{"Compare metric"}
+    E --> F
+    F --> G{"Nexthop reachable?"}
+    G -- No --> H["Route stays in RIB<br/>not installed in FIB"]
+    G -- Yes --> I["Install into kernel via netlink"]
+    I --> J["Route active in FIB"]

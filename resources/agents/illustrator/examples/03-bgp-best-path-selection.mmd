@@ -1,0 +1,14 @@
+%% BGP best path selection (simplified)
+flowchart TD
+    S(["Multiple paths for the prefix"]) --> NH{"Nexthop<br/>reachable?"}
+    NH -- No --> DESC["Discard path"]
+    NH -- Yes --> W{"Highest weight"}
+    W --> LP{"Highest local-preference"}
+    LP --> LOC{"Locally originated?"}
+    LOC --> AS{"Shortest AS-path"}
+    AS --> OR{"Lowest origin<br/>IGP, then EGP, then incomplete"}
+    OR --> MED{"Lowest MED"}
+    MED --> EB{"eBGP preferred over iBGP"}
+    EB --> IGP{"Lowest IGP cost<br/>to the nexthop"}
+    IGP --> RID{"Lowest router-id"}
+    RID --> BEST(["Best path selected"])

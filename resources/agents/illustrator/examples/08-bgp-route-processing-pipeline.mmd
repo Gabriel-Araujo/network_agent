@@ -1,0 +1,11 @@
+%% BGP route processing pipeline: Adj-RIB-In -> Loc-RIB -> Adj-RIB-Out
+flowchart LR
+    PEER_IN(["UPDATE received<br/>from neighbor"]) --> ADJIN[("Adj-RIB-In")]
+    ADJIN --> INPOL["Inbound policy<br/>route-map in, prefix-list"]
+    INPOL --> DEC{"Decision process<br/>best path"}
+    DEC --> LOC[("Loc-RIB")]
+    LOC --> ZEBRA["Install in zebra<br/>RIB and FIB"]
+    LOC --> OUTPOL["Outbound policy<br/>route-map out"]
+    OUTPOL --> ADJOUT[("Adj-RIB-Out")]
+    ADJOUT --> PEER_OUT(["UPDATE sent<br/>to neighbors"])
+    INPOL -. "rejected" .-> DROP(["Dropped"])

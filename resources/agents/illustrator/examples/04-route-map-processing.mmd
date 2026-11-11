@@ -1,0 +1,12 @@
+%% FRRouting: route-map processing
+flowchart TD
+    IN(["Route received/advertised"]) --> S1{"route-map<br/>seq 10: match?"}
+    S1 -- Yes --> ACT1{"permit or deny?"}
+    ACT1 -- permit --> SET1["Apply set<br/>e.g. local-preference 200"]
+    SET1 --> OKP(["Route accepted"])
+    ACT1 -- deny --> DENY(["Route rejected"])
+    S1 -- No --> S2{"route-map<br/>seq 20: match?"}
+    S2 -- Yes --> ACT2["Apply seq 20 action"]
+    S2 -- No --> IMP["End without match:<br/>implicit deny"]
+    IMP --> DENY
+    ACT2 --> OKP

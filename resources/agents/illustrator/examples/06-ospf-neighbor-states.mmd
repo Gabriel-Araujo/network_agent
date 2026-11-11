@@ -1,0 +1,9 @@
+%% OSPF neighbor states
+flowchart LR
+    Down --> Init
+    Init -->|"2-Way received"| TwoWay["2-Way"]
+    TwoWay -->|"DR/BDR elected"| ExStart
+    ExStart --> Exchange
+    Exchange --> Loading
+    Loading --> Full
+    Full -->|"Dead timer expires"| Down

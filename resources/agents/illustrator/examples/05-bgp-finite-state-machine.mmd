@@ -1,0 +1,12 @@
+%% BGP finite state machine (FSM)
+flowchart LR
+    Idle --> Connect
+    Connect -->|"TCP ok"| OpenSent
+    Connect -->|"failure"| Active
+    Active -->|"TCP ok"| OpenSent
+    Active -->|"retry"| Connect
+    OpenSent -->|"OPEN received"| OpenConfirm
+    OpenConfirm -->|"KEEPALIVE"| Established
+    Established -->|"error / NOTIFICATION"| Idle
+    OpenSent -->|"error"| Idle
+    OpenConfirm -->|"error"| Idle

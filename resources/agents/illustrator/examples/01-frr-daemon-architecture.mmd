@@ -1,0 +1,25 @@
+%% FRRouting: daemon architecture and zebra
+flowchart TD
+    CLI["vtysh (integrated CLI)"]
+
+    subgraph PROTO["Protocol daemons"]
+        bgpd["bgpd"]
+        ospfd["ospfd"]
+        ospf6d["ospf6d"]
+        isisd["isisd"]
+        ripd["ripd"]
+        staticd["staticd"]
+    end
+
+    zebra["zebra<br/>RIB + FIB manager"]
+    kernel[("Linux kernel<br/>netlink")]
+
+    CLI --> PROTO
+    CLI --> zebra
+    bgpd <-->|ZAPI| zebra
+    ospfd <-->|ZAPI| zebra
+    ospf6d <-->|ZAPI| zebra
+    isisd <-->|ZAPI| zebra
+    ripd <-->|ZAPI| zebra
+    staticd <-->|ZAPI| zebra
+    zebra <-->|routes and interfaces| kernel

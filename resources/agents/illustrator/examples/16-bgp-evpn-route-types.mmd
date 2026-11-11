@@ -1,0 +1,10 @@
+%% BGP EVPN (VXLAN) route types
+flowchart TD
+    EV(["BGP EVPN"]) --> T2["Type 2<br/>MAC/IP Advertisement"]
+    EV --> T3["Type 3<br/>Inclusive Multicast<br/>BUM replication"]
+    EV --> T5["Type 5<br/>IP Prefix<br/>inter-VNI routing"]
+    EV --> T1["Type 1<br/>Ethernet AD<br/>multihoming"]
+    EV --> T4["Type 4<br/>Ethernet Segment"]
+    T2 --> U2["Learns MACs and ARP<br/>of remote hosts"]
+    T3 --> U3["Builds the VTEP list<br/>per VNI"]
+    T5 --> U5["Advertises L3 prefixes<br/>of a VRF"]

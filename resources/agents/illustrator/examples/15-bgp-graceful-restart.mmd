@@ -1,0 +1,13 @@
+%% BGP Graceful Restart
+sequenceDiagram
+    participant R as Restarting router
+    participant H as Helper (neighbor)
+    R->>H: OPEN with Graceful Restart capability
+    H->>R: OPEN with Graceful Restart capability
+    Note over R,H: Session Established
+    R--xH: Session drops (bgpd restart)
+    Note over H: Marks routes as stale<br/>keeps them in FIB
+    R->>H: New session, OPEN with R-bit
+    H->>R: Resends routes
+    R->>H: End-of-RIB
+    Note over H: Removes stale routes<br/>that were not re-advertised

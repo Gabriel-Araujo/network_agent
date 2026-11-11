@@ -1,0 +1,20 @@
+%% BGP Route Reflector: reflection rules
+flowchart TD
+    A(["RR receives route"]) --> B{"Route origin"}
+    B -- "RR client" --> C["Reflect to other clients<br/>and to non-clients"]
+    B -- "iBGP non-client" --> D["Reflect to clients only"]
+    B -- eBGP --> E["Advertise to clients<br/>and non-clients"]
+    C --> F["Add ORIGINATOR_ID<br/>and CLUSTER_LIST"]
+    D --> F
+    F --> G{"CLUSTER_LIST contains<br/>my cluster-id?"}
+    G -- Yes --> H(["Discard: loop detected"])
+    G -- No --> I(["Route reflected"])
+
+%% FRR configuration:
+%% router bgp 65000
+%%  neighbor RR-CLIENTS peer-group
+%%  neighbor RR-CLIENTS remote-as 65000
+%%  bgp cluster-id 10.0.0.1
+%%  address-family ipv4 unicast
+%%   neighbor RR-CLIENTS route-reflector-client
+%%  exit-address-family

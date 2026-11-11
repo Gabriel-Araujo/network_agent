@@ -1,0 +1,14 @@
+%% BGP ECMP (multipath) decision
+flowchart TD
+    A(["Paths for the same prefix"]) --> B{"Tied up to<br/>the AS-path step?"}
+    B -- No --> C(["Select best path only"])
+    B -- Yes --> D{"multipath-relax<br/>enabled?"}
+    D -- No --> E{"Identical AS-path?"}
+    D -- Yes --> F{"Same AS-path length?"}
+    E -- No --> C
+    E -- Yes --> G["ECMP candidate"]
+    F -- No --> C
+    F -- Yes --> G
+    G --> H{"Number of paths within<br/>maximum-paths limit?"}
+    H -- Yes --> I(["Install all nexthops in FIB"])
+    H -- No --> J(["Install only the best N"])
