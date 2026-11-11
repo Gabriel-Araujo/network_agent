@@ -2,12 +2,15 @@ package main
 
 import (
 	"cmp"
+	"encoding/json"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
@@ -28,14 +31,13 @@ import (
 //
 //	LOG_FILE=<dir do asset> UI_DRIVE_AO_VIVO=1 \
 //	  go test ./cmd/ui/ -run TestDriveAoVivo -v -count=1 -timeout 60m
-func appAoVivo(t *testing.T) *App {
-	t.Helper()
-	if os.Getenv("UI_DRIVE_AO_VIVO") != "1" {
-		t.Skip("drive ao vivo: exige UI_DRIVE_AO_VIVO=1, o LM Studio e o banco do RAG de pé")
-	}
 
-	// As mesmas quatro linhas do main(): é o logger do projeto que grava a
-	// evidência deste ticket, e o arquivo dele É o asset.
+// logDoDrive liga o logger do projeto como o main() liga: é ele que grava a
+// evidência dos drives, e o arquivo dele É o asset do ticket.
+func logDoDrive(t *testing.T) {
+	t.Helper()
+
+	// As mesmas quatro linhas do main().
 	cfg := logger.ConfigFromEnv()
 	if cfg.File == "" {
 		cfg.File = filepath.Join(filepath.Dir(config.Path()), "logs")
@@ -45,6 +47,15 @@ func appAoVivo(t *testing.T) *App {
 	// Init, para o anel receber desde a primeira linha do run.
 	cfg.ConsoleTee = logs
 	logger.Init(cfg)
+}
+
+func appAoVivo(t *testing.T) *App {
+	t.Helper()
+	if os.Getenv("UI_DRIVE_AO_VIVO") != "1" {
+		t.Skip("drive ao vivo: exige UI_DRIVE_AO_VIVO=1, o LM Studio e o banco do RAG de pé")
+	}
+
+	logDoDrive(t)
 
 	// NewApp é o App da produção: lê o config.json real e conecta o provedor e
 	// o modelo que o usuário escolheu. Só o histórico e os eventos são
@@ -56,9 +67,10 @@ func appAoVivo(t *testing.T) *App {
 	a.store = history.NewFileStore(dir)
 	a.emit = func(string, ...any) {}
 
-	if a.currentAgent() == nil {
-		t.Fatal("nenhum provedor/modelo ativo: o drive precisa do config.json real")
-	}
+	// A conexão é background (ticket 13) e a carga do modelo no LM Studio leva
+	// dezenas de segundos a frio: o drive espera por ela, que é justamente o
+	// que o app não espera mais.
+	esperaConectar(t, a)
 	t.Logf("provedor=%q modelo=%q histórico=%s",
 		a.activeConfig().Provider, a.activeConfig().Model, dir)
 	return a
@@ -247,4 +259,133 @@ func nivelDaLinha(linha string) string {
 
 func chavesOrdenadas(m map[string]bool) []string {
 	return slices.Sorted(maps.Keys(m))
+}
+
+// ---------- drive da conexão (ticket 13) ----------
+
+// instanciasCarregadas sonda o LM Studio e devolve as janelas das instâncias
+// carregadas do modelo. É a precondição do drive deste ticket: com o modelo já
+// quente a carga é instantânea e o drive passa com o defeito de pé.
+func instanciasCarregadas(t *testing.T, providerURL, modelID string) []int64 {
+	t.Helper()
+
+	root := strings.TrimSuffix(strings.TrimRight(providerURL, "/"), "/v1") + "/api/v1/models"
+	resp, err := http.Get(root)
+	if err != nil {
+		t.Fatalf("sondando o LM Studio em %s: %v", root, err)
+	}
+	defer resp.Body.Close()
+
+	var corpo struct {
+		Models []struct {
+			Key             string `json:"key"`
+			ID              string `json:"id"`
+			LoadedInstances []struct {
+				Config struct {
+					ContextLength int64 `json:"context_length"`
+				} `json:"config"`
+			} `json:"loaded_instances"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&corpo); err != nil {
+		t.Fatalf("resposta da sondagem ilegível: %v", err)
+	}
+
+	var janelas []int64
+	for _, m := range corpo.Models {
+		if m.Key != modelID && m.ID != modelID {
+			continue
+		}
+		for _, inst := range m.LoadedInstances {
+			janelas = append(janelas, inst.Config.ContextLength)
+		}
+	}
+	return janelas
+}
+
+// TestDriveDaConexaoComOModeloDescarregado é o drive ao vivo do ticket 13, no
+// único estado que distingue o conserto: o modelo DESCARREGADO, que é como o
+// LM Studio fica depois do idle e em toda partida a frio.
+//
+// Diferente dos outros drives deste arquivo, não precisa do banco do RAG nem
+// roda turno nenhum: o que ele mede é o arranque do App — que NewApp volta na
+// hora em vez de esperar a carga, que a conexão termina em agente, e que a
+// carga durou mais do que os 3s da sondagem (internal/agent.lmStudioProbeTimeout),
+// que é o deadline que o defeito aplicava nela.
+//
+//	lms unload --all
+//	LOG_FILE=<dir do asset> UI_DRIVE_AO_VIVO=1 \
+//	  go test ./cmd/ui/ -run TestDriveDaConexaoComOModeloDescarregado -v -count=1 -timeout 20m
+func TestDriveDaConexaoComOModeloDescarregado(t *testing.T) {
+	if os.Getenv("UI_DRIVE_AO_VIVO") != "1" {
+		t.Skip("drive ao vivo: exige UI_DRIVE_AO_VIVO=1, o LM Studio de pé e o modelo descarregado")
+	}
+	logDoDrive(t)
+
+	cfg, err := readConfig()
+	if err != nil {
+		t.Fatalf("lendo a configuração real: %v", err)
+	}
+	config.Normalize(&cfg)
+	provider, model, ok := selectedModel(cfg)
+	if !ok {
+		t.Fatal("nenhum provedor/modelo selecionado: o drive precisa do config.json real")
+	}
+
+	// A precondição é o drive: com instância carregada, a carga não acontece e
+	// o teste não discrimina conserto de defeito.
+	if janelas := instanciasCarregadas(t, provider.Url, model.Id); len(janelas) > 0 {
+		t.Fatalf("o modelo %q já está carregado (janelas %v): rode `lms unload --all` antes — quente, este drive passa com o defeito de pé", model.Id, janelas)
+	}
+	t.Logf("precondição: %q descarregado no %s, janela pedida %d", model.Id, provider.Url, model.ContextSize)
+
+	// 1. O arranque não espera a carga. NewApp roda antes do wails.Run: o que
+	//    demorar aqui é tela nenhuma na frente do usuário.
+	comecou := time.Now()
+	a := NewApp()
+	arranque := time.Since(comecou)
+	estadoNoArranque := a.GetConnection().State
+
+	if arranque > time.Second {
+		t.Errorf("NewApp levou %s: o arranque voltou a esperar a conexão", arranque.Round(time.Millisecond))
+	}
+	if estadoNoArranque != connConnecting {
+		t.Errorf("estado no arranque %q, esperava %q", estadoNoArranque, connConnecting)
+	}
+	t.Logf("NewApp voltou em %s com a conexão em %q", arranque.Round(time.Millisecond), estadoNoArranque)
+
+	// 2. A conexão termina em agente, e a carga é o que demora.
+	for a.GetConnection().State == connConnecting {
+		if time.Since(comecou) > 10*time.Minute {
+			t.Fatal("a conexão não terminou em 10min")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	carga := time.Since(comecou)
+
+	conn := a.GetConnection()
+	if conn.State != connReady {
+		t.Fatalf("a conexão terminou em %q depois de %s — causa: %s", conn.State, carga.Round(time.Millisecond), conn.Cause)
+	}
+	if a.currentAgent() == nil {
+		t.Fatal("conexão ready sem agente")
+	}
+	t.Logf("conexão %q em %s; provedor=%q modelo=%q", conn.State, carga.Round(time.Millisecond),
+		a.activeConfig().Provider, a.activeConfig().Model)
+
+	// 3. O drive discrimina: a carga passou do deadline que o defeito aplicava
+	//    nela. Abaixo disso, o conserto e o defeito são indistinguíveis aqui.
+	const prazoDaSondagem = 3 * time.Second
+	if carga < prazoDaSondagem {
+		t.Errorf("a carga levou só %s: menos que os %s da sondagem, então este drive não distingue o conserto do defeito",
+			carga.Round(time.Millisecond), prazoDaSondagem)
+	}
+
+	// 4. A janela pedida é a que ficou carregada: a carga fez o que o Connect
+	//    pediu, não só devolveu 200.
+	janelas := instanciasCarregadas(t, provider.Url, model.Id)
+	if !slices.Contains(janelas, model.ContextSize) {
+		t.Errorf("janelas carregadas %v, nenhuma com os %d pedidos", janelas, model.ContextSize)
+	}
+	t.Logf("janelas carregadas depois da conexão: %v", janelas)
 }

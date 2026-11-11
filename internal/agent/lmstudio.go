@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +12,29 @@ import (
 	"time"
 )
 
-const lmStudioProbeTimeout = 3 * time.Second
+// Os dois deadlines da conversa com o LM Studio. São `var`, e não `const`,
+// pelo mesmo motivo do seam de composição da UI: o teste precisa encurtá-los
+// para provar qual dos dois governa a carga sem dormir segundos de verdade.
+var (
+	// lmStudioProbeTimeout dimensiona a sondagem: um GET no servidor local.
+	lmStudioProbeTimeout = 3 * time.Second
+
+	// lmStudioLoadTimeout dimensiona a carga, que é outra ordem de grandeza:
+	// alargar a janela é descarregar e carregar o modelo de novo — 19s medidos
+	// para o MENOR dos modelos locais (gemma-4-e4b a 128k, disco quente) e
+	// mais a frio. Os 3s da sondagem faziam toda carga falhar, e com ela todo
+	// o Connect (ticket 13).
+	//
+	// Generoso de propósito: o servidor fora do ar falha na hora, por conexão
+	// recusada, sem gastar deadline nenhum. Este número só limita o caso
+	// patológico do servidor que aceita a conexão e nunca responde a carga.
+	lmStudioLoadTimeout = 5 * time.Minute
+)
+
+// errLMStudioLoadDeadline é a causa que o ctx da carga carrega, para a
+// mensagem distinguir "a carga não terminou" de "o servidor não respondeu" —
+// as duas chegavam ao usuário como o mesmo "context deadline exceeded".
+var errLMStudioLoadDeadline = errors.New("a carga do modelo não terminou no prazo")
 
 // ensureLMStudioContext aumenta a janela da instância do LM Studio quando a
 // configuração do modelo pede mais tokens do que a carga atual. A API
@@ -30,10 +53,10 @@ func ensureLMStudioContext(baseURL, apiKey, model string, desired int64) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), lmStudioProbeTimeout)
-	defer cancel()
+	probeCtx, cancelProbe := context.WithTimeout(context.Background(), lmStudioProbeTimeout)
+	defer cancelProbe()
 
-	models, supported, err := fetchLMStudioModels(ctx, root, apiKey)
+	models, supported, err := fetchLMStudioModels(probeCtx, root, apiKey)
 	if err != nil || !supported {
 		return err
 	}
@@ -61,7 +84,11 @@ func ensureLMStudioContext(baseURL, apiKey, model string, desired int64) error {
 		return fmt.Errorf("serializando carga do LM Studio: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, root+"/models/load", strings.NewReader(string(body)))
+	// A carga tem deadline próprio, e não o da sondagem: ver lmStudioLoadTimeout.
+	loadCtx, cancelLoad := context.WithTimeoutCause(context.Background(), lmStudioLoadTimeout, errLMStudioLoadDeadline)
+	defer cancelLoad()
+
+	req, err := http.NewRequestWithContext(loadCtx, http.MethodPost, root+"/models/load", strings.NewReader(string(body)))
 	if err != nil {
 		return fmt.Errorf("criando carga do LM Studio: %w", err)
 	}
@@ -70,8 +97,22 @@ func ensureLMStudioContext(baseURL, apiKey, model string, desired int64) error {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
+	// A carga é o trecho lento do Connect: registrada nas duas pontas, porque
+	// sem isso o app que demora dezenas de segundos para subir não tem como
+	// ser distinguido do app travado.
+	log.Info("carregando o modelo no LM Studio para alargar a janela",
+		"model", model, "context_length_atual", current, "context_length_pedido", desired, "prazo", lmStudioLoadTimeout)
+	started := time.Now()
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		// context.Cause distingue as duas causas que caíam no mesmo
+		// "context deadline exceeded": a carga que não terminou e o servidor
+		// que não respondeu.
+		if cause := context.Cause(loadCtx); errors.Is(cause, errLMStudioLoadDeadline) {
+			return fmt.Errorf("carregando modelo %q no LM Studio: %w (esperou %s)",
+				model, cause, time.Since(started).Round(time.Second))
+		}
 		return fmt.Errorf("carregando modelo %q no LM Studio: %w", model, err)
 	}
 	defer resp.Body.Close()
@@ -82,6 +123,8 @@ func ensureLMStudioContext(baseURL, apiKey, model string, desired int64) error {
 		message, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 		return fmt.Errorf("LM Studio recusou a janela %d para %q: HTTP %d: %s", desired, model, resp.StatusCode, strings.TrimSpace(string(message)))
 	}
+	log.Info("modelo carregado no LM Studio",
+		"model", model, "context_length", desired, "duracao", time.Since(started).Round(time.Millisecond))
 	return nil
 }
 

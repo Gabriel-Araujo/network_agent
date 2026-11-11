@@ -2,7 +2,7 @@ export {}
 
 // Declaração à mão da superfície exposta ao front-end. A fonte da verdade é o
 // binding gerado (wailsjs/go/main/App.d.ts) — isto acompanha o que ele expõe.
-import type { Conversation } from './types'
+import type { Connection, Conversation } from './types'
 
 declare global {
   interface Window {
@@ -19,6 +19,10 @@ declare global {
           // execução, e o arquivo onde elas também estão.
           GetLogLines(): Promise<string[]>
           GetLogPath(): Promise<string>
+          // Conexão com o provedor (ticket 13): ela é background, então o
+          // front pergunta o estado e repete enquanto for `connecting`.
+          GetConnection(): Promise<Connection>
+          Reconnect(): Promise<Connection>
         }
       }
     }

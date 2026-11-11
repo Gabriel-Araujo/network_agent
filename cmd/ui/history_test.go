@@ -228,15 +228,32 @@ func novoAppDeTeste(t *testing.T, url string, contextTotal int64) (*App, *eventC
 			Models: []types.Model{{Id: "modelo-de-mentira", Name: "Modelo", ContextSize: contextTotal}},
 		}},
 	})
-	if a.currentAgent() == nil {
-		t.Fatal("o agente não conectou ao provedor de mentira")
-	}
+	esperaConectar(t, a)
 
 	// Por padrão o turno é só a chamada do LLM: o que estes testes provam é o
 	// que o AskAgent faz com o resultado da composição, e a composição inteira
 	// tem os testes dela em internal/turn.
 	trocaOTurno(t, turnoSoDoChat)
 	return a, events
+}
+
+// esperaConectar aguarda a conexão sair de `connecting` e exige que ela tenha
+// dado em agente. O reconnect é background desde o ticket 13 (a carga do modelo
+// no provedor leva dezenas de segundos e travaria o arranque do app), então
+// quem monta um App para o teste tem de esperar pelo que o app só mostra na
+// tela.
+func esperaConectar(t *testing.T, a *App) {
+	t.Helper()
+	limite := time.Now().Add(30 * time.Second)
+	for a.GetConnection().State == connConnecting {
+		if time.Now().After(limite) {
+			t.Fatal("a conexão não saiu de connecting em 30s")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if conn := a.GetConnection(); conn.State != connReady {
+		t.Fatalf("a conexão terminou em %q (causa: %s), esperava ready", conn.State, conn.Cause)
+	}
 }
 
 // composicao é o tipo da composição do turno — o runTurn de history.go.
@@ -635,6 +652,57 @@ func TestErrosEstruturadosAtravessamAPonte(t *testing.T) {
 	}
 	if _, err := sem.CreateConversation("título"); codigoDoErro(t, err) != codeNoAgent {
 		t.Errorf("CreateConversation sem agente devolveu %v", err)
+	}
+}
+
+// TestACausaDaAusenciaDoAgenteChegaAoFront prova o conserto da mensagem do
+// ticket 13: o mesmo agente nil tem três causas, e o drive do ticket 07 mediu
+// as três chegando como "cadastre um provedor" — com o provedor cadastrado,
+// certo, e o modelo apenas carregando. Cada estado da conexão tem seu código,
+// nos três pontos que checam o agente, e a causa crua da falha viaja com ele.
+func TestACausaDaAusenciaDoAgenteChegaAoFront(t *testing.T) {
+	casos := []struct {
+		nome   string
+		conn   connection
+		codigo string
+	}{
+		{"nada configurado", connection{}, codeNoAgent},
+		{"conectando", connection{State: connConnecting}, codeConnecting},
+		{"falhou", connection{State: connFailed, Cause: `Post "http://localhost:1234/api/v1/models/load": dial tcp: connection refused`}, codeConnectFailed},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			a := &App{
+				ctx:   context.Background(),
+				store: history.NewFileStore(t.TempDir()),
+				emit:  (&eventCollector{}).emit,
+				conn:  c.conn,
+			}
+
+			_, err := a.AskAgent("qualquer", "oi")
+			if codigoDoErro(t, err) != c.codigo {
+				t.Errorf("AskAgent devolveu %v, esperava o código %q", err, c.codigo)
+			}
+			if _, errCriar := a.CreateConversation("título"); codigoDoErro(t, errCriar) != c.codigo {
+				t.Errorf("CreateConversation devolveu %v, esperava o código %q", errCriar, c.codigo)
+			}
+			if _, errJanela := a.GetContextWindow(); codigoDoErro(t, errJanela) != c.codigo {
+				t.Errorf("GetContextWindow devolveu %v, esperava o código %q", errJanela, c.codigo)
+			}
+
+			// A causa é o que o usuário não tem como adivinhar: sem ela, a
+			// falha de conexão e a falta de configuração são a mesma tela.
+			if c.conn.Cause != "" {
+				var b bridgeError
+				if jsonErr := json.Unmarshal([]byte(err.Error()), &b); jsonErr != nil {
+					t.Fatalf("o erro não é o JSON da ponte: %v", jsonErr)
+				}
+				if b.Why != c.conn.Cause {
+					t.Errorf("a causa que chegou ao front foi %q, esperava %q", b.Why, c.conn.Cause)
+				}
+			}
+		})
 	}
 }
 

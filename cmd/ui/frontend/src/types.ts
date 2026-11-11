@@ -35,6 +35,17 @@ export interface ContextWindow {
   source: string
 }
 
+/**
+ * O estado da conexão com o provedor (cmd/ui/app.go). A conexão é background —
+ * a carga do modelo no provedor leva dezenas de segundos —, então a ausência de
+ * agente não é mais sinônimo de falta de configuração: `cause` só vem no
+ * estado failed, e é o erro do Connect.
+ */
+export interface Connection {
+  state: 'none' | 'connecting' | 'failed' | 'ready'
+  cause?: string
+}
+
 export interface Message {
   id: string
   role: Role

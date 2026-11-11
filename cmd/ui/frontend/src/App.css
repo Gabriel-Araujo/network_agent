@@ -565,6 +565,24 @@ button {
   color: var(--text);
 }
 
+/* Estado da conexão, ao lado do modelo: carregando (neutro) ou sem conexão
+   (âmbar, clicável para reconectar). Só aparece quando não está pronta. */
+.model-pill__state {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.model-pill__state--failed {
+  color: var(--warning, #f0b429);
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
 /* ---------- chat ---------- */
 
 .chat {

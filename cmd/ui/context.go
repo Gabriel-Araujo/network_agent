@@ -18,15 +18,13 @@ type contextWindow struct {
 // Ollama a janela é definida na carga (ticket 11). Provedor que não a expõe ou
 // não responde devolve o context_size declarado, com a origem marcada.
 //
-// Sem provedor/modelo ativos não há janela de ninguém: o erro estruturado diz
-// isso, e a UI segue sem o número (nunca com um número inventado).
+// Sem agente ativo não há janela de ninguém: o erro estruturado diz qual das
+// três causas é (nada configurado, conectando, conexão falhada), e a UI segue
+// sem o número (nunca com um número inventado).
 func (a *App) GetContextWindow() (contextWindow, error) {
 	ag := a.currentAgent()
 	if ag == nil {
-		return contextWindow{}, newBridgeError(codeNoAgent,
-			"Nenhum provedor e modelo configurados",
-			"a janela de contexto é do modelo ativo, e não há nenhum conectado",
-			"Abra Configurações e cadastre um provedor com ao menos um modelo.")
+		return contextWindow{}, a.errNoAgent()
 	}
 
 	total, source := ag.ContextWindow(a.ctx)

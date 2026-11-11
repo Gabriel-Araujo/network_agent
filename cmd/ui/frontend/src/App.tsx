@@ -11,6 +11,7 @@ import WindowControls from './components/WindowControls'
 import {
   AppConfig,
   BridgeError,
+  Connection,
   ContextWindow,
   Conversation,
   Message,
@@ -21,6 +22,19 @@ import {
   sortByUpdatedDesc,
   toUiMessages,
 } from './types'
+
+/**
+ * Por que o envio está bloqueado. O alerta era fixo em "Configuração
+ * necessária" com um botão para as Configurações: com a conexão em background
+ * (ticket 13) isso passaria a mentir em dois dos três casos — o modelo que
+ * está carregando e a conexão que falhou não se resolvem na tela de
+ * configuração, que está certa.
+ */
+interface Blocked {
+  title: string
+  text: string
+  cta?: 'settings' | 'reconnect'
+}
 
 // Título da conversa derivado do primeiro prompt, gravado na criação
 // preguiçosa (CreateConversation). O núcleo só armazena títulos; a geração
@@ -58,7 +72,12 @@ function App() {
   const [config, setConfig] = useState<AppConfig | null>(null)
   // bloqueia a UI até existir provedor + modelo configurados
   const [configReady, setConfigReady] = useState<boolean | null>(null)
-  const [blockedMsg, setBlockedMsg] = useState('')
+  // Estado da conexão com o provedor, por pull (ticket 13). `null` é "não
+  // consultado" — e não "none" —, porque sem a ponte do Wails (browser puro)
+  // não há conexão nenhuma para consultar, e aí o envio deve falhar visível em
+  // vez de ser bloqueado por um estado que ninguém mediu.
+  const [connection, setConnection] = useState<Connection | null>(null)
+  const [blocked, setBlocked] = useState<Blocked | null>(null)
   const [chatTitle, setChatTitle] = useState('')
   // Janela de contexto do modelo ativo, sondada pelo Go (provedor quando ele a
   // expõe, senão o declarado — sempre com a origem). O medidor precisa dela
@@ -73,6 +92,8 @@ function App() {
   // conversa dona do turno em voo: é o que descarta token de conversa fechada
   // e religa o stream quando a conversa do turno é reaberta.
   const streamingConvId = useRef<string | null>(null)
+  // timer do pull do estado da conexão (só existe enquanto carregando).
+  const connectionTimer = useRef<number | undefined>(undefined)
   // ref síncrono de "enviando": bloqueia double-submit no mesmo tick.
   // O isWorking (state) é assíncrono e pode vazar chamadas rápidas no
   // mesmo render; este ref garante que cada input vá UMA única vez.
@@ -118,9 +139,41 @@ function App() {
     }
   }, [])
 
+  // Estado da conexão, por pull. É pull e não evento porque a conexão termina
+  // numa goroutine que pode chegar antes de a janela existir, e o runtime do
+  // Wails com ctx nil derruba o app (medido no ticket 06). Repete a 500ms só
+  // enquanto estiver carregando o modelo, e para sozinho em ready/failed.
+  const pollConnection = useCallback(async () => {
+    const a = (window as any).go?.main?.App
+    if (!a?.GetConnection) return
+    window.clearTimeout(connectionTimer.current)
+    try {
+      const c: Connection = await a.GetConnection()
+      setConnection(c)
+      if (c.state === 'connecting') {
+        connectionTimer.current = window.setTimeout(pollConnection, 500)
+      } else if (c.state === 'ready') {
+        // O modelo acabou de carregar: a janela de contexto é dele.
+        refreshContextWindow()
+      }
+    } catch {
+      setConnection(null)
+    }
+  }, [refreshContextWindow])
+
+  // Tentar de novo, explicitamente. Sem isto o único caminho de volta de uma
+  // falha de conexão era salvar as Configurações outra vez.
+  const reconnectNow = useCallback(async () => {
+    const a = (window as any).go?.main?.App
+    if (!a?.Reconnect) return
+    setConnection(await a.Reconnect())
+    pollConnection()
+  }, [pollConnection])
+
   useEffect(() => {
     loadConversations()
     refreshContextWindow()
+    pollConnection()
     const w = window as any
     // Carrega a configuração no boot. Na primeira execução (sem provedor ou
     // sem modelo) abre a tela de Configurações e bloqueia o input.
@@ -142,7 +195,8 @@ function App() {
       // o envio falha visível, dizendo que a ponte do Wails está ausente
       setConfigReady(true)
     }
-  }, [loadConversations, refreshContextWindow])
+    return () => window.clearTimeout(connectionTimer.current)
+  }, [loadConversations, refreshContextWindow, pollConnection])
 
   // Token do turno em voo. Evento de conversa que não está mais na tela é
   // descartado: o turno segue no Go e é gravado no disco dela — reabrir a
@@ -234,14 +288,11 @@ function App() {
   const send = async (raw: string) => {
     const text = raw.trim()
     if (!text || isWorking || sendingRef.current) return
-    // Sem provedor/modelo configurado não há para onde enviar: bloqueia e
-    // explica, em vez de deixar o backend falhar com erro genérico.
-    if (configReady === false) {
-      setBlockedMsg(
-        !config || config.providers.length === 0
-          ? 'Nenhum provedor configurado. Cadastre um provedor com ao menos um modelo para conversar com o agente.'
-          : 'O provedor selecionado não tem nenhum modelo cadastrado. Adicione um modelo para conversar com o agente.',
-      )
+    // Sem agente não há para onde enviar: bloqueia e explica QUAL das causas
+    // é — falta de configuração, modelo carregando ou conexão falhada —, em
+    // vez de mandar o usuário a uma tela de configuração que já está certa.
+    if (sendBlock) {
+      setBlocked(sendBlock)
       return
     }
 
@@ -397,14 +448,50 @@ function App() {
     (c: AppConfig) => {
       setConfig(c)
       setConfigReady(!!activeModel(c))
-      // A configuração mudou: outro provedor/modelo tem outra janela de contexto.
+      // A configuração mudou: outro provedor/modelo tem outra janela de
+      // contexto — e outra conexão, que o Go já começou a abrir e que leva o
+      // tempo da carga do modelo novo.
       refreshContextWindow()
+      pollConnection()
     },
-    [refreshContextWindow],
+    [refreshContextWindow, pollConnection],
   )
 
   // Provedor + modelo exibidos no topo (vindos das Configurações).
   const active = useMemo(() => activeModel(config), [config])
+
+  // Por que o envio está bloqueado, ou null quando não está. Fonte única: o
+  // dock e o alerta discordarem é a família do defeito do ticket 13 — duas
+  // superfícies contando histórias diferentes sobre o mesmo agente ausente.
+  const sendBlock = useMemo<Blocked | null>(() => {
+    if (configReady === false || connection?.state === 'none') {
+      return {
+        title: 'Configuração necessária',
+        text:
+          !config || config.providers.length === 0
+            ? 'Nenhum provedor configurado. Cadastre um provedor com ao menos um modelo para conversar com o agente.'
+            : 'O provedor selecionado não tem nenhum modelo cadastrado. Adicione um modelo para conversar com o agente.',
+        cta: 'settings',
+      }
+    }
+    if (connection?.state === 'connecting') {
+      return {
+        title: 'Conectando ao provedor',
+        text:
+          'O modelo está sendo carregado no provedor, e o agente só existe depois disso — numa carga a frio isso leva dezenas de segundos. O envio volta assim que a conexão terminar.',
+      }
+    }
+    if (connection?.state === 'failed') {
+      return {
+        title: 'A conexão com o provedor falhou',
+        text:
+          (connection.cause || 'O provedor não respondeu.') +
+          '\n\nConfira se o provedor está no ar e se o modelo configurado existe.',
+        cta: 'reconnect',
+      }
+    }
+    return null
+  }, [config, configReady, connection])
 
   // Resumo agregado de tokens de toda a conversa, exibido no rodapé do input.
   // A janela do medidor é a de AGORA — a sondagem do modelo ativo —, não a do
@@ -470,28 +557,41 @@ function App() {
         dismissible={configReady !== false}
       />
 
-      {blockedMsg && (
-        <div className="alert-scrim" role="presentation" onMouseDown={() => setBlockedMsg('')}>
+      {blocked && (
+        <div className="alert-scrim" role="presentation" onMouseDown={() => setBlocked(null)}>
           <div
             className="alert"
             role="alertdialog"
             aria-modal="true"
-            aria-label="Configuração necessária"
+            aria-label={blocked.title}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3 className="alert__title">Configuração necessária</h3>
-            <p className="alert__text">{blockedMsg}</p>
+            <h3 className="alert__title">{blocked.title}</h3>
+            <p className="alert__text">{blocked.text}</p>
             <div className="alert__actions">
-              <button className="btn-ghost" onClick={() => setBlockedMsg('')}>Fechar</button>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  setBlockedMsg('')
-                  setSettingsOpen(true)
-                }}
-              >
-                Abrir Configurações
-              </button>
+              <button className="btn-ghost" onClick={() => setBlocked(null)}>Fechar</button>
+              {blocked.cta === 'settings' && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setBlocked(null)
+                    setSettingsOpen(true)
+                  }}
+                >
+                  Abrir Configurações
+                </button>
+              )}
+              {blocked.cta === 'reconnect' && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setBlocked(null)
+                    reconnectNow()
+                  }}
+                >
+                  Reconectar
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -544,6 +644,21 @@ function App() {
                 <span className="model-pill__provider">{active.provider.name}</span>
                 <span className="model-pill__sep" aria-hidden="true">·</span>
                 <span className="model-pill__model">{active.model.name}</span>
+                {/* O estado da conexão fica onde o modelo já está: é dele que
+                    se está falando, e é aqui que o usuário olha para saber se
+                    pode conversar. */}
+                {connection?.state === 'connecting' && (
+                  <span className="model-pill__state">carregando modelo…</span>
+                )}
+                {connection?.state === 'failed' && (
+                  <button
+                    className="model-pill__state model-pill__state--failed"
+                    onClick={reconnectNow}
+                    title={connection.cause}
+                  >
+                    sem conexão · Reconectar
+                  </button>
+                )}
               </>
             ) : (
               'Nenhum modelo configurado'
@@ -558,13 +673,7 @@ function App() {
           isWorking={isWorking}
           usageSummary={usageSummary}
           configReady={configReady !== false}
-          onBlocked={() =>
-            setBlockedMsg(
-              !config || config.providers.length === 0
-                ? 'Nenhum provedor configurado. Cadastre um provedor com ao menos um modelo para conversar com o agente.'
-                : 'O provedor selecionado não tem nenhum modelo cadastrado. Adicione um modelo para conversar com o agente.',
-            )
-          }
+          onBlocked={() => setBlocked(sendBlock)}
         />
       </main>
 

@@ -31,17 +31,21 @@ type bridgeError struct {
 
 // Códigos que a UI usa para decidir o que fazer:
 //
-//	not_found — a conversa não está mais no disco (recarregar a lista)
-//	invalid   — dados recusados (pedido vazio, título vazio, arquivo corrompido)
-//	io        — falha de leitura/escrita no disco do histórico
-//	no_agent  — sem provedor/modelo ativos
-//	busy      — já existe um turno em andamento
+//	not_found      — a conversa não está mais no disco (recarregar a lista)
+//	invalid        — dados recusados (pedido vazio, título vazio, arquivo corrompido)
+//	io             — falha de leitura/escrita no disco do histórico
+//	no_agent       — não há provedor e modelo configurados
+//	connecting     — a conexão está em andamento (não é erro: aguardar)
+//	connect_failed — a conexão falhou, e o `why` traz a causa
+//	busy           — já existe um turno em andamento
 const (
-	codeNotFound = "not_found"
-	codeInvalid  = "invalid"
-	codeIO       = "io"
-	codeNoAgent  = "no_agent"
-	codeBusy     = "busy"
+	codeNotFound      = "not_found"
+	codeInvalid       = "invalid"
+	codeIO            = "io"
+	codeNoAgent       = "no_agent"
+	codeConnecting    = "connecting"
+	codeConnectFailed = "connect_failed"
+	codeBusy          = "busy"
 )
 
 func (e bridgeError) Error() string {
@@ -56,6 +60,35 @@ func (e bridgeError) Error() string {
 
 func newBridgeError(code, what, why, next string) error {
 	return bridgeError{Code: code, What: what, Why: why, Next: next}
+}
+
+// errNoAgent explica a ausência do agente pelo estado da conexão, em vez de
+// pelo palpite de que falta configuração. O mesmo nil tem três causas — nada
+// configurado, conexão em andamento, conexão falhada — e mandar o usuário à
+// tela de Configurações nas três é a mensagem que o drive do ticket 07 mediu
+// apontando para o lugar errado, com a configuração certa no disco.
+//
+// É um ponto único de propósito: os três pontos que checam o agente (o turno,
+// o medidor de janela e a criação de conversa) davam a mesma resposta errada.
+func (a *App) errNoAgent() error {
+	conn := a.GetConnection()
+	switch conn.State {
+	case connConnecting:
+		return newBridgeError(codeConnecting,
+			"Conectando ao provedor",
+			"o modelo está sendo carregado no provedor, e o agente só existe depois disso",
+			"Aguarde a carga terminar — o estado aparece ao lado do nome do modelo.")
+	case connFailed:
+		return newBridgeError(codeConnectFailed,
+			"A conexão com o provedor falhou",
+			conn.Cause,
+			"Confira se o provedor está no ar e se o modelo configurado existe; depois use Reconectar.")
+	default:
+		return newBridgeError(codeNoAgent,
+			"Nenhum provedor e modelo configurados",
+			"não há provedor e modelo ativos para atender o pedido",
+			"Abra Configurações e cadastre um provedor com ao menos um modelo.")
+	}
 }
 
 // errHistory converte um erro do Store no erro que a UI recebe. O why carrega a
@@ -112,10 +145,7 @@ func (a *App) CreateConversation(title string) (history.Conversation, error) {
 
 	act := a.activeConfig()
 	if act.Provider == "" {
-		return history.Conversation{}, newBridgeError(codeNoAgent,
-			"Nenhum provedor e modelo configurados",
-			"a conversa grava o provedor e o modelo ativos, e não há nenhum",
-			"Abra Configurações e cadastre um provedor com ao menos um modelo.")
+		return history.Conversation{}, a.errNoAgent()
 	}
 
 	conv, err := a.store.Create(history.NewConversation{
@@ -247,10 +277,7 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 
 	ag := a.currentAgent()
 	if ag == nil {
-		return history.Conversation{}, newBridgeError(codeNoAgent,
-			"Nenhum provedor e modelo configurados",
-			"o agente não pôde ser conectado a partir da configuração",
-			"Abra Configurações e cadastre um provedor com ao menos um modelo.")
+		return history.Conversation{}, a.errNoAgent()
 	}
 
 	// O transcript vem do disco, nunca do que está na tela.
