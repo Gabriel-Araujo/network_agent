@@ -63,11 +63,18 @@ func Init(client openai.Client, providerURL, apiKey, modelName string, modelCont
 // (OutputText, Usage). O provedor pode não reportar uso:
 // resp.Usage.JSON.InputTokens.Valid distingue "não reportou" de zero.
 //
+// Devolve também as falhas de tool do turno, na ordem em que aconteceram
+// (ticket 18). Falha de tool **é** degradação: antes só a string de erro que o
+// modelo lê existia, e o app ficava sabendo da recusa no máximo pela boca dele.
+// A lista vem vazia num turno limpo, e vem junto com o erro quando o provedor
+// derruba o turno depois de uma tool ter falhado.
+//
 // Um turno pode gastar várias idas ao provedor por causa das ferramentas. Como
 // não há estado no servidor, cada volta reenvia o que já foi trocado: o input
 // acumulado mais as chamadas e os resultados desta resposta.
-func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMessage string) (*responses.Response, error) {
+func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMessage string) (*responses.Response, []tools.Failure, error) {
 	input := a.buildInput(transcript, userMessage)
+	var failures []tools.Failure
 
 	for {
 		resp, err := a.Client.Responses.New(ctx, responses.ResponseNewParams{
@@ -76,7 +83,7 @@ func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMess
 			Tools: a.availableTools,
 		})
 		if err != nil {
-			return nil, err
+			return nil, failures, err
 		}
 
 		var calls, results []responses.ResponseInputItemUnionParam
@@ -91,11 +98,13 @@ func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMess
 
 			call := item.AsFunctionCall()
 			calls = append(calls, responses.ResponseInputItemParamOfFunctionCall(call.Arguments, call.CallID, call.Name))
-			results = append(results, a.callTool(ctx, call))
+			result, failed := a.callTool(ctx, call)
+			results = append(results, result)
+			failures = append(failures, failed...)
 		}
 
 		if len(calls) == 0 {
-			return resp, nil
+			return resp, failures, nil
 		}
 
 		input = append(input, calls...)
@@ -140,8 +149,13 @@ func transcriptItems(transcript []history.Message) []responses.ResponseInputItem
 // callTool despacha uma chamada de ferramenta ao executor certo e devolve o
 // resultado já com o call id preenchido: sem estado no servidor, é o call id
 // que casa resultado e chamada quando o turno é reenviado.
-func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+//
+// É o gargalo único das quatro famílias de tool, e por isso o ponto onde as
+// falhas se acumulam (ticket 18, §2). A recusa de tool não oferecida **não**
+// entra: é a regra operando como desenhada, não degradação, e já é um log.Warn.
+func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, []tools.Failure) {
 	var result responses.ResponseInputItemUnionParam
+	var failures []tools.Failure
 
 	switch {
 
@@ -154,20 +168,28 @@ func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToo
 			fmt.Sprintf("Error: tool %q was not offered to you. Use only the tools in your list.", call.Name))
 
 	case call.Name == skills.ToolUseSkill, call.Name == skills.ToolReadSkillFile:
-		result = a.SkillCall(ctx, call)
+		var err error
+		result, err = a.SkillCall(ctx, call)
+		if err != nil {
+			failures = append(failures, tools.Failure{Tool: call.Name, Err: err})
+		}
 
 	case call.Name == tools.SUB_AGENT_TOOL_NAME:
-		result = a.SubAgentCall(ctx, call)
+		result, failures = a.SubAgentCall(ctx, call)
 
 	default:
-		result = a.ToolCall(ctx, call)
+		var failed *tools.Failure
+		result, failed = a.ToolCall(ctx, call)
+		if failed != nil {
+			failures = append(failures, *failed)
+		}
 	}
 
 	if result.OfFunctionCallOutput != nil {
 		result.OfFunctionCallOutput.CallID = openai.String(call.CallID)
 	}
 
-	return result
+	return result, failures
 }
 
 // offers reports whether this Agent's request carries the named tool. It is
@@ -183,13 +205,13 @@ func (a *Agent) offers(name string) bool {
 // de arquivos) e devolve o resultado para o modelo. O Workspace deste Agent vai
 // junto: é a raiz de escrita, e a outra raiz — o material do agente — o
 // CallFunction resolve sozinho, porque é global aos dois front-ends.
-func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, *tools.Failure) {
 	return tools.CallFunction(ctx, call, a.workspace)
 }
 
 // SkillCall ativa ou lê arquivos de uma skill (use_skill / read_skill_file),
 // devolvendo o corpo da skill (ou do arquivo bundlado) para o modelo.
-func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, error) {
 	return skills.HandleSkillCall(call)
 }
 
@@ -197,12 +219,17 @@ func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionTo
 // executa o loop de conversação dele e devolve a resposta final para o modelo.
 // O sub-agente não herda o transcript do pai: ele nasce sem estado e recebe a
 // task como sua única mensagem.
-func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
+//
+// As falhas de tool do aninhado se **compõem** nas do Chat de fora: o Chat do
+// sub-agente roda dentro de uma tool deste, então uma leitura recusada lá
+// dentro é degradação deste turno igual (ticket 18, §2).
+func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, []tools.Failure) {
 	var args struct {
 		Task string `json:"task"`
 	}
 	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
-		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err))
+		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err)),
+			[]tools.Failure{{Tool: call.Name, Err: fmt.Errorf("argumentos ilegíveis na chamada do sub-agente: %w", err)}}
 	}
 
 	sub := &Agent{
@@ -215,10 +242,11 @@ func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctio
 		systemPrompt:   a.systemPrompt,
 	}
 
-	resp, err := sub.Chat(ctx, nil, args.Task)
+	resp, failures, err := sub.Chat(ctx, nil, args.Task)
 	if err != nil {
-		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro no sub-agente: %v", err))
+		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro no sub-agente: %v", err)),
+			append(failures, tools.Failure{Tool: call.Name, Err: fmt.Errorf("o turno do sub-agente falhou: %w", err)})
 	}
 
-	return responses.ResponseInputItemParamOfFunctionCallOutput(resp.OutputText())
+	return responses.ResponseInputItemParamOfFunctionCallOutput(resp.OutputText()), failures
 }

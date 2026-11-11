@@ -163,7 +163,10 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 		out.Prompt = input + "\n\n<recovered_context>\n" + recovered + "\n</recovered_context>"
 	}
 
-	resp, err := turnAgent.Chat(ctx, transcript, out.Prompt)
+	// As falhas de tool do Chat ficam descartadas aqui de propósito: o ticket 18
+	// só abriu o canal, e quem as drena para out.Warnings é o 19, a fatia do
+	// Aviso na tela.
+	resp, _, err := turnAgent.Chat(ctx, transcript, out.Prompt)
 	if err != nil {
 		return out, state, err
 	}
@@ -208,7 +211,8 @@ func recheckMermaid(ctx context.Context, turnAgent *agentapi.Agent, transcript [
 		history.Message{Role: history.RoleAgent, Content: out.Text, Status: history.StatusDone},
 	)
 
-	resp, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
+	// Falhas de tool descartadas, como na chamada final: ticket 19.
+	resp, _, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
 	if err != nil {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("diagram block faulted (%s, line %d) and the re-ask failed — shipping the first reply: %v", first[0].Violation, first[0].Line, err))
 		return

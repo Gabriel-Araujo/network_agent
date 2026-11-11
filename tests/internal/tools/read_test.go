@@ -61,7 +61,7 @@ func TestReadFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filetools.ReadFile(tt.workingDir, tt.filePath)
+			got, _ := filetools.ReadFile(tt.workingDir, tt.filePath)
 			if tt.name == "Success read" {
 				if got != tt.want {
 					t.Errorf("ReadFile() = %q, want %q", got, tt.want)
@@ -99,11 +99,11 @@ func TestReadFileTruncatesAtCap(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := filetools.ReadFile(".", "at-cap.txt"); got != atCap {
+	if got, _ := filetools.ReadFile(".", "at-cap.txt"); got != atCap {
 		t.Errorf("ReadFile(at cap) returned %d bytes, want the whole %d", len(got), len(atCap))
 	}
 	want := atCap + "\n... (conteúdo truncado)"
-	if got := filetools.ReadFile(".", "over-cap.txt"); got != want {
+	if got, _ := filetools.ReadFile(".", "over-cap.txt"); got != want {
 		t.Errorf("ReadFile(over cap) returned %d bytes, want %d cut at the cap plus the marker", len(got), len(want))
 	}
 }
@@ -128,7 +128,7 @@ func TestReadFileTellsAbsenceApart(t *testing.T) {
 	}
 
 	wd, _ := os.Getwd()
-	absent := filetools.ReadFile(".", "no-such-file.conf")
+	absent, _ := filetools.ReadFile(".", "no-such-file.conf")
 	if want := filetools.READ_NOT_FOUND_NOTICE + filepath.Join(wd, "no-such-file.conf"); absent != want {
 		t.Errorf("ReadFile(absent) = %q, want %q", absent, want)
 	}
@@ -138,7 +138,7 @@ func TestReadFileTellsAbsenceApart(t *testing.T) {
 		}
 	}
 
-	unreadable := filetools.ReadFile(".", "a-directory")
+	unreadable, _ := filetools.ReadFile(".", "a-directory")
 	if want := "Error: failed to read File content"; unreadable != want {
 		t.Errorf("ReadFile(directory) = %q, want %q", unreadable, want)
 	}

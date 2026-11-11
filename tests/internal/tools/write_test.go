@@ -83,7 +83,7 @@ func TestWriteFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filetools.WriteFile(tt.workingDir, tt.filePath, tt.content)
+			got, _ := filetools.WriteFile(tt.workingDir, tt.filePath, tt.content)
 			if strings.HasPrefix(tt.want, "Error") {
 				if got != tt.want {
 					t.Errorf("WriteFile() = %q, want %q", got, tt.want)
@@ -121,7 +121,7 @@ func TestWriteFileHonraDiretorioDeTrabalhoAbsoluto(t *testing.T) {
 	t.Chdir(cwd)
 
 	const content = "hostname r1"
-	if got := filetools.WriteFile(workspace, "r1.cfg", content); got != content {
+	if got, _ := filetools.WriteFile(workspace, "r1.cfg", content); got != content {
 		t.Fatalf("WriteFile() = %q, want %q", got, content)
 	}
 
@@ -137,7 +137,7 @@ func TestWriteFileHonraDiretorioDeTrabalhoAbsoluto(t *testing.T) {
 	}
 
 	// A leitura resolve pela mesma raiz, não pelo CWD.
-	if got := filetools.ReadFile(workspace, "r1.cfg"); got != content {
+	if got, _ := filetools.ReadFile(workspace, "r1.cfg"); got != content {
 		t.Errorf("ReadFile() = %q, want o arquivo do diretório de trabalho", got)
 	}
 }

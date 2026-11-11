@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/paths"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
+	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -98,7 +100,7 @@ func TestChatReenviaOTurnoSemEstadoNoServidor(t *testing.T) {
 		systemPrompt: "PROMPT",
 	}
 
-	resp, err := a.Chat(context.Background(), nil, "use a ferramenta")
+	resp, _, err := a.Chat(context.Background(), nil, "use a ferramenta")
 	if err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
@@ -191,7 +193,7 @@ func TestConnectConfiguraJanelaDoLMStudioAntesDoChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Connect devolveu erro: %v", err)
 	}
-	if _, err := ag.Chat(context.Background(), nil, "pergunta"); err != nil {
+	if _, _, err := ag.Chat(context.Background(), nil, "pergunta"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 }
@@ -284,7 +286,7 @@ func TestCallToolRefusesTheToolNotOffered(t *testing.T) {
 	work := t.TempDir()
 	t.Chdir(work)
 
-	if _, err := modifier.Chat(context.Background(), nil, "edite o frr.conf"); err != nil {
+	if _, _, err := modifier.Chat(context.Background(), nil, "edite o frr.conf"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 
@@ -309,7 +311,7 @@ func TestCallToolRefusesSubAgentToADispatchedSubagente(t *testing.T) {
 		answers("pronto"))
 	builder := subagentAgent(t, client, "builder")
 
-	if _, err := builder.Chat(context.Background(), nil, "delegue"); err != nil {
+	if _, _, err := builder.Chat(context.Background(), nil, "delegue"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 
@@ -332,7 +334,7 @@ func TestCallToolKeepsSubAgentForTheGeneric(t *testing.T) {
 		answers("pronto"))
 	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools()}
 
-	if _, err := generic.Chat(context.Background(), nil, "delegue"); err != nil {
+	if _, _, err := generic.Chat(context.Background(), nil, "delegue"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 
@@ -446,5 +448,94 @@ func TestActivationSentenceGoneFromTheDrawingPrompts(t *testing.T) {
 		if strings.Contains(string(body), skills.ToolUseSkill) {
 			t.Errorf("%s/AGENT.md still names %s: the skill is mounted, not activated", name, skills.ToolUseSkill)
 		}
+	}
+}
+
+// TestChatCarriesTheToolFailureOutOfTheTurn is ticket 18's proof of arrival: a
+// refused read has to come out of Chat as a typed record, and the test fails if
+// the channel is cut on any of its three floors — the file tool swallowing the
+// error, CallFunction dropping the record, or Chat not accumulating it. The two
+// directions are in the same test: the same call with the file in place must
+// report nothing, because a success that warns blinds the channel.
+func TestChatCarriesTheToolFailureOutOfTheTurn(t *testing.T) {
+	workspace := t.TempDir()
+
+	chat := func(t *testing.T) ([]tools.Failure, []string) {
+		t.Helper()
+		client, requests := scriptedProvider(t,
+			callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`),
+			answers("pronto"))
+		ag := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.Tools, workspace: workspace}
+
+		_, failures, err := ag.Chat(context.Background(), nil, "leia o frr.conf")
+		if err != nil {
+			t.Fatalf("Chat devolveu erro: %v", err)
+		}
+		if len(*requests) != 2 {
+			t.Fatalf("esperava 2 requisições ao provedor, veio %d", len(*requests))
+		}
+		return failures, toolOutputs(t, (*requests)[1])
+	}
+
+	// Primeira direção: o arquivo não existe, e a falha chega.
+	failures, outputs := chat(t)
+	if len(failures) != 1 {
+		t.Fatalf("falhas = %+v, want exatamente uma: a leitura recusada", failures)
+	}
+	fail := failures[0]
+	if fail.Tool != filetools.READ_TOOL_NAME {
+		t.Errorf("tool da falha = %q, want %q", fail.Tool, filetools.READ_TOOL_NAME)
+	}
+	// O caminho é o que o modelo pediu, não o absoluto que a tool resolveu: o
+	// absoluto já está no log.Error, e o Aviso fala com quem pediu.
+	if fail.Path != "frr.conf" {
+		t.Errorf("caminho da falha = %q, want %q", fail.Path, "frr.conf")
+	}
+	if fail.Root != workspace {
+		t.Errorf("raiz da falha = %q, want o Workspace %q", fail.Root, workspace)
+	}
+	if !errors.Is(fail.Err, filetools.ErrNotFound) {
+		t.Errorf("erro da falha = %v, want ErrNotFound", fail.Err)
+	}
+
+	// E a string que o modelo lê não mudou: o erro é adicional, não substituto.
+	if len(outputs) != 1 || !strings.HasPrefix(outputs[0], filetools.READ_NOT_FOUND_NOTICE) {
+		t.Errorf("resultado da tool = %q, want começando com o notice de não-encontrado", outputs)
+	}
+
+	// Segunda direção: com o arquivo no lugar, o mesmo turno não reporta nada.
+	if err := os.WriteFile(filepath.Join(workspace, "frr.conf"), []byte("router bgp 65001\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if failures, outputs := chat(t); len(failures) != 0 {
+		t.Errorf("leitura que deu certo reportou %+v (resultado %q): sucesso não avisa", failures, outputs)
+	}
+}
+
+// TestChatComposesTheNestedSubagentFailures fixa a §2 do ticket 18: o Chat do
+// sub-agente roda dentro de uma tool do de fora, então uma leitura recusada lá
+// dentro é degradação deste turno também. Sem a composição, a falha morreria no
+// retorno do aninhado, que ninguém lê.
+func TestChatComposesTheNestedSubagentFailures(t *testing.T) {
+	workspace := t.TempDir()
+	client, requests := scriptedProvider(t,
+		callsOneTool(tools.SUB_AGENT_TOOL_NAME, `{"task":"leia o frr.conf"}`),
+		callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`),
+		answers("sub pronto"),
+		answers("pronto"))
+	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools(), workspace: workspace}
+
+	_, failures, err := generic.Chat(context.Background(), nil, "delegue a leitura")
+	if err != nil {
+		t.Fatalf("Chat devolveu erro: %v", err)
+	}
+	if len(*requests) != 4 {
+		t.Fatalf("esperava 4 requisições (duas do sub-agente), veio %d", len(*requests))
+	}
+	if len(failures) != 1 || !errors.Is(failures[0].Err, filetools.ErrNotFound) {
+		t.Fatalf("falhas = %+v, want a leitura recusada dentro do sub-agente", failures)
+	}
+	if failures[0].Tool != filetools.READ_TOOL_NAME {
+		t.Errorf("tool da falha = %q, want a do aninhado (%q), não a do sub_agent", failures[0].Tool, filetools.READ_TOOL_NAME)
 	}
 }

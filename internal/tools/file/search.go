@@ -2,6 +2,7 @@ package filetools
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,13 +19,16 @@ type GlobSearchOutput struct {
 	Truncated  bool     `json:"truncated"`
 }
 
-func SearchPattern(workingDirectory, path, pattern string) string {
+// SearchPattern lista os arquivos sob path que casam com pattern, resolvido
+// contra workingDirectory. Devolve o que o modelo lê e a falha tipada (ver
+// ReadFile).
+func SearchPattern(workingDirectory, path, pattern string) (string, error) {
 	start := time.Now()
 
 	root, err := util.SafePath(workingDirectory, path)
 	if err != nil {
 		log.Error("caminho fora do diretório de trabalho", "path", path, "err", err)
-		return "Error: Path outside the permitted working directory"
+		return "Error: Path outside the permitted working directory", fmt.Errorf("%w: %w", ErrOutsideRoot, err)
 	}
 
 	patterns := ExpandBraces(pattern)
@@ -107,10 +111,10 @@ func SearchPattern(workingDirectory, path, pattern string) string {
 
 	jsonData, err := json.Marshal(output)
 	if err != nil {
-		return "Error: failed to marshal search results"
+		return "Error: failed to marshal search results", fmt.Errorf("serializando o resultado da busca: %w", err)
 	}
 
-	return string(jsonData)
+	return string(jsonData), nil
 }
 
 func ExpandBraces(pattern string) []string {

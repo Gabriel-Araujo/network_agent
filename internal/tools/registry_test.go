@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,9 +108,18 @@ func TestRootForPicksRootByPrefix(t *testing.T) {
 		wantRefusal: filetools.WORKSPACE_GONE_NOTICE,
 	}}
 
+	// A recusa que o modelo lê e o erro tipado que o app lê têm de nomear o
+	// mesmo caso (ticket 18, §1): a tabela não repete o par, ele mora aqui, e
+	// um sentinela trocado por outro falha.
+	errForNotice := map[string]error{
+		filetools.READ_ONLY_ROOT_NOTICE: filetools.ErrReadOnlyRoot,
+		filetools.NO_WORKSPACE_NOTICE:   filetools.ErrNoWorkspace,
+		filetools.WORKSPACE_GONE_NOTICE: filetools.ErrWorkspaceGone,
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			root, refusal := rootFor(appRoot, tc.tool, tc.filePath, tc.workspace)
+			root, refusal, fail := rootFor(appRoot, tc.tool, tc.filePath, tc.workspace)
 
 			if tc.wantRefusal != "" {
 				if !strings.HasPrefix(refusal, tc.wantRefusal) {
@@ -118,11 +128,36 @@ func TestRootForPicksRootByPrefix(t *testing.T) {
 				if root != "" {
 					t.Errorf("raiz = %q junto de uma recusa, want vazia", root)
 				}
+				if fail == nil {
+					t.Fatal("recusa sem registro de falha: o canal do Aviso ficou cortado na raiz")
+				}
+				if fail.Tool != tc.tool || fail.Path != tc.filePath {
+					t.Errorf("falha = tool %q, path %q, want %q e %q", fail.Tool, fail.Path, tc.tool, tc.filePath)
+				}
+				if want := errForNotice[tc.wantRefusal]; !errors.Is(fail.Err, want) {
+					t.Errorf("erro da falha = %v, want %v", fail.Err, want)
+				}
+				// A raiz do registro é a que o Aviso mostra ao usuário: a
+				// só-leitura quando ela recusou, a pasta que sumiu quando foi
+				// ela, e vazia só quando não havia pasta nenhuma.
+				wantRoot := appRoot
+				switch tc.wantRefusal {
+				case filetools.NO_WORKSPACE_NOTICE:
+					wantRoot = ""
+				case filetools.WORKSPACE_GONE_NOTICE:
+					wantRoot = tc.workspace
+				}
+				if fail.Root != wantRoot {
+					t.Errorf("raiz da falha = %q, want %q", fail.Root, wantRoot)
+				}
 				return
 			}
 
 			if refusal != "" {
 				t.Fatalf("recusa inesperada: %q", refusal)
+			}
+			if fail != nil {
+				t.Errorf("falha %v sem recusa: sucesso não avisa", fail.Err)
 			}
 			if root != tc.wantRoot {
 				t.Errorf("raiz = %q, want %q", root, tc.wantRoot)
@@ -146,23 +181,26 @@ func TestRootForRefusesWriteIntoTheAppDirectory(t *testing.T) {
 	const inApp = ".network_agent/config.json"
 
 	for _, tool := range []string{filetools.WRITE_TOOL_NAME, filetools.EDIT_TOOL_NAME} {
-		root, refusal := rootFor(appRoot, tool, inApp, home)
+		root, refusal, fail := rootFor(appRoot, tool, inApp, home)
 		if !strings.HasPrefix(refusal, filetools.READ_ONLY_ROOT_NOTICE) {
 			t.Errorf("%s em %q: recusa = %q, want começando com %q", tool, inApp, refusal, filetools.READ_ONLY_ROOT_NOTICE)
 		}
 		if root != "" {
 			t.Errorf("%s em %q: raiz = %q, want vazia", tool, inApp, root)
 		}
+		if fail == nil || !errors.Is(fail.Err, filetools.ErrReadOnlyRoot) || fail.Root != appRoot {
+			t.Errorf("%s em %q: falha = %+v, want ErrReadOnlyRoot com a raiz %q", tool, inApp, fail, appRoot)
+		}
 	}
 
 	// O Workspace escolhido sendo o próprio diretório do app, nem um nome solto
 	// escapa: toda escrita resolve dentro da raiz só-leitura.
-	if _, refusal := rootFor(appRoot, filetools.WRITE_TOOL_NAME, "frr.conf", appRoot); !strings.HasPrefix(refusal, filetools.READ_ONLY_ROOT_NOTICE) {
+	if _, refusal, _ := rootFor(appRoot, filetools.WRITE_TOOL_NAME, "frr.conf", appRoot); !strings.HasPrefix(refusal, filetools.READ_ONLY_ROOT_NOTICE) {
 		t.Errorf("Workspace = raiz só-leitura: recusa = %q, want começando com %q", refusal, filetools.READ_ONLY_ROOT_NOTICE)
 	}
 
 	// A direção contrária: ler é do usuário, e a pasta é dele.
-	root, refusal := rootFor(appRoot, filetools.READ_TOOL_NAME, inApp, home)
+	root, refusal, _ := rootFor(appRoot, filetools.READ_TOOL_NAME, inApp, home)
 	if refusal != "" {
 		t.Errorf("leitura em %q recusada: %q", inApp, refusal)
 	}
@@ -205,9 +243,13 @@ func TestCallFunctionResolvesBothRoots(t *testing.T) {
 
 	// Primeira direção: a leitura pelo prefixo acha o material, sem Workspace e
 	// sem depender de onde o processo começou.
-	got := toolOutput(t, CallFunction(t.Context(), toolCall(t, filetools.READ_TOOL_NAME, map[string]string{"filePath": material}), ""))
+	item, fail := CallFunction(t.Context(), toolCall(t, filetools.READ_TOOL_NAME, map[string]string{"filePath": material}), "")
+	got := toolOutput(t, item)
 	if strings.HasPrefix(got, "Error") || !strings.Contains(got, "Teacher") {
 		t.Fatalf("leitura do material do agente = %q..., want o AGENT.md do Teacher", got[:min(len(got), 120)])
+	}
+	if fail != nil {
+		t.Errorf("leitura que deu certo devolveu falha: %+v", fail)
 	}
 
 	// Segunda direção, a que o ticket exige: a escrita pelo mesmo prefixo falha,
@@ -221,12 +263,26 @@ func TestCallFunctionResolvesBothRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	refusal := toolOutput(t, CallFunction(t.Context(), toolCall(t, filetools.WRITE_TOOL_NAME, map[string]string{
+	item, fail = CallFunction(t.Context(), toolCall(t, filetools.WRITE_TOOL_NAME, map[string]string{
 		"filePath": material,
 		"content":  "sobrescrito pelo modelo",
-	}), workspace))
+	}), workspace)
+	refusal := toolOutput(t, item)
 	if !strings.HasPrefix(refusal, filetools.READ_ONLY_ROOT_NOTICE) {
 		t.Errorf("escrita no material = %q, want começando com %q", refusal, filetools.READ_ONLY_ROOT_NOTICE)
+	}
+
+	// O registro da falha carrega os quatro fatos que o Aviso formata, e o
+	// caminho é o **pedido**, não o absoluto do espelho (ticket 18, §4).
+	materialRoot, err := config.MaterialRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fail == nil {
+		t.Fatal("escrita recusada sem registro de falha: o canal do Aviso não chega ao CallFunction")
+	}
+	if fail.Tool != filetools.WRITE_TOOL_NAME || fail.Path != material || fail.Root != materialRoot || !errors.Is(fail.Err, filetools.ErrReadOnlyRoot) {
+		t.Errorf("falha = %+v, want tool %q, path %q, raiz %q e ErrReadOnlyRoot", fail, filetools.WRITE_TOOL_NAME, material, materialRoot)
 	}
 
 	after, err := os.ReadFile(mirrored)
@@ -239,11 +295,15 @@ func TestCallFunctionResolvesBothRoots(t *testing.T) {
 
 	// E a escrita do usuário cai no Workspace, não no CWD: é a medição do ticket
 	// 02 com duas raízes no lugar de uma.
-	if out := toolOutput(t, CallFunction(t.Context(), toolCall(t, filetools.WRITE_TOOL_NAME, map[string]string{
+	item, fail = CallFunction(t.Context(), toolCall(t, filetools.WRITE_TOOL_NAME, map[string]string{
 		"filePath": "frr.conf",
 		"content":  "router bgp 65001",
-	}), workspace)); strings.HasPrefix(out, "Error") {
+	}), workspace)
+	if out := toolOutput(t, item); strings.HasPrefix(out, "Error") {
 		t.Fatalf("escrita no Workspace falhou: %q", out)
+	}
+	if fail != nil {
+		t.Errorf("escrita que deu certo devolveu falha: %+v", fail)
 	}
 
 	if _, err := os.Stat(filepath.Join(workspace, "frr.conf")); err != nil {

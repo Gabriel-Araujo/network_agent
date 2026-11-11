@@ -31,7 +31,7 @@ func TestEditFile(t *testing.T) {
 	}
 
 	t.Run("Success edit", func(t *testing.T) {
-		got := filetools.EditFile(".", fileName, "original", "changed")
+		got, _ := filetools.EditFile(".", fileName, "original", "changed")
 		want := "Success: File edited"
 		if got != want {
 			t.Errorf("EditFile() = %q, want %q", got, want)
@@ -43,7 +43,7 @@ func TestEditFile(t *testing.T) {
 	})
 
 	t.Run("Old text not found", func(t *testing.T) {
-		got := filetools.EditFile(".", fileName, "not-there", "whatever")
+		got, _ := filetools.EditFile(".", fileName, "not-there", "whatever")
 		want := "Error: old_text not found in file"
 		if got != want {
 			t.Errorf("EditFile() = %q, want %q", got, want)
@@ -55,14 +55,14 @@ func TestEditFile(t *testing.T) {
 	})
 
 	t.Run("File not found", func(t *testing.T) {
-		got := filetools.EditFile(".", "missing.txt", "old", "new")
+		got, _ := filetools.EditFile(".", "missing.txt", "old", "new")
 		if !strings.Contains(got, "File not found") {
 			t.Errorf("EditFile() = %q, want error 'File not found'", got)
 		}
 	})
 
 	t.Run("Security check", func(t *testing.T) {
-		got := filetools.EditFile(".", "../outside.txt", "old", "new")
+		got, _ := filetools.EditFile(".", "../outside.txt", "old", "new")
 		if !strings.Contains(got, "Error") {
 			t.Errorf("EditFile() = %q, want error", got)
 		}
@@ -75,7 +75,7 @@ func TestEditFile(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got := filetools.EditFile(".", name, "remote-as 65002", "remote-as 65003")
+		got, _ := filetools.EditFile(".", name, "remote-as 65002", "remote-as 65003")
 		want := filetools.EDIT_MULTIPLE_MATCHES_NOTICE + "2"
 		if got != want {
 			t.Errorf("EditFile() = %q, want %q", got, want)
@@ -90,7 +90,7 @@ func TestEditFile(t *testing.T) {
 		}
 
 		// O mesmo pedido com texto em volta casa uma vez so e troca so esse vizinho.
-		got = filetools.EditFile(".", name, "10.0.0.2 remote-as 65002", "10.0.0.2 remote-as 65003")
+		got, _ = filetools.EditFile(".", name, "10.0.0.2 remote-as 65002", "10.0.0.2 remote-as 65003")
 		if got != "Success: File edited" {
 			t.Errorf("EditFile() = %q, want %q", got, "Success: File edited")
 		}

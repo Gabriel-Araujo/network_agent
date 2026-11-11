@@ -43,7 +43,8 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 			Name:      skills.ToolReadSkillFile,
 			Arguments: `{"skill_name": "mermaid", "relative_path": "` + path + `"}`,
 		}
-		got := callOutput(t, a.SkillCall(context.Background(), call))
+		item, _ := a.SkillCall(context.Background(), call)
+		got := callOutput(t, item)
 		if strings.HasPrefix(got, "erro:") {
 			t.Errorf("read_skill_file %s: %s", path, got)
 			continue
@@ -140,7 +141,8 @@ func TestReadSkillFileReachesMermaidWithoutTheCatalog(t *testing.T) {
 		Name:      skills.ToolReadSkillFile,
 		Arguments: `{"skill_name": "mermaid", "relative_path": "references/flowchart.md"}`,
 	}
-	got := callOutput(t, (&llm2.Agent{}).SkillCall(context.Background(), call))
+	item, _ := (&llm2.Agent{}).SkillCall(context.Background(), call)
+	got := callOutput(t, item)
 	if strings.HasPrefix(got, "erro:") {
 		t.Fatalf("read_skill_file references/flowchart.md: %s", got)
 	}

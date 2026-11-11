@@ -88,7 +88,7 @@ func TestToolCallReadsFileFromRepoRoot(t *testing.T) {
 		}`,
 	}
 
-	res := a.ToolCall(context.Background(), call)
+	res, _ := a.ToolCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" {
@@ -108,7 +108,7 @@ func TestToolCallInvalidFunction(t *testing.T) {
 		}`,
 	}
 
-	res := a.ToolCall(context.Background(), call)
+	res, _ := a.ToolCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != "Error: Called invalid function" {
@@ -138,7 +138,7 @@ func TestSkillCallUseExistingSkill(t *testing.T) {
 		}`,
 	}
 
-	res := a.SkillCall(context.Background(), call)
+	res, _ := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != sk.Body {
@@ -158,7 +158,7 @@ func TestSkillCallUnknownSkill(t *testing.T) {
 		}`,
 	}
 
-	res := a.SkillCall(context.Background(), call)
+	res, _ := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != `erro: skill "nao-existe" não encontrada` {
@@ -179,7 +179,7 @@ func TestSkillCallInvalidArguments(t *testing.T) {
 		}`,
 	}
 
-	res := a.SkillCall(context.Background(), call)
+	res, _ := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" || got[0:len("erro: argumentos inválidos")] != "erro: argumentos inválidos" {
@@ -201,7 +201,7 @@ func TestSkillCallReadSkillFile(t *testing.T) {
 		}`,
 	}
 
-	res := a.SkillCall(context.Background(), call)
+	res, _ := a.SkillCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" {
@@ -222,7 +222,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 		option.WithAPIKey("test-key"),
 	)
 
-	a := llm2.Init(client, "", "", "test-model", 0, []responses.ToolUnionParam{}, "você é um assistente")
+	a := llm2.Init(client, "", "", "test-model", 0, []responses.ToolUnionParam{}, "você é um assistente", "")
 
 	call := responses.ResponseFunctionToolCall{
 		CallID: "call_sub",
@@ -232,7 +232,7 @@ func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
 		}`,
 	}
 
-	res := a.SubAgentCall(context.Background(), call)
+	res, _ := a.SubAgentCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got != reply {
@@ -255,7 +255,7 @@ func TestSubAgentCallInvalidArguments(t *testing.T) {
 		}`,
 	}
 
-	res := a.SubAgentCall(context.Background(), call)
+	res, _ := a.SubAgentCall(context.Background(), call)
 
 	got := callOutput(t, res)
 	if got == "" || got[0:len("erro: argumentos inválidos")] != "erro: argumentos inválidos" {

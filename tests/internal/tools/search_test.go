@@ -137,7 +137,7 @@ func TestSearchFile(t *testing.T) {
 			os.Chdir(genDir)
 			defer os.Chdir(originalWd)
 
-			result := filetools.SearchPattern(".", tt.path, tt.pattern)
+			result, _ := filetools.SearchPattern(".", tt.path, tt.pattern)
 			if strings.HasPrefix(result, "Error") {
 				t.Fatalf("SearchFile failed: %s", result)
 			}
@@ -159,7 +159,7 @@ func TestSearchFileSecurity(t *testing.T) {
 	genDir := filepath.Join("generated", "search_security")
 	os.MkdirAll(genDir, 0755)
 
-	result := filetools.SearchPattern(genDir, "../outside", "*.txt")
+	result, _ := filetools.SearchPattern(genDir, "../outside", "*.txt")
 	if !strings.Contains(result, "Error") {
 		t.Errorf("Expected security error, got: %s", result)
 	}
@@ -192,7 +192,7 @@ func TestSearchFileOrdering(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := filetools.SearchPattern(".", ".", "*.txt")
+	result, _ := filetools.SearchPattern(".", ".", "*.txt")
 	var output filetools.GlobSearchOutput
 	json.Unmarshal([]byte(result), &output)
 
