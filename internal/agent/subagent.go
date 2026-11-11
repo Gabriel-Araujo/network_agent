@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Gabriel-Araujo/network_agent/internal/paths"
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
@@ -37,14 +37,15 @@ var promptSkills = map[string][]string{
 
 // ForSubagent returns the Agent that answers the turn as the named Subagente:
 // same connection and model, the system prompt is
-// resources/agents/<name>/AGENT.md mounted whole followed by whatever
+// resources/agents/<name>/AGENT.md — under the Agent root, the mirror
+// config.MaterialFile projects from the binary — mounted whole followed by whatever
 // promptSkills mounts for this name, tools are the file tools plus
 // read_skill_file, without the subagent tool (no nesting), without the
 // use_skill catalog, and minus whatever deniedTools withholds from this name.
 // A missing folder or AGENT.md — or an empty one — is an explicit error, never
 // silent. The name -> folder table is the routing List in rag.Lists.
 func (a *Agent) ForSubagent(name string) (*Agent, error) {
-	root, err := paths.RepoFile("resources/agents")
+	root, err := config.MaterialFile("resources/agents")
 	if err != nil {
 		return nil, fmt.Errorf("locating the subagent configs root: %w", err)
 	}
@@ -80,6 +81,7 @@ func (a *Agent) forSubagentAt(root, name string) (*Agent, error) {
 		apiKey:           a.apiKey,
 		modelContextSize: a.modelContextSize,
 		availableTools:   subagentTools(name),
+		workspace:        a.workspace,
 		systemPrompt:     prompt,
 	}, nil
 }

@@ -157,6 +157,20 @@ export namespace history {
 
 export namespace main {
 	
+	export class connection {
+	    state: string;
+	    cause?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new connection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.cause = source["cause"];
+	    }
+	}
 	export class contextWindow {
 	    total: number;
 	    source: string;

@@ -34,12 +34,28 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function GetConnection() {
+  return window['go']['main']['App']['GetConnection']();
+}
+
 export function GetContextWindow() {
   return window['go']['main']['App']['GetContextWindow']();
 }
 
+export function GetLogLines() {
+  return window['go']['main']['App']['GetLogLines']();
+}
+
+export function GetLogPath() {
+  return window['go']['main']['App']['GetLogPath']();
+}
+
 export function ListConversations() {
   return window['go']['main']['App']['ListConversations']();
+}
+
+export function Reconnect() {
+  return window['go']['main']['App']['Reconnect']();
 }
 
 export function RenameConversation(arg1, arg2) {

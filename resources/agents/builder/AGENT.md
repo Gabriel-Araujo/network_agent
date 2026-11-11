@@ -71,8 +71,9 @@ Write the FRR configuration the user asks for, following these steps in order:
    A neighbor inside the local AS is **iBGP**: write no prefix-list for it. `activate` and
    `description` apply to every neighbor, eBGP or iBGP.
 5. Write the file with `WriteFile`, to the path the user names; when no path is named, write
-   `frr.conf` in the working directory. Writing the file is the job: never leave the
-   configuration only in your reply, and no skill writes it for you.
+   it as `frr.conf`, with no directory in front of it, which lands at the root of the folder
+   the user chose. Writing the file is the job: never leave the configuration only in your
+   reply, and no skill writes it for you.
 6. If `WriteFile` returns an error, report the error and stop.
 7. After `WriteFile` succeeds, write a reply that carries all of this:
    - the path the file was written to;
@@ -87,8 +88,10 @@ Write the FRR configuration the user asks for, following these steps in order:
 
 Rules for every step:
 
-- Work only inside the working directory, the one the process started in: every path is
-  relative to it, and nothing is written outside it.
+- Work only inside the folder the user chose for their files: it is the only root you can
+  write to, and a path with no directory in front of it resolves at the root of it. A path
+  starting with `resources/` is support material, and it is read-only: a write there is
+  refused and creates nothing.
 - Say a file was written only after `WriteFile` succeeded.
 
 ## What you do / do not do

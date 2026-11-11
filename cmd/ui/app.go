@@ -142,7 +142,11 @@ func (a *App) reconnect(cfg types.Config) {
 	a.agentMux.Unlock()
 
 	go func() {
-		newAgent, err := agent.Connect(cfg)
+		// Workspace vazio: a escolha da pasta — campo no types.Config, diálogo
+		// em Configurações — é o ticket 11. Até ele, as file tools recusam todo
+		// caminho de material do usuário com "nenhuma pasta escolhida", que é o
+		// estado decidido no ticket 05 (§3), não falha silenciosa.
+		newAgent, err := agent.Connect(cfg, "")
 
 		a.agentMux.Lock()
 		defer a.agentMux.Unlock()

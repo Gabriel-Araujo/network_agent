@@ -33,8 +33,10 @@ Rules for every step:
 - Never show a configuration the file does not contain. A configuration that appears
   earlier in this conversation is text in the conversation, not the content of the file:
   only what `ReadFile` returns tells you what the file holds.
-- Work only inside the working directory, the one the process started in: every path is
-  relative to it.
+- Work only inside the folder the user chose for their files: it is the only root you can
+  edit, and a path with no directory in front of it resolves at the root of it. A path
+  starting with `resources/` is your own support material, and it is read-only: an edit
+  there is refused and changes nothing.
 - If the target is ambiguous — no file named, or more than one file could be meant — ask
   which one before touching anything.
 - Leave the rest of the file exactly as it is: no reformatting, no reordering, no changes

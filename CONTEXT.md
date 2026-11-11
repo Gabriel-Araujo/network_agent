@@ -28,9 +28,8 @@ is the LLM client, not an Agent in this sense.
 _Avoid_: run tree, definition tree, agent folder
 
 **Run tree**:
-Where one run writes its artifacts, at `.agent/runs/<agent>/<stage>/`. Layer 4.
-One per Agent, one active Run at a time. Not the **Workspace**, which is the
-user's folder.
+Where one run writes its artifacts. Layer 4. One per Agent, one active Run at a
+time. Not the **Workspace**, which is the user's folder.
 _Avoid_: workspace, space, output folder
 
 **Pipeline**:
@@ -142,6 +141,16 @@ The ordered messages of a Conversa: the unit the app owns and replays whole on
 every turn. Nothing about a Conversa lives only on the provider.
 _Avoid_: history, log, message list
 
+**Aviso**:
+What the app asserts about what **it** did in a turn, in the turn where it did
+it: a fallback of the composition (classification, retrieval, Subagente,
+diagram re-ask) or a tool call that failed. It rides the turn's outcome, is
+persisted on the Message and shows in its bubble. Distinct from the model's
+prose, which may report the same failure — and may report it with the wrong
+cause: an Aviso is the app's claim about its own action, never the model's. A
+successful event never fills it.
+_Avoid_: erro, mensagem de erro, warning, log
+
 ### Classification
 
 **Classificador**:
@@ -241,11 +250,13 @@ inside a flowchart, a hyphenated state id). Whoever consumes the metadata must r
 _Avoid_: bloco válido, bloco verificado, diagrama que renderiza, valid
 
 **Bloco não renderizado**:
-A **Bloco de diagrama** the client failed to draw: `mermaid.render` threw in the UI, so no SVG
+A **Bloco de diagrama** the client failed to draw: the render threw in the UI, so no SVG
 exists and the bubble shows the parser's message plus the source as text. Orthogonal to **Bloco
 não reprovado** — this one is the render on the client, that one is the turn's scanner on the
-server. A block can be both, either or neither, and the two never imply each other: a block the
-scanner stayed silent on may fail to render, and a block it accused may draw fine.
+server. A block can be both, either or neither, and silence on one side says nothing about the
+other: a block the scanner stayed silent on may still fail to render. The pairing is **not**
+symmetric, though — a block the scanner accused drawing fine is what its calibration forbids, and
+no live block has shown it.
 _Avoid_: diagrama quebrado, diagrama inválido, erro de mermaid, falha de render
 
 ### Arquivos
@@ -254,7 +265,10 @@ _Avoid_: diagrama quebrado, diagrama inválido, erro de mermaid, falha de render
 The folder the user picks in the desktop app: the single root the file tools may
 write to, and the root a path from the user resolves against. Supplied by each
 front-end — the UI from the user's choice, the CLI from its working directory.
-Distinct from the **Run tree**, ICM's layer 4, and from the **Agent root**,
-which is read-only. See
+Which of the two roots a path resolves against is its **prefix**, not a search
+order: a path under `resources/` is agent material, every other path is the
+Workspace. No Workspace picked, or one that is gone, is a refusal by the tool
+with its own text, not a turn that fails. Distinct from the **Run tree**, ICM's
+layer 4, and from the **Agent root**, which is read-only. See
 [ADR 0003](./docs/adr/0003-agent-and-run-tree-are-different-trees.md).
 _Avoid_: run tree, project folder, output folder

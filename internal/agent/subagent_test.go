@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3/responses"
@@ -143,4 +144,36 @@ func toolNames(toolset []responses.ToolUnionParam) []string {
 		}
 	}
 	return names
+}
+
+// TestForSubagentResolvesInTheMirror pins the reader half of the mirror: the
+// real ForSubagent — not the forSubagentAt seam the tests above drive — mounts
+// the AGENT.md that lives under the Agent root in the user's home, projected
+// there from the binary, and nothing in the path depends on the source tree
+// existing. Driving "teacher" covers both Go readers at once: mountPromptSkills
+// calls LoadSkills for the mermaid skill, which resolves in the same mirror.
+//
+// This is the call the live drive of ticket 07 found reaching into the source
+// tree through runtime.Caller.
+func TestForSubagentResolvesInTheMirror(t *testing.T) {
+	sub, err := (&Agent{ModelName: "model"}).ForSubagent("teacher")
+	if err != nil {
+		t.Fatalf("ForSubagent(teacher): %v", err)
+	}
+
+	mirrored, err := config.MaterialFile("resources/agents/teacher/AGENT.md")
+	if err != nil {
+		t.Fatalf("locating the mirrored AGENT.md: %v", err)
+	}
+	raw, err := os.ReadFile(mirrored)
+	if err != nil {
+		t.Fatalf("reading the mirrored AGENT.md: %v", err)
+	}
+	if !strings.HasPrefix(sub.systemPrompt, string(raw)) {
+		t.Errorf("the mounted prompt does not start with %s", mirrored)
+	}
+	// The mermaid skill is appended after it, so the prompt is strictly longer.
+	if len(sub.systemPrompt) <= len(raw) {
+		t.Errorf("prompt of %d bytes, want the AGENT.md (%d) plus the mounted skill", len(sub.systemPrompt), len(raw))
+	}
 }

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
-	"github.com/Gabriel-Araujo/network_agent/internal/paths"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 )
@@ -102,9 +102,13 @@ func ReadSkillFileTool() responses.ToolUnionParam {
 	}
 }
 
+// LoadSkills carrega o registro de skills do espelho do material do agente
+// (~/.network_agent/resources/agents/skills), projetado do binário pelo
+// config.MaterialFile: não depende de a árvore de fonte existir na máquina
+// que roda o app. Falha de carga continua morrendo alto.
 func LoadSkills() *Registry {
 
-	root, err := paths.RepoFile("resources/agents/skills")
+	root, err := config.MaterialFile("resources/agents/skills")
 	if err != nil {
 		log.Panicf("carregando skills: %v", err)
 	}

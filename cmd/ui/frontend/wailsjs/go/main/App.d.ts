@@ -20,9 +20,17 @@ export function DeleteProvider(arg1:number):Promise<types.Config>;
 
 export function GetConfig():Promise<types.Config>;
 
+export function GetConnection():Promise<main.connection>;
+
 export function GetContextWindow():Promise<main.contextWindow>;
 
+export function GetLogLines():Promise<Array<string>>;
+
+export function GetLogPath():Promise<string>;
+
 export function ListConversations():Promise<Array<history.Conversation>>;
+
+export function Reconnect():Promise<main.connection>;
 
 export function RenameConversation(arg1:string,arg2:string):Promise<history.Conversation>;
 

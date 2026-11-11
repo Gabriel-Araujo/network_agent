@@ -9,7 +9,9 @@ import (
 var log = logger.Named("MODELS")
 
 func LoadTestAgent() *Agent {
-	_agent, err := Connect(getTestConfig())
+	// Sem Workspace: estes dois agentes servem embedding e teste de modelo, e
+	// nenhum dos dois chama file tool.
+	_agent, err := Connect(getTestConfig(), "")
 
 	if err != nil {
 		log.Panicf("falha ao carregar o agente de teste: %v", err)
@@ -19,7 +21,7 @@ func LoadTestAgent() *Agent {
 }
 
 func LoadEmbbedAgent() *Agent {
-	_agent, err := Connect(getEmbedConfig())
+	_agent, err := Connect(getEmbedConfig(), "")
 
 	if err != nil {
 		log.Panicf("falha ao carregar o agente de embedding: %v", err)

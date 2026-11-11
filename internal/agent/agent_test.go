@@ -187,7 +187,7 @@ func TestConnectConfiguraJanelaDoLMStudioAntesDoChat(t *testing.T) {
 			Url:    server.URL + "/v1",
 			Models: []types.Model{{Id: "modelo", ContextSize: contextLength}},
 		}},
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("Connect devolveu erro: %v", err)
 	}

@@ -31,7 +31,10 @@ func main() {
 		log.Fatalf("falha ao carregar a configuração (%s): %v", config.Path(), err)
 	}
 
-	agent, err := agentapi.Connect(appCfg)
+	// A raiz de material do usuário no terminal é o CWD: onde o usuário está
+	// parado **é** a escolha dele, e por isso o CLI não tem diálogo de pasta
+	// nem lê a escolha que a UI gravou (ticket 05, Q3).
+	agent, err := agentapi.Connect(appCfg, ".")
 
 	if err != nil {
 		log.Fatalf("falha ao conectar ao LLM: %v", err)

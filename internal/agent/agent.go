@@ -26,13 +26,20 @@ type Agent struct {
 	// ContextWindow (window.go), que cai nele quando o provedor não a expõe.
 	modelContextSize int64
 	availableTools   []responses.ToolUnionParam
-	systemPrompt     string
+	// workspace é a pasta do usuário: a única raiz de escrita das file tools,
+	// e a raiz contra a qual um caminho sem o prefixo de material resolve.
+	// Quem a fornece é o front-end (ticket 05, Q3) — a UI dá a pasta escolhida,
+	// o cmd/cli dá o CWD, porque no terminal o diretório onde o usuário está
+	// parado **é** a escolha dele. Vazia significa "nenhuma escolhida", e as
+	// tools recusam com texto próprio; não é estado de erro do Agent.
+	workspace    string
+	systemPrompt string
 }
 
 // Init monta um Agent. providerURL e apiKey são a conexão — a URL do provedor
 // é por onde ContextWindow sonda a janela de contexto, que o cliente do SDK não
 // guarda em lugar nenhum legível.
-func Init(client openai.Client, providerURL, apiKey, modelName string, modelContextSize int64, tools []responses.ToolUnionParam, systemPrompt string) *Agent {
+func Init(client openai.Client, providerURL, apiKey, modelName string, modelContextSize int64, tools []responses.ToolUnionParam, systemPrompt, workspace string) *Agent {
 	return &Agent{
 		Client:           client,
 		ModelName:        modelName,
@@ -40,6 +47,7 @@ func Init(client openai.Client, providerURL, apiKey, modelName string, modelCont
 		apiKey:           apiKey,
 		modelContextSize: modelContextSize,
 		availableTools:   tools,
+		workspace:        workspace,
 		systemPrompt:     systemPrompt,
 	}
 }
@@ -172,9 +180,11 @@ func (a *Agent) offers(name string) bool {
 }
 
 // ToolCall executa uma tool de operação direta (ex.: leitura/escrita/edição
-// de arquivos) e devolve o resultado para o modelo.
+// de arquivos) e devolve o resultado para o modelo. O Workspace deste Agent vai
+// junto: é a raiz de escrita, e a outra raiz — o material do agente — o
+// CallFunction resolve sozinho, porque é global aos dois front-ends.
 func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {
-	return tools.CallFunction(ctx, call)
+	return tools.CallFunction(ctx, call, a.workspace)
 }
 
 // SkillCall ativa ou lê arquivos de uma skill (use_skill / read_skill_file),
@@ -201,6 +211,7 @@ func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctio
 		providerURL:    a.providerURL,
 		apiKey:         a.apiKey,
 		availableTools: a.availableTools,
+		workspace:      a.workspace,
 		systemPrompt:   a.systemPrompt,
 	}
 

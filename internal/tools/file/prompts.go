@@ -8,6 +8,56 @@ import (
 // log é o handle do pacote (uma declaração por pacote, não por arquivo).
 var log = logger.Named("TOOLS")
 
+// AS DUAS RAÍZES
+//
+// Depois do ticket 10 não existe "o diretório de trabalho": um caminho resolve
+// contra uma de duas raízes, e o prefixo diz qual. Os três avisos abaixo são o
+// que o modelo lê quando a raiz não serve, e são distintos de propósito —
+// o conserto de cada caso é diferente (escolher pasta × reconectar o drive ×
+// escrever noutro lugar).
+const (
+	// MIRROR_PREFIX manda um caminho para o espelho de material do agente em
+	// vez do Workspace. É literalmente "resources/" porque a projeção preserva
+	// o caminho embutido (ADR 0004): o "resources/agents/teacher/tech-packs/"
+	// que o AGENT.md do Teacher ensina resolve contra o home sem uma linha de
+	// prompt mudar.
+	MIRROR_PREFIX = "resources/"
+
+	// NO_WORKSPACE_NOTICE is the result when a path needs the user's folder and
+	// no folder has been chosen. It is not a transient error: retrying cannot
+	// fix it, and only the user can.
+	NO_WORKSPACE_NOTICE = "Error: no folder has been chosen for the user's files, so there is nowhere to read or write them. Nothing was read, written or created. Tell the user to choose a folder in the app's Settings. Do not retry, and do not invent a path."
+
+	// WORKSPACE_GONE_NOTICE is the result when a folder was chosen and is no
+	// longer there — renamed, unmounted, on a drive that was pulled. Told apart
+	// from NO_WORKSPACE_NOTICE because the fix differs; the folder is appended.
+	WORKSPACE_GONE_NOTICE = "Error: the folder chosen for the user's files is not there anymore, so nothing was read, written or created. Tell the user the folder is missing and that the drive holding it may need to be reconnected. Do not retry, and do not write anywhere else. The folder is: "
+
+	// READ_ONLY_ROOT_NOTICE is the result when a write or an edit resolves
+	// inside the app's own directory — the agent material under the mirror
+	// prefix, or the app data beside it. That root is read-only: the material
+	// is the same for every user and nothing in a turn is allowed to change it.
+	// The path asked for is appended.
+	READ_ONLY_ROOT_NOTICE = "Error: that path is inside the agent's own read-only material, which is never written, edited or replaced. Nothing was changed. Write the user's files under the folder they chose instead. The path refused is: "
+)
+
+// TWO_ROOTS_RULE is the path contract every file tool shares, mounted into all
+// four descriptions so they cannot teach different roots. It is written for the
+// model: which prefix goes where, and what it may not conclude from a refusal.
+const TWO_ROOTS_RULE = `
+## Path Resolution: two roots
+
+A path is not resolved against one working directory. There are two roots, and the prefix of the path picks which one:
+
+1. A path starting with ` + "`" + MIRROR_PREFIX + "`" + ` resolves against the agent's own material: your support files, the same for every user. This root is READ-ONLY. Reading and searching it works; writing or editing anything under it is refused and changes nothing.
+2. Every other path resolves against the folder the user chose for their files. It is the only root you can write to.
+
+Rules:
+
+- Never try to reach one root by prefixing or climbing out of the other. A path that resolves outside its root is refused; it is not an invitation to retry with ` + "`" + `../` + "`" + `.
+- The results carry absolute paths. Reuse the absolute path a tool returned when you refer to the same file again, and show it to the user as-is: with two roots, a bare relative path does not say which root it came from.
+- If no folder has been chosen, or the chosen folder is gone, paths of kind 2 are refused and nothing happens. Report that to the user; never claim a file was read, written or created after a refusal, and never fill in its content from this conversation.`
+
 // READ TOOL CONSTANTS
 const (
 	READ_MAX_CHARS_TO_READ = 64 * 1024 // 64 KiB (bytes); larger files come back truncated
@@ -18,20 +68,23 @@ const (
 	READ_NOT_FOUND_NOTICE = "Error: File not found. Nothing was read, and this tool never creates files. Do not say the file was written, created, edited or updated, and do not show configuration from the conversation as the content of this file. Tell the user the file does not exist: "
 	READ_TOOL_DESCRIPTION = `
 Reads and returns the content of a file from the local filesystem.
+` + TWO_ROOTS_RULE + `
 ## Workflow & Logic:
-### 1. Path Resolution (Mandatory Step):
+### 1. Locating the file (Mandatory Step):
 
 Before attempting to read a file, inspect the provided argument.
-If the argument is only a filename (e.g., frr.conf) or a relative path that does not resolve to a specific location, you must first call SearchFile(".", path, filename) to locate the absolute system path.
-Only proceed to reading the file once the absolute path is confirmed.
+If the argument is only a filename (e.g., frr.conf) that does not say which directory it is in, you must first call SearchFile to locate it, and read it by the absolute path the search returned.
+Only proceed to reading the file once the path is confirmed.
 
 ### 2. Content Retrieval:
 
-Once the absolute path is identified, retrieve the raw text content of the file.
+Once the path is identified, retrieve the raw text content of the file.
 
 ### Error Handling:
 
-- Path outside the working directory: Error: Filepath outside the permitted working directory
+- Path resolving outside its root: Error: Filepath outside the permitted working directory
+- No folder chosen for the user's files: ` + NO_WORKSPACE_NOTICE + `
+- The chosen folder is gone: ` + WORKSPACE_GONE_NOTICE + `<folder>
 - Target file does not exist: ` + READ_NOT_FOUND_NOTICE + `<path>
 - Any other read failure (no permission, path is a directory): Error: failed to read File content
 - Content over the cap comes back cut, closed by a truncation marker.`
@@ -42,7 +95,7 @@ var READ_TOOL_PARAMETERS = openai.FunctionParameters{
 	"properties": map[string]any{
 		"filePath": map[string]any{
 			"type":        "string",
-			"description": "File path, relative to the working directory",
+			"description": "Path of the file. Resolved against the folder the user chose, unless it starts with the agent-material prefix; an absolute path a tool already returned is accepted as-is.",
 		},
 	},
 	"required": []string{"filePath"},
@@ -57,7 +110,7 @@ const (
 	// below shows it to the model.
 	EDIT_MULTIPLE_MATCHES_NOTICE = "Error: old_text is not unique in the file. Nothing was changed. Include more surrounding lines in old_text so it matches exactly once. Occurrences found: "
 	EDIT_TOOL_DESCRIPTION        = `Performs exact substring replacement within a specific file on the local filesystem. This tool is used to modify existing configuration files.
-
+` + TWO_ROOTS_RULE + `
 ## Workflow & Logic:
 ### Mandatory Pre-conditions:
 
@@ -83,7 +136,10 @@ const (
 
 Any result other than "Success: File edited" means the file on disk was not changed.
 
-- Path outside the working directory: Error Filepath outside the permitted working directory
+- Path resolving outside its root: Error Filepath outside the permitted working directory
+- Path inside the agent's read-only material: ` + READ_ONLY_ROOT_NOTICE + `<path>
+- No folder chosen for the user's files: ` + NO_WORKSPACE_NOTICE + `
+- The chosen folder is gone: ` + WORKSPACE_GONE_NOTICE + `<folder>
 - Target file does not exist: Error: File not found.
 - old_string absent from the file: Error: old_text not found in file
 - old_string matching more than once: ` + EDIT_MULTIPLE_MATCHES_NOTICE + `<occurrences>
@@ -98,7 +154,7 @@ var EDIT_TOOL_PARAMETERS = openai.FunctionParameters{
 	"properties": map[string]any{
 		"filePath": map[string]any{
 			"type":        "string",
-			"description": "File path, relative to the working directory",
+			"description": "Path of the file. Resolved against the folder the user chose, unless it starts with the agent-material prefix; an absolute path a tool already returned is accepted as-is.",
 		},
 		"oldText": map[string]any{
 			"type":        "string",
@@ -119,6 +175,7 @@ const (
 	// existing file; the description below explains it to the model.
 	WRITE_REPLACED_NOTICE  = "Replaced existing file: "
 	WRITE_TOOL_DESCRIPTION = `Writes content to a specified path on the local filesystem. This tool is primarily used for creating new configuration files or performing full-file replacements.
+` + TWO_ROOTS_RULE + `
 ## Workflow & Logic:
 ### Operational Logic:
 
@@ -149,7 +206,10 @@ const (
 
 ### Error Handling:
 
-- If the path resolves outside the working directory: Error Filepath outside the permitted working directory
+- If the path resolves outside its root: Error Filepath outside the permitted working directory
+- If the path is inside the agent's read-only material: ` + READ_ONLY_ROOT_NOTICE + `<path>
+- If no folder has been chosen for the user's files: ` + NO_WORKSPACE_NOTICE + `
+- If the chosen folder is gone: ` + WORKSPACE_GONE_NOTICE + `<folder>
 - If directory creation fails: Error: failed to create directory
 - If writing the file fails: Error: failed to write File content`
 )
@@ -159,7 +219,7 @@ var WRITE_TOOL_PARAMETERS = openai.FunctionParameters{
 	"properties": map[string]any{
 		"filePath": map[string]any{
 			"type":        "string",
-			"description": "File path, relative to the working directory",
+			"description": "Path of the file. Resolved against the folder the user chose, unless it starts with the agent-material prefix; an absolute path a tool already returned is accepted as-is.",
 		},
 		"content": map[string]any{
 			"type":        "string",
@@ -172,13 +232,13 @@ var WRITE_TOOL_PARAMETERS = openai.FunctionParameters{
 const (
 	SEARCH_TOOL_NAME        = "SearchFile"
 	SEARCH_TOOL_DESCRIPTION = `Locates files within the filesystem using glob patterns (ex: **/*.go). This tool is essential for discovering file paths when only a filename or a partial directory structure is known.
-
+` + TWO_ROOTS_RULE + `
 ## Workflow & Logic:
 ### Operational Logic:
 
 1. Search Scope (path):
 - The search is confined to the directory specified in the path argument and its subdirectories.
-- If no path is given consider it be ".".
+- If no path is given consider it be ".", which is the root of the folder the user chose.
 - The search starts at the provided path and descends recursively if the pattern dictates.
 
 2. Pattern Matching (pattern):
@@ -207,7 +267,7 @@ var SEARCH_TOOL_PARAMETERS = openai.FunctionParameters{
 		},
 		"path": map[string]any{
 			"type":        "string",
-			"description": "Root path to search in, relative to the working directory. Defaults to the current working directory.",
+			"description": "Root path to search in, resolved against the folder the user chose, unless it starts with the agent-material prefix. Defaults to \".\", the root of that folder.",
 		},
 	},
 	"required": []string{"pattern", "path"},

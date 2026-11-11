@@ -12,7 +12,12 @@ import (
 //go:embed prompts/AGENT.md
 var baseAgent string
 
-func Connect(config types.Config) (*Agent, error) {
+// Connect monta o Agent da configuração escolhida. workspace é a pasta do
+// usuário, e é parâmetro em vez de campo do types.Config de propósito (ticket
+// 05, Q3): o arquivo de configuração é compartilhado com o cmd/cli, e fazer o
+// CLI honrar uma pasta escolhida noutro app redirecionaria a escrita para longe
+// de onde o usuário está parado.
+func Connect(config types.Config, workspace string) (*Agent, error) {
 	provider := config.Providers[config.Selected]
 	model := provider.Models[provider.DefaultModel]
 	log.Debugf("Trying connection with Provider '%s' through '%s'\n",
@@ -38,5 +43,6 @@ func Connect(config types.Config) (*Agent, error) {
 		model.ContextSize,
 		loadSkillsAndTools(),
 		baseAgent,
+		workspace,
 	), nil
 }

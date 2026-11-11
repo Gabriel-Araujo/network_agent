@@ -150,7 +150,7 @@ func newFakeAgent(t *testing.T, f *fakeLLM) *agentapi.Agent {
 	t.Helper()
 	ts := f.start(t)
 	client := openai.NewClient(option.WithBaseURL(ts.URL), option.WithAPIKey("test-key"))
-	return agentapi.Init(client, "", "", "test-model", 0, tools.GetSkillAndTools(), "generic prompt")
+	return agentapi.Init(client, "", "", "test-model", 0, tools.GetSkillAndTools(), "generic prompt", t.TempDir())
 }
 
 // systemFromBody extracts the system prompt sent in a recorded /responses

@@ -18,11 +18,13 @@ Issues, specs e mapas deste repo vivem como arquivos markdown em `.agent/`.
 - Artefatos produzidos ao resolver um ticket (relatórios, protótipos) vão em
   `.agent/<feature-slug>/assets/` e são **linkados** a partir da issue, nunca colados nela
 
-`.agent/` **não** está no `.gitignore`: os tickets são versionados junto do código.
+`.agent/` **está** no `.gitignore`: nada sob ele é versionado (`git ls-files .agent` devolve
+zero), e os tickets vivem na máquina de quem os escreve.
 
-`.agent/` é também o Run tree do ICM (layer 4, ver `CONTEXT.md`) — artefatos de execução
-do agente. Nada de dado de usuário entra aqui: dados de conversa, por exemplo, vivem em
-`~/.network_agent/`.
+`.agent/` é do tracker, e só dele. Artefato que uma execução grava — espelho, log, histórico —
+mora em `~/.network_agent/`, não aqui, e dado de usuário nunca entra. O **Run tree** do ICM
+(layer 4, ver `CONTEXT.md`) não tem escritor em lugar nenhum do repo hoje; quando tiver, a raiz
+dele não é esta.
 
 ## Quando uma skill diz "publish to the issue tracker"
 
