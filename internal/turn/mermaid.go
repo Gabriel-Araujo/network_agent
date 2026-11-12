@@ -164,6 +164,12 @@ func scanLine(line string) string {
 			closer = ')'
 		case c == '{':
 			closer = '}'
+		case c == '|':
+			// The edge label's pipe opens and closes with the same
+			// character, unlike the other three, so an odd count leaves
+			// the scan inside it to the end of the line. Harmless:
+			// inside a delimiter only ( ) { } are accused.
+			closer = '|'
 		}
 	}
 	return ""

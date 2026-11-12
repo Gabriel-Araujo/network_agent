@@ -53,18 +53,9 @@ func TestExpandBraces(t *testing.T) {
 }
 
 func TestSearchFile(t *testing.T) {
-	// Define the generated directory path
-	genDir := filepath.Join("generated", "search")
-	err := os.MkdirAll(genDir, 0755)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Clean up generated files from previous runs
-	filesToRemove, _ := filepath.Glob(filepath.Join(genDir, "*"))
-	for _, f := range filesToRemove {
-		os.RemoveAll(f)
-	}
+	// As fixtures vão para um diretório temporário, nunca para a árvore do módulo:
+	// um .go gerado aqui dentro quebra `go vet ./...` e `gofmt -l .` do repo inteiro.
+	t.Chdir(t.TempDir())
 
 	// Cria alguns arquivos e diretórios para testar
 	files := []string{
@@ -76,12 +67,11 @@ func TestSearchFile(t *testing.T) {
 	}
 
 	for _, f := range files {
-		fullPath := filepath.Join(genDir, f)
-		err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+		err := os.MkdirAll(filepath.Dir(f), 0755)
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = os.WriteFile(fullPath, []byte("content"), 0644)
+		err = os.WriteFile(f, []byte("content"), 0644)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,11 +122,6 @@ func TestSearchFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Muda o diretório de trabalho para o diretório gerado
-			originalWd, _ := os.Getwd()
-			os.Chdir(genDir)
-			defer os.Chdir(originalWd)
-
 			result, _ := filetools.SearchPattern(".", tt.path, tt.pattern)
 			if strings.HasPrefix(result, "Error") {
 				t.Fatalf("SearchFile failed: %s", result)
@@ -156,28 +141,14 @@ func TestSearchFile(t *testing.T) {
 }
 
 func TestSearchFileSecurity(t *testing.T) {
-	genDir := filepath.Join("generated", "search_security")
-	os.MkdirAll(genDir, 0755)
-
-	result, _ := filetools.SearchPattern(genDir, "../outside", "*.txt")
+	result, _ := filetools.SearchPattern(t.TempDir(), "../outside", "*.txt")
 	if !strings.Contains(result, "Error") {
 		t.Errorf("Expected security error, got: %s", result)
 	}
 }
 
 func TestSearchFileOrdering(t *testing.T) {
-	genDir := filepath.Join("generated", "search_ordering")
-	os.MkdirAll(genDir, 0755)
-
-	// Clean up
-	filesToRemove, _ := filepath.Glob(filepath.Join(genDir, "*"))
-	for _, f := range filesToRemove {
-		os.RemoveAll(f)
-	}
-
-	originalWd, _ := os.Getwd()
-	os.Chdir(genDir)
-	defer os.Chdir(originalWd)
+	t.Chdir(t.TempDir())
 
 	err := os.WriteFile("old.txt", []byte("old"), 0644)
 	if err != nil {

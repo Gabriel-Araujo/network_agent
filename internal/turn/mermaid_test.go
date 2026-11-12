@@ -139,6 +139,15 @@ func TestScanLineRules(t *testing.T) {
 		{"slash and colon in a label", `    ActionA[Action A: Set / Modify Routes]`, ""},
 		{"style line", `    style C2 fill:#f9f,stroke:#333,stroke-width:2px`, ""},
 
+		// Rule 1 over the fourth delimiter: the edge label's pipe. The
+		// four forms are measured in the pele 1.13.0 — unquoted ( ) { }
+		// inside |...| fail, the quoted form and plain text render
+		// (assets/16-divergencia/README.md). Mutant: track only [ ( {.
+		{"parens inside a pipe label", `    A --> |Local Protection Activation (LFA)| R_ALT`, violationSpecialInLabel},
+		{"quoted parens inside a pipe label", `    A --> |"Local Protection (LFA)"| R_ALT`, ""},
+		{"percentage inside a pipe label", `    A --> |50% of load| B`, ""},
+		{"plain text inside a pipe label", `    A --> |Failure Detected| B`, ""},
+
 		// Rule 2 fires: only the full-line comment with a single %.
 		{"single % comment line", `    % eBGP peering link`, violationSinglePercent},
 		{"double %% is a real comment", `    %% eBGP peering link`, ""},

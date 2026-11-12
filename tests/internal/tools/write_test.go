@@ -43,15 +43,20 @@ func TestWriteFile(t *testing.T) {
 			name:       "Success write new file",
 			workingDir: ".",
 			filePath:   "new.txt",
-			content:    "new content",
-			want:       "new content",
+			// As duas direções do ticket 22: os dois sucessos têm a mesma
+			// forma e verbos diferentes. O sucesso de arquivo novo devolvia
+			// só o conteúdo, e o modelo que não vê primeira linha nenhuma
+			// inventa a pasta ("no diretório atual") e hedgeia a
+			// substituição.
+			content: "new content",
+			want:    "Created new file: " + filepath.ToSlash(filepath.Join(wd, "new.txt")) + "\nnew content",
 		},
 		{
 			name:       "Success write in new subdirectory",
 			workingDir: ".",
 			filePath:   "sub/dir/new.txt",
 			content:    "sub content",
-			want:       "sub content",
+			want:       "Created new file: " + filepath.ToSlash(filepath.Join(wd, "sub/dir/new.txt")) + "\nsub content",
 		},
 		{
 			name:       "Success replace existing file",
@@ -121,8 +126,11 @@ func TestWriteFileHonraDiretorioDeTrabalhoAbsoluto(t *testing.T) {
 	t.Chdir(cwd)
 
 	const content = "hostname r1"
-	if got, _ := filetools.WriteFile(workspace, "r1.cfg", content); got != content {
-		t.Fatalf("WriteFile() = %q, want %q", got, content)
+	// A primeira linha é a única coisa que diz contra qual raiz o relativo
+	// resolveu, e aqui as duas candidatas divergem: o workspace não é o CWD.
+	want := "Created new file: " + filepath.ToSlash(filepath.Join(workspace, "r1.cfg")) + "\n" + content
+	if got, _ := filetools.WriteFile(workspace, "r1.cfg", content); got != want {
+		t.Fatalf("WriteFile() = %q, want %q", got, want)
 	}
 
 	data, err := os.ReadFile(filepath.Join(workspace, "r1.cfg"))

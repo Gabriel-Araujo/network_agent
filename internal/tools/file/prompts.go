@@ -178,8 +178,14 @@ var EDIT_TOOL_PARAMETERS = openai.FunctionParameters{
 // Write TOOL CONSTANTS
 const (
 	WRITE_TOOL_NAME = "WriteFile"
-	// WRITE_REPLACED_NOTICE opens the result when WriteFile replaced an
-	// existing file; the description below explains it to the model.
+	// WRITE_CREATED_NOTICE and WRITE_REPLACED_NOTICE open the two successes of
+	// WriteFile, and both carry the contained absolute path the tool resolved.
+	// Same shape, different verb: the model tells the cases apart by the verb,
+	// not by one of them having no first line at all. Absence was the old
+	// signal, and it was measured unreadable — the Builder hedged "replaced the
+	// existing file (if any)" and placed the file "in the current directory",
+	// the two things the output never told it (ticket 22).
+	WRITE_CREATED_NOTICE   = "Created new file: "
 	WRITE_REPLACED_NOTICE  = "Replaced existing file: "
 	WRITE_TOOL_DESCRIPTION = `Writes content to a specified path on the local filesystem. This tool is primarily used for creating new configuration files or performing full-file replacements.
 ` + TWO_ROOTS_RULE + `
@@ -193,7 +199,8 @@ const (
 2. Overwrite Behavior:
 
 - If a file already exists at the destination path, the WriteFile tool will overwrite it completely. The existing content will be discarded and replaced by the new content provided in the tool call. There is no "append" functionality.
-- The result tells the two cases apart. A new file returns the content written. A replaced file returns the line "` + WRITE_REPLACED_NOTICE + `<path>" followed by the content written; when you get it, tell the user that the existing file was replaced.
+- The result tells the two cases apart by its first line, which also carries the path the file was really written to. A new file returns "` + WRITE_CREATED_NOTICE + `<path>"; a replaced file returns "` + WRITE_REPLACED_NOTICE + `<path>", and only then tell the user that the existing file was replaced. The content written follows on the next line.
+- Report that path as the place the file is. Do not describe the location in any other words: the path you asked for does not say which root it resolved against, so "the current directory", "the working directory" or a folder name you did not read on that line is a guess.
 
 3. Usage Policy (Strict Selection):
 

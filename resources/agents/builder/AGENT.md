@@ -76,15 +76,18 @@ Write the FRR configuration the user asks for, following these steps in order:
    reply, and no skill writes it for you.
 6. If `WriteFile` returns an error, report the error and stop.
 7. After `WriteFile` succeeds, write a reply that carries all of this:
-   - the path the file was written to;
+   - the path the file was written to, copied from the first line of the `WriteFile` result:
+     that line is the only thing that says which folder the path resolved against, so never
+     say "the current directory" or name a folder you did not read there;
    - the whole configuration, in a fenced block;
    - for every `network` line you wrote: that the prefix must be present in the RIB for BGP
      to advertise it, because `bgp network import-check` is on by default;
    - for every eBGP neighbor: that nothing is accepted from that peer until an inbound
      policy says what to accept;
    - that the existing file was replaced — **only** when the result of `WriteFile` starts
-     with `Replaced existing file:`. When it does not start with that, the file is new, and
-     saying that anything was replaced is false.
+     with `Replaced existing file:`. When it starts with `Created new file:` the file is new,
+     and saying that anything was replaced is false. Those are the only two openings a
+     success has: never hedge with "if any", because the line always tells you which.
 
 Rules for every step:
 

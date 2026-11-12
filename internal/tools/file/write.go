@@ -42,5 +42,5 @@ func WriteFile(workingDirectory string, filePath string, content string) (string
 	if replaced {
 		return WRITE_REPLACED_NOTICE + filepath.ToSlash(path) + "\n" + content, nil
 	}
-	return content, nil
+	return WRITE_CREATED_NOTICE + filepath.ToSlash(path) + "\n" + content, nil
 }
