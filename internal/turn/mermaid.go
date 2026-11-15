@@ -8,10 +8,11 @@ import (
 // MermaidBlock is one ```mermaid fence of a reply, with the verdict of the
 // turn's narrow scanner on it.
 //
-// Violation empty means **not faulted**, never "valid": the scanner is three
-// rules over the measured failure modes (6 of the 7 the mounted batch showed),
-// not a Mermaid parser, so a block it does not accuse may still fail to render.
-// The distinction is in CONTEXT.md, under Bloco de diagrama
+// Violation empty means **not faulted**, never "valid": the scanner is five
+// rules over the measured failure modes (6 of the 7 the mounted batch showed,
+// plus the two classes of ticket 27), not a Mermaid parser, so a block it does
+// not accuse may still fail to render. The distinction is in CONTEXT.md, under
+// Bloco de diagrama
 // (decision 8: .agent/roteamento/issues/23-validar-os-blocos-mermaid-no-turno.md).
 type MermaidBlock struct {
 	// Index is the 1-based position of the fence in the reply.
@@ -28,16 +29,23 @@ type MermaidBlock struct {
 	Snippet string
 }
 
-// the three rules' violation texts, constant and model-agnostic like the file
+// the rules' violation texts, constant and model-agnostic like the file
 // tools' notices (internal/tools/file/prompts.go).
+//
+// The last two carry no quoting advice on purpose: they are the first two
+// modes whose fix is not double quotes, measured in the pele 1.13.0 —
+// `A -- CRITICAL LINK |"Failure Point"| B` fails quoted exactly as it fails
+// bare (.agent/ui/assets/27-rotulo-de-traco/probe-oraculo.txt).
 const (
-	violationSpecialInLabel = "unquoted ( ) { } [ ] inside a label delimiter or a subgraph title — Mermaid needs double quotes around text with punctuation"
-	violationSinglePercent  = "comment with a single % — Mermaid comments need %%"
-	violationUnclosedFence  = "the ```mermaid fence was opened and never closed — the reply was truncated"
+	violationSpecialInLabel    = "unquoted ( ) { } [ ] inside a label delimiter or a subgraph title — Mermaid needs double quotes around text with punctuation"
+	violationSinglePercent     = "comment with a single % — Mermaid comments need %%"
+	violationUnclosedFence     = "the ```mermaid fence was opened and never closed — the reply was truncated"
+	violationDashLabelNoArrow  = "an edge with a -- text label and a |label|, and no arrow closing the link — Mermaid needs the arrow after the pipe: A -- text |label| --> B"
+	violationUnclosedPipeLabel = "a |label| opened and never closed on its line — the edge label needs its second |"
 )
 
-// scanMermaid finds every ```mermaid block of the text and applies the three
-// rules to each, in the order they appear. The reply of any Subagente goes
+// scanMermaid finds every ```mermaid block of the text and applies the rules
+// to each, in the order they appear. The reply of any Subagente goes
 // through the same scan: the check is of the text, not of who wrote it
 // (decision 7 of ticket 23).
 //
@@ -90,7 +98,7 @@ type bodyLine struct {
 	text string
 }
 
-// verdict applies rules 1 and 2 to a block's body and returns the first
+// verdict applies the per-line rules to a block's body and returns the first
 // violation found — one record per block, so the re-ask points at one line
 // instead of a list the model has to triage.
 func verdict(index int, body []bodyLine) MermaidBlock {
@@ -102,8 +110,16 @@ func verdict(index int, body []bodyLine) MermaidBlock {
 	return MermaidBlock{Index: index}
 }
 
-// scanLine applies rules 1 and 2 to one line of a block's body in a single
-// pass, tracking double quotes and the label delimiter it is inside.
+// scanLine applies the per-line rules to one line of a block's body in a
+// single pass, tracking double quotes and the label delimiter it is inside.
+//
+// Rules 4 and 5 (ticket 27) ride on the same pass and fire at the end of the
+// line, because both are about something the line never did: rule 4 is a
+// `-- text` link label that picked up a `|label|` and no closing arrow
+// (`A -- CRITICAL LINK |Failure Point| B`, the line that breaks block 042 of
+// the corpus), rule 5 a pipe label that opened and never closed. Both are new
+// rules rather than a widening of rule 1, and both were measured in the pele
+// 1.13.0 first — .agent/ui/assets/27-rotulo-de-traco/README.md.
 //
 // Rule 2 is deliberately only the **full-line** comment, because that is the
 // part that is true of every diagram type. Measured against mermaid 11.17.2:
@@ -145,8 +161,53 @@ func scanLine(line string) string {
 	// `A --> |list 0]| B` accused.
 	run, shape := false, false
 
+	// Rule 4's state. openKind is the kind of link whose text label is open
+	// ('-' for `--` and `-.`, '=' for `==`, 0 for none), and pipeClosed
+	// records that a `|label|` closed while it was open. The kind matters:
+	// only a closing link of the same kind closes the text, measured in the
+	// pele — `A -- t |l| --- B` renders and `A -- t |l| === B` does not.
+	var linkKind, openKind byte
+	linkRun := 0
+	pipeClosed := false
+
 	for i := range len(line) {
 		c := line[i]
+
+		// Rule 4 counts the link's dashes only outside quotes and
+		// delimiters: inside a label they are text, and
+		// `A --> |a --> b| B` renders.
+		if closer == 0 && !quoted && c != '"' {
+			switch {
+			case linkChar(c):
+				if linkRun == 0 {
+					linkKind = linkKindOf(c)
+				}
+				linkRun++
+			case linkRun > 0:
+				switch {
+				case linkRun >= 3 || c == '>':
+					// A closing link: `---`, `-->`, `.->`. It
+					// closes the text label only if it is of the
+					// same kind.
+					if linkKind == openKind {
+						openKind, pipeClosed = 0, false
+					}
+				case linkRun == 2:
+					// `--`, `==` or `-.`: the link's text label
+					// opens here, and from now on only an arrow
+					// can close it. A run of three is a whole
+					// link (`A --- B` renders) and opens nothing.
+					//
+					// pipeClosed survives the re-open on purpose:
+					// it can only be set by a label that is still
+					// open, so `A -- t |l| -- B` — measured FALHA,
+					// a run of two closes nothing — stays accused.
+					openKind = linkKind
+				}
+				linkRun = 0
+			}
+		}
+
 		switch {
 		case c == '"':
 			quoted, run = !quoted, false
@@ -155,6 +216,11 @@ func scanLine(line string) string {
 		case closer != 0:
 			switch {
 			case c == closer:
+				if closer == '|' && openKind != 0 {
+					// Rule 4: a `|label|` closed while a `-- text`
+					// label is open.
+					pipeClosed = true
+				}
 				closer, run, shape = 0, false, false
 			case !special(c):
 				run = false
@@ -181,16 +247,69 @@ func scanLine(line string) string {
 			closer, run = ')', true
 		case c == '{':
 			closer, run = '}', true
-		case c == '|':
+		case c == '|' && !relationPipe(line, i):
 			// The edge label's pipe opens and closes with the same
 			// character, unlike the other three, so an odd count leaves
-			// the scan inside it to the end of the line. It gets no
-			// shape run: the doubled delimiters are node shapes, and an
-			// edge label has none — `A --> |[0]| B` is a defect.
+			// the scan inside it to the end of the line — which is
+			// rule 5, below. It gets no shape run: the doubled
+			// delimiters are node shapes, and an edge label has none —
+			// `A --> |[0]| B` is a defect.
 			closer = '|'
 		}
 	}
+
+	switch {
+	case closer == '|':
+		// Rule 5: the line ended inside an edge label.
+		return violationUnclosedPipeLabel
+	case openKind != 0 && pipeClosed:
+		// Rule 4: a `-- text |label|` that no arrow ever closed.
+		return violationDashLabelNoArrow
+	}
 	return ""
+}
+
+// linkChar are the characters Mermaid draws a link with: the dash, the equals
+// of the thick link and the dot of the dotted one.
+func linkChar(c byte) bool {
+	return c == '-' || c == '=' || c == '.'
+}
+
+// linkKindOf folds the dotted link into the dash family, because the pele
+// accepts `A -. t |l| .-> B` and `A -. t |l| -.- B` — the dot and the dash
+// close each other. Only the thick link is a kind of its own: `A -- t ==> B`
+// fails, and so does `A == t --> B`.
+func linkKindOf(c byte) byte {
+	if c == '=' {
+		return '='
+	}
+	return '-'
+}
+
+// relationPipe reports whether the pipe at i belongs to another diagram type's
+// relationship token instead of opening a flowchart edge label. The pipe is
+// vocabulary in two other types, both measured RENDER in the pele 1.13.0:
+// classDiagram's `--|>`, `..|>` and `<|..`, and erDiagram's cardinalities
+// (`||--|{`, `}|--||`, `}o--o|`). Without this, rule 5 would accuse every one
+// of them, and rule 1 already accused the `{` of `||--|{` — a false positive
+// that predates this ticket and lives outside the calibration corpus, which
+// has no erDiagram in it.
+//
+// Keyed on adjacency, which is what tells them apart: a flowchart label's pipe
+// is followed by its text (`-->|eBGP|`, `--- |Router bgp 1|`), never by `>`,
+// `{` or another pipe, and is never preceded by `<`, `}`, `o` or another pipe.
+// The cost is a label that starts with `>` or `{`, the empty `||`, or a node
+// id ending in `o` with no link before the pipe — none of them legal Mermaid.
+func relationPipe(line string, i int) bool {
+	var prev, next byte
+	if i > 0 {
+		prev = line[i-1]
+	}
+	if i+1 < len(line) {
+		next = line[i+1]
+	}
+	return next == '>' || next == '{' || next == '|' ||
+		prev == '<' || prev == '}' || prev == 'o' || prev == '|'
 }
 
 // special are the characters rule 1 accuses inside a delimiter: the parentheses

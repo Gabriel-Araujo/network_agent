@@ -242,11 +242,11 @@ _Avoid_: diagrama, mermaid, gráfico, imagem
 
 **Bloco não reprovado**:
 A **Bloco de diagrama** that the turn's scanner did not accuse. It is **not** a valid block: the
-scanner is three narrow rules over the measured failure modes, not a Mermaid parser, so a block it
+scanner is five narrow rules over the measured failure modes, not a Mermaid parser, so a block it
 stays silent on may still fail to render. The asymmetry is deliberate — the scanner is calibrated
 to never accuse a block that renders, and pays for it by missing modes it does not cover (a `note`
 inside a flowchart, a hyphenated state id). Whoever consumes the metadata must read silence as
-"these three rules found nothing", never as a render guarantee.
+"these five rules found nothing", never as a render guarantee.
 _Avoid_: bloco válido, bloco verificado, diagrama que renderiza, valid
 
 **Bloco não renderizado**:

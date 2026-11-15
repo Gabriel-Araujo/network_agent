@@ -185,6 +185,85 @@ func TestScanLineRules(t *testing.T) {
 		// assets/16-divergencia/blocos carry a bracketed title.
 		{"bracketed subgraph title", `    subgraph S [AS 65001]`, ""},
 
+		// Rule 4, ticket 27's class A: a `-- text` link label that picked
+		// up a `|label|` and no arrow ever closed. Every line below was
+		// measured in the pele 1.13.0
+		// (.agent/ui/assets/27-rotulo-de-traco/probe-oraculo.txt), and the
+		// first one is the line that breaks block 042 of the corpus. The
+		// fix is not quotes — this is the first mode whose notice cannot
+		// teach quoting, because the quoted form fails too.
+		// Mutant: drop rule 4.
+		{"dash label plus pipe label", `    A -- CRITICAL LINK |Failure Point| B`, violationDashLabelNoArrow},
+		{"the line of block 042", `    B -- CRITICAL LINK |Failure Point| C`, violationDashLabelNoArrow},
+		{"thick dash label plus pipe label", `    A == LINK |Point| B`, violationDashLabelNoArrow},
+		{"dotted dash label plus pipe label", `    A -. LINK |Point| B`, violationDashLabelNoArrow},
+		{"quoting does not fix the dash label", `    A -- CRITICAL LINK |"Failure Point"| B`, violationDashLabelNoArrow},
+		{"dash label with a bracketed target", `    A -- t |l| B[x]`, violationDashLabelNoArrow},
+		// Mutant: let any closing link close any text label. Measured:
+		// `-- ... === B` fails and `== ... === B` renders, so the kind of
+		// the closing link has to match the kind of the opening one.
+		{"closing link of the wrong kind", `    A -- CRITICAL LINK |Failure Point| === B`, violationDashLabelNoArrow},
+		// Mutant: treat a run of two as a closing link. `A --- B` renders
+		// and `A -- B` does not — only three dashes or an arrow close.
+		{"two dashes close nothing", `    A -- t |l| -- B`, violationDashLabelNoArrow},
+
+		// Rule 4 must not fire. The valid form differs from the invalid
+		// one only by the arrow **after** the pipe, which is the risk the
+		// ticket named: accusing any of these would be the one error the
+		// scanner's calibration has never made.
+		{"the arrow after the pipe is the fix", `    A -- CRITICAL LINK |Failure Point| --> B`, ""},
+		{"dash label closed by an arrow", `    A -- CRITICAL LINK --> B`, ""},
+		{"dash label closed by three dashes", `    A -- t |l| --- B`, ""},
+		{"thick label closed by three equals", `    A == t |l| === B`, ""},
+		{"thick label closed by a thick arrow", `    A == LINK |Point| ==> B`, ""},
+		{"dotted label closed by a dotted arrow", `    A -. t |l| .-> B`, ""},
+		{"dotted label closed by a dotted link", `    A -. t |l| -.- B`, ""},
+		{"three dashes open no text label", `    A --- |Router bgp 1| P20;`, ""},
+		{"an arrow inside a pipe label is text", `    A --> |a --> b| B`, ""},
+		{"two edges on one line", `    A --> |l| B -- texto --> C`, ""},
+		{"quoted dash label closed by an arrow", `    P20[Peer R-AS 20] -- "eBGP" --> A;`, ""},
+		{"percent dash label closed by an arrow", `    A -- 50% --> B`, ""},
+		// The pipe is what makes rule 4 safe: classDiagram's bare
+		// association has the same `-- text` shape with no pipe anywhere,
+		// and it renders.
+		{"classDiagram association", `    Animal -- Dog`, ""},
+		{"classDiagram association with cardinality", `    Animal "1" -- "many" Dog`, ""},
+		// Measured misses, written down as misses: a run of three with
+		// text cannot be told from `A --- B` without counting words, and
+		// the pipe-less form cannot be told from the association above.
+		{"three dashes with text and a pipe (uncovered)", `    A --- t |l| B`, ""},
+		{"dash label with no pipe at all (uncovered)", `    A -- CRITICAL LINK B`, ""},
+
+		// Rule 5, ticket 27's class B: the line ended inside an edge
+		// label. The last case is the real emission of block 032 of the
+		// corpus, where an unclosed quote swallows the closing pipe.
+		// Mutant: drop rule 5.
+		{"pipe label never closed", `    A --> |Failure Detected B`, violationUnclosedPipeLabel},
+		{"pipe label never closed at end of line", `    A --> |Failure Detected`, violationUnclosedPipeLabel},
+		{"three pipes on one line", `    A --> |a | b| B`, violationUnclosedPipeLabel},
+		{"the line of block 032", `    R3 ---|"eBGP Session|-- R4;`, violationUnclosedPipeLabel},
+
+		// Rule 5 must not fire. The pipe is vocabulary in two other
+		// diagram types, and all of these render: without the
+		// relationPipe guard rule 5 accuses every one of them, and rule 1
+		// already accused the `{` of `||--|{` before this ticket.
+		// Mutant: drop the guard.
+		{"classDiagram inheritance", `    Dog --|> Animal`, ""},
+		{"classDiagram realization", `    Dog ..|> Animal`, ""},
+		{"classDiagram dependency", `    Animal <|.. Dog`, ""},
+		{"erDiagram zero or more", `    CUSTOMER ||--o{ ORDER : places`, ""},
+		{"erDiagram one or more", `    ORDER ||--|{ LINE_ITEM : contains`, ""},
+		{"erDiagram one to exactly one", `    LINE_ITEM }|--|| PRODUCT : is`, ""},
+		{"erDiagram zero or one both ends", `    A |o--o| B : rel`, ""},
+		{"erDiagram many to zero or one", `    A }o--o| B : rel`, ""},
+		{"pipe label closed", `    A --> |Failure Detected| B`, ""},
+		{"pipe label closed without spaces", `    A-->|Failure|B`, ""},
+		// Measured misses: the empty `||` is erDiagram's "exactly one"
+		// with no local difference from an empty flowchart label, and a
+		// pipe inside a bracket label never reaches rule 5.
+		{"empty pipe label (uncovered)", `    A --> || B`, ""},
+		{"pipe inside a bracket label (uncovered)", `    A[texto | pipe] --> B`, ""},
+
 		// Rule 2 fires: only the full-line comment with a single %.
 		{"single % comment line", `    % eBGP peering link`, violationSinglePercent},
 		{"double %% is a real comment", `    %% eBGP peering link`, ""},

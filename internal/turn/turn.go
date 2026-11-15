@@ -85,7 +85,7 @@ type Outcome struct {
 	MermaidChecked bool
 
 	// MermaidBlocks is one record per ```mermaid block of the shipped
-	// reply, in order. An empty Violation means the three rules did not
+	// reply, in order. An empty Violation means the scanner's rules did not
 	// fault the block — **not** that it renders (see MermaidBlock).
 	MermaidBlocks []MermaidBlock
 
