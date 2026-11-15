@@ -148,6 +148,43 @@ func TestScanLineRules(t *testing.T) {
 		{"percentage inside a pipe label", `    A --> |50% of load| B`, ""},
 		{"plain text inside a pipe label", `    A --> |Failure Detected| B`, ""},
 
+		// Rule 1 over the bracket, the fifth and sixth characters of the
+		// set. The seven forms are measured in the pele 1.13.0 (ticket 26,
+		// .agent/ui/assets/26-colchete/probe-colchete.txt): the bracket
+		// inside any delimiter fails and the quoted form renders, so the
+		// fix is the quotes the notice already teaches. Mutant: keep
+		// special() to ( ) { }.
+		{"bracket inside a bracket label", `    A[list [0]] --> B`, violationSpecialInLabel},
+		{"bracket inside a round label", `    A(list [0]) --> B`, violationSpecialInLabel},
+		{"bracket inside a brace label", `    A{list [0]} --> B`, violationSpecialInLabel},
+		{"bracket inside a pipe label", `    A --> |list [0]| B`, violationSpecialInLabel},
+		{"closing bracket alone inside a pipe label", `    A --> |list 0]| B`, violationSpecialInLabel},
+		{"opening bracket alone inside a pipe label", `    A --> |list [0| B`, violationSpecialInLabel},
+		{"quoted bracket inside a pipe label", `    A --> |"list [0]"| B`, ""},
+
+		// Mermaid's doubled-delimiter node shapes, all six measured RENDER
+		// in the same probe: the doubling is the shape, not label text.
+		// Four of them (every one but [[ ]] and ([ ])) were accused before
+		// the bracket entered the set — the guard pays an old debt too.
+		// Mutant: drop the shape guard from scanLine.
+		{"subroutine shape", `    A[[Subroutine]] --> B`, ""},
+		{"database shape", `    A[(Database)] --> B`, ""},
+		{"stadium shape", `    A([Stadium]) --> B`, ""},
+		{"circle shape", `    A((Circle)) --> B`, ""},
+		{"double circle shape", `    A(((Double))) --> B`, ""},
+		{"hexagon shape", `    A{{Hexagon}} --> B`, ""},
+		// The guard is adjacency to the delimiter, not a licence: a real
+		// defect inside a shape is still accused, and the edge label's
+		// pipe has no shape vocabulary at all. Both measured FALHA.
+		// Mutant: skip every special char in a shaped delimiter.
+		{"parens inside a stadium shape", `    A([Session (Down)]) --> B`, violationSpecialInLabel},
+		{"bracket inside a pipe label is never a shape", `    A --> |[0]| B`, violationSpecialInLabel},
+
+		// Mutant: accuse the bracket on a subgraph line too. There it is
+		// the title's own delimiter and not text — 16 of the 44 blocks of
+		// assets/16-divergencia/blocos carry a bracketed title.
+		{"bracketed subgraph title", `    subgraph S [AS 65001]`, ""},
+
 		// Rule 2 fires: only the full-line comment with a single %.
 		{"single % comment line", `    % eBGP peering link`, violationSinglePercent},
 		{"double %% is a real comment", `    %% eBGP peering link`, ""},

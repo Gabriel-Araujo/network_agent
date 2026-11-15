@@ -31,7 +31,7 @@ type MermaidBlock struct {
 // the three rules' violation texts, constant and model-agnostic like the file
 // tools' notices (internal/tools/file/prompts.go).
 const (
-	violationSpecialInLabel = "unquoted ( ) { } inside a label delimiter or a subgraph title — Mermaid needs double quotes around text with punctuation"
+	violationSpecialInLabel = "unquoted ( ) { } [ ] inside a label delimiter or a subgraph title — Mermaid needs double quotes around text with punctuation"
 	violationSinglePercent  = "comment with a single % — Mermaid comments need %%"
 	violationUnclosedFence  = "the ```mermaid fence was opened and never closed — the reply was truncated"
 )
@@ -136,17 +136,34 @@ func scanLine(line string) string {
 	var closer byte // 0 = outside a delimiter, else the char that closes it
 	quoted := false
 
+	// Mermaid's node shapes double the delimiter — [[ ]], [( )], ([ ]), (( )),
+	// ((( ))) and {{ }}, all six measured RENDER in the pele 1.13.0 — so the
+	// doubling characters are the shape, not label text. Rule 1 skips the run
+	// right after the opener and, only in a delimiter that opened with such a
+	// run, the mate right before the closer: without the second half
+	// `A([Stadium])` is accused, and keying it on shape keeps
+	// `A --> |list 0]| B` accused.
+	run, shape := false, false
+
 	for i := range len(line) {
 		c := line[i]
 		switch {
 		case c == '"':
-			quoted = !quoted
+			quoted, run = !quoted, false
 		case quoted:
 			// Quoted text is exactly what Mermaid accepts.
 		case closer != 0:
-			if c == closer {
-				closer = 0
-			} else if special(c) {
+			switch {
+			case c == closer:
+				closer, run, shape = 0, false, false
+			case !special(c):
+				run = false
+			case run:
+				// Still in the opening run: `[(`, `((`, `(((`.
+				shape = true
+			case shape && i+1 < len(line) && line[i+1] == closer:
+				// The shape's mate: the `)` of `[(Database)]`.
+			default:
 				return violationSpecialInLabel
 			}
 		case c == '%':
@@ -156,19 +173,20 @@ func scanLine(line string) string {
 			if i+1 < len(line) && line[i+1] == '%' {
 				return ""
 			}
-		case subgraph && special(c):
+		case subgraph && undelimited(c):
 			return violationSpecialInLabel
 		case c == '[':
-			closer = ']'
+			closer, run = ']', true
 		case c == '(':
-			closer = ')'
+			closer, run = ')', true
 		case c == '{':
-			closer = '}'
+			closer, run = '}', true
 		case c == '|':
 			// The edge label's pipe opens and closes with the same
 			// character, unlike the other three, so an odd count leaves
-			// the scan inside it to the end of the line. Harmless:
-			// inside a delimiter only ( ) { } are accused.
+			// the scan inside it to the end of the line. It gets no
+			// shape run: the doubled delimiters are node shapes, and an
+			// edge label has none — `A --> |[0]| B` is a defect.
 			closer = '|'
 		}
 	}
@@ -176,9 +194,18 @@ func scanLine(line string) string {
 }
 
 // special are the characters rule 1 accuses inside a delimiter: the parentheses
-// (4 of the 7 measured modes) and the braces (1). Kept to the measured set on
+// (4 of the 7 measured modes), the braces (1) and the brackets (six forms
+// measured in the pele 1.13.0, ticket 26). Kept to the measured set on
 // purpose — `<br>` and `:` and `/` ride inside labels that render.
 func special(c byte) bool {
+	return undelimited(c) || c == '[' || c == ']'
+}
+
+// undelimited is the narrower set rule 1 accuses outside any delimiter, on a
+// subgraph line. The bracket is not in it: there it is the title's own
+// delimiter and not text, and `subgraph S [AS 65001]` renders — 16 of the 44
+// blocks of the calibration corpus carry one.
+func undelimited(c byte) bool {
 	return c == '(' || c == ')' || c == '{' || c == '}'
 }
 

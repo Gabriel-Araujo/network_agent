@@ -94,7 +94,15 @@ flowchart TB
     rm --> pl["ip prefix-list OWN seq 5 permit 198.51.100.0/24"]
 ```
 
-## Not covered here
+## Never write these
 
-Styling (`classDef`, `style`, `linkStyle`), icons, click events, Markdown strings and the
-newer `@{ shape: … }` node syntax.
+Styling (`classDef`, `style`, `linkStyle`, `:::`), icons, click events, Markdown strings and
+the newer `@{ shape: … }` node syntax. Most of it renders — it is banned because colour
+carries no meaning a label cannot, and because two of its forms are parse errors that kill the
+whole diagram:
+
+- `linkStyle 0 stroke:#FF4500;` — a hex value followed by `;`. Measured: `stroke:red;` parses
+  and `stroke:#FF4500` without the `;` parses, the two together do not.
+- `class R1--R2 name` — `class` takes nodes, never links.
+
+Carry the meaning in the label and in the link styles this reference already teaches.

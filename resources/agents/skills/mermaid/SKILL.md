@@ -6,7 +6,8 @@ description: "MermaidJS syntax for diagrams written as fenced mermaid blocks in 
 # Mermaid diagrams
 
 A diagram is text: a fenced code block tagged `mermaid` inside the reply. Whoever reads the
-reply renders it (MermaidJS 11). Nothing here writes, renders or validates a file.
+reply renders it with pele (`obsidianmd/pele`), which targets Mermaid 12.1.0 syntax with its
+own layout and visual style. Nothing here writes, renders or validates a file.
 
 ## Fence convention
 
@@ -41,6 +42,9 @@ Other diagram types (class, gantt, pie, ...) are not covered: draw with these th
 - **Close every block:** `subgraph`, `loop`, `alt`, `opt`, `par`, `critical` close with `end`;
   a composite state closes with `}`; a multi-line note closes with `end note`.
 - **Comments** start with `%%` on their own line.
+- **No styling:** `classDef`, `style`, `linkStyle`, `class` and `:::` are not this skill's
+  vocabulary. Most of them do render, but two forms are a parse error that kills the whole
+  diagram: `linkStyle 0 stroke:#f00;` in a flowchart, and `classDef`/`class` in a sequence.
 - **One idea per diagram.** A large network reads better as two or three small diagrams than
   as one crowded one.
 

@@ -76,7 +76,11 @@ sequenceDiagram
     end
 ```
 
-## Not covered here
+## Never write these
 
-Activation bars, `box` groups, `rect` highlighting, participant types (`@{ "type": … }`),
-`create`/`destroy`, and links/menus on participants.
+**A parse error that kills the whole diagram:** `classDef` and `class`. A sequence diagram
+takes no styling at all — unlike a flowchart, the line does not merely add noise, it fails to
+parse.
+
+**Out of scope, renders but do not use:** activation bars, `box` groups, `rect` highlighting,
+participant types (`@{ "type": … }`), `create`/`destroy`, and links/menus on participants.

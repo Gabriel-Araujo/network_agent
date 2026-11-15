@@ -72,6 +72,8 @@ stateDiagram-v2
     Full --> Down: dead interval expires
 ```
 
-## Not covered here
+## Never write these
 
-Styling (`classDef`, `class`, `:::`) and the older `stateDiagram` header (use `-v2`).
+Styling (`classDef`, `class`, `style`, `:::`) and the older `stateDiagram` header (use `-v2`).
+The styling lines do render here, but they are not part of this skill's vocabulary: carry the
+meaning in the state and transition text.
