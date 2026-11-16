@@ -64,6 +64,22 @@ func TestRunReasksOnceAndShipsTheFix(t *testing.T) {
 	}
 }
 
+func TestRunReasksForLinkStyleHexSemicolon(t *testing.T) {
+	broken := "```mermaid\nflowchart LR\nA --> B\nlinkStyle 0 stroke:#0A3;\n```"
+	fixed := strings.Replace(broken, "#0A3;", "#0A3", 1)
+	fake, _ := routedFake(t, broken, fixed)
+	out, _, err := Run(t.Context(), newFakeAgent(t, fake), nil, "draw a graph", State{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text != fixed || !out.MermaidRetried || fake.responseCalls != 2 {
+		t.Fatalf("outcome = %+v, response calls = %d", out, fake.responseCalls)
+	}
+	if !strings.Contains(string(fake.lastResponseBody), "semicolon") {
+		t.Errorf("retry lacks specific repair instruction: %s", fake.lastResponseBody)
+	}
+}
+
 // TestRunReaskStillBrokenShipsTheOriginalWithOneWarning: the non-regression
 // gate. A retry that is still faulted ships the **original** reply, with a
 // warning naming both attempts (decision 5).

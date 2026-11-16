@@ -222,21 +222,16 @@ _Avoid_: output file, arquivo de saída, cache, log, backup
 
 **Skill**:
 A specialized procedure packaged as a folder with a `SKILL.md` — a name, a description and a body
-— in the common catalog. Its body reaches the model by one of two paths, **ativada** or
-**montada**; the same skill can be montada for one **Subagente** and ativada by another.
+— in the common catalog. Its body reaches the model by **ativação** (`use_skill`): before the call
+the model knows only the name and description in the tool's catalog.
 _Avoid_: plugin, módulo, tool, procedimento
 
 **Skill ativada**:
 The path in which the model calls `use_skill` with the exact name and the body comes back as a
 tool result. Before the call the model knows only the name and description in the tool's catalog,
-so reading the body is the model's choice.
-_Avoid_: skill carregada, discovery, ativação de tool
-
-**Skill montada**:
-The path in which the loader concatenates the body into a **Subagente**'s system prompt, so the
-body is there before the turn starts and no call happens. Chosen when the content must not depend
-on the model electing to read it.
-_Avoid_: skill injetada, inlinada, pré-carregada, embutida
+so reading the body is the model's choice — a prompt that needs the body orders the call. The
+catalog a dispatched **Subagente** reads is narrowed to the skills its own prompt names.
+_Avoid_: skill carregada, discovery, ativação de tool, skill montada
 
 ### Diagramas
 
@@ -249,11 +244,18 @@ _Avoid_: diagrama, mermaid, gráfico, imagem
 
 **Bloco não reprovado**:
 A **Bloco de diagrama** that the turn's scanner did not accuse. It is **not** a valid block: the
-scanner is five narrow rules over the measured failure modes, not a Mermaid parser, so a block it
+scanner is seven narrow rules over the measured failure modes, not a Mermaid parser, so a block it
 stays silent on may still fail to render. The asymmetry is deliberate — the scanner is calibrated
 to never accuse a block that renders, and pays for it by missing modes it does not cover (a `note`
 inside a flowchart, a hyphenated state id). Whoever consumes the metadata must read silence as
-"these five rules found nothing", never as a render guarantee.
+"these seven rules found nothing", never as a render guarantee.
+
+And **how many** rules found nothing depends on the block's declared type: five of the seven are
+flowchart vocabulary (the label delimiters, the link's text label, the unclosed edge label, the
+edge's `linkStyle`, the comment after a statement) and only run on a block that declares
+`flowchart` or `graph`. Outside one — a `sequenceDiagram`, an `erDiagram`, a type this scanner
+never heard of — silence is of **two** rules, the full-line comment and the unclosed fence, so an
+unaccused `erDiagram` carries even less of a promise than an unaccused flowchart.
 _Avoid_: bloco válido, bloco verificado, diagrama que renderiza, valid
 
 **Bloco não renderizado**:

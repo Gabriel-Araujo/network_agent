@@ -53,8 +53,9 @@ type App struct {
 	// busy trava a execução do agente: apenas UMA chamada AskAgent por vez.
 	// Garante que cada input do usuário seja processado uma única vez e
 	// que o próximo input aguarde o término do atual.
-	busy    bool
-	busyMux sync.Mutex
+	busy           bool
+	busyMux        sync.Mutex
+	repairAttempts map[string]string
 
 	// turnState guarda o State da composição do turno por Conversa. A skip
 	// rule do Modo RAG compara a classificação com a do turno anterior, então

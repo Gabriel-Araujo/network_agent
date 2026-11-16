@@ -127,7 +127,10 @@ export default function MessageBubble({ message }: { message: Message }) {
   }
 
   const streaming = message.status === 'streaming'
-  const isEmpty = message.content.trim() === ''
+  const repair = message.mermaidRepair
+  const content = repair?.state === 'accepted' && repair.correctedContent != null
+    ? repair.correctedContent : message.content
+  const isEmpty = content.trim() === ''
   const warnings = message.warnings?.length ? <WarningList warnings={message.warnings} /> : null
 
   return (
@@ -160,7 +163,17 @@ export default function MessageBubble({ message }: { message: Message }) {
           {isEmpty && streaming ? (
             <ThinkingIndicator />
           ) : (
-            <Markdown content={message.content} streaming={streaming} />
+            <Markdown content={content} streaming={streaming} />
+          )}
+
+          {repair?.state === 'repairing' && <p className="repair-status" role="status">Tentando corrigir o diagrama automaticamente…</p>}
+          {(repair?.state === 'started' || repair?.state === 'candidate') && <p className="repair-status" role="status">A tentativa de correção foi interrompida. Peça outra forma ao agente.</p>}
+          {(repair?.state === 'failed' || repair?.state === 'rejected') && <p className="repair-status" role="status">A correção automática não foi concluída. {repair.error} Peça outra forma ao agente.</p>}
+          {repair?.state === 'accepted' && (
+            <div className="repair-status" role="status">
+              Diagrama corrigido automaticamente.
+              <details><summary>Mostrar resposta original</summary><Markdown content={message.content} /></details>
+            </div>
           )}
 
           {warnings}

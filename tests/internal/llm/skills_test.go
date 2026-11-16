@@ -32,6 +32,23 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 	}
 
 	a := &llm2.Agent{}
+
+	// Activation is the only path the rules travel — nothing is mounted in the
+	// prompt (subagentSkills, ticket 35) — so a body without the styling ban is
+	// an Illustrator never taught the linkStyle form a measured production block
+	// broke (ticket 28). The rule's name is the canary, not its wording.
+	activated, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{
+		CallID:    "call_use",
+		Name:      skills.ToolUseSkill,
+		Arguments: `{"skill_name": "mermaid"}`,
+	})
+	switch body := callOutput(t, activated); {
+	case strings.HasPrefix(body, "erro:"):
+		t.Errorf("use_skill mermaid: %s", body)
+	case !strings.Contains(body, "linkStyle"):
+		t.Error("the activated mermaid body no longer bans linkStyle")
+	}
+
 	refs := map[string]string{
 		"references/flowchart.md": "flowchart",
 		"references/sequence.md":  "sequenceDiagram",
@@ -64,59 +81,74 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 // 30 in the ticket 28 batch, and t11 never reached mermaid.
 var pipelineSkills = []string{"frr-file-builder", "frr-intent-analyzer", "frr-rag-retriever"}
 
-// TestNoSkillCatalogForTheSubagente pins both halves of the cut that ticket 18
-// proved for the stub alone, extended to every skill: the toolset of a
-// dispatched Subagente carries no use_skill at all — so no catalog, no enum,
-// no description naming a skill — while the generic agent's still carries the
-// whole catalog, which is out of this effort's scope and must not regress.
-//
-// The cut is the tool, not a filter on the registry, because after removing
-// the three pipeline skills the only entry left was "mermaid", already mounted
-// in the prompt of the two Subagentes who draw (promptSkills) — so use_skill
-// returned text the prompt already had, a call the e4b spends 9 of 13 times
-// for nothing (ticket 28 measured no discrimination: 3 OK/6 FAIL activated vs
-// 1 OK/3 FAIL not).
-func TestNoSkillCatalogForTheSubagente(t *testing.T) {
+// TestSkillActivationNarrowedForTheSubagente pins the shape the owner chose
+// (ticket 35): a dispatched Subagente carries use_skill narrowed to the skills
+// its own prompt names — the catalog the model reads can only order the
+// activation of those — plus read_skill_file and the file tools. A name with
+// no skills (the Builder) carries no activation tool at all, and an unknown
+// name is an explicit error. What must NOT return is the full catalog: the
+// three pipeline skills' descriptions ordered activation on any FRR question —
+// 12 of 30 calls in the ticket 28 batch, and t11 never reached mermaid — so
+// their names must not reach a dispatched model through any tool.
+func TestSkillActivationNarrowedForTheSubagente(t *testing.T) {
 	t.Chdir(repoRoot(t))
 
-	dispatched := tools.GetFileAndSkillTools()
-
-	// Half one: the dispatched Subagente has no use_skill. A tool absent from
-	// the request has no description for the model to read and no enum for it
-	// to name, and callTool refuses the name anyway (ticket 20).
-	if fn := findTool(dispatched, skills.ToolUseSkill); fn != nil {
-		t.Errorf("the dispatched Subagente still offers %s: %v", skills.ToolUseSkill, skillEnum(t, fn))
+	dispatched, err := tools.GetFileAndSkillTools([]string{"mermaid"})
+	if err != nil {
+		t.Fatalf("building the narrowed toolset: %v", err)
 	}
 
-	// What must survive the cut: read_skill_file is how the Illustrator and
-	// Teacher configs reach references/flowchart.md and its two siblings, and
-	// both name the tool and the "mermaid" skill explicitly, so the reach does
-	// not depend on a catalog.
+	// Half one: use_skill exists, narrowed to exactly the named skill.
+	fn := findTool(dispatched, skills.ToolUseSkill)
+	if fn == nil {
+		t.Fatalf("the dispatched Subagente lost %s: %v", skills.ToolUseSkill, toolNames(dispatched))
+	}
+	if enum := skillEnum(t, fn); !slices.Equal(enum, []string{"mermaid"}) {
+		t.Errorf("dispatched %s enum = %v, want exactly [mermaid]", skills.ToolUseSkill, enum)
+	}
+
+	// What must survive alongside it: read_skill_file is how the Illustrator
+	// and Teacher configs reach references/flowchart.md and its two siblings.
 	if findTool(dispatched, skills.ToolReadSkillFile) == nil {
-		t.Errorf("the cut took %s with it: %v", skills.ToolReadSkillFile, toolNames(dispatched))
+		t.Errorf("the narrowing took %s with it: %v", skills.ToolReadSkillFile, toolNames(dispatched))
 	}
 
-	// No skill name reaches the dispatched model through any other tool
-	// either: the catalog text was the carrier, and this is the half ticket 18
-	// checked on the description.
+	// No pipeline skill name reaches the dispatched model through any tool:
+	// the catalog text was the carrier of the hijack, and this is the half
+	// ticket 18 checked on the description.
 	blob, err := json.Marshal(dispatched)
 	if err != nil {
 		t.Fatalf("marshaling the dispatched toolset: %v", err)
 	}
-	for _, name := range append(slices.Clone(pipelineSkills), "mermaid") {
+	for _, name := range pipelineSkills {
 		if bytes.Contains(blob, []byte(name)) {
 			t.Errorf("the dispatched toolset still names the skill %q: %s", name, blob)
 		}
 	}
 
+	// A name with no skills gets no activation tool at all: the empty enum
+	// would be a lie, and a description no model can act on.
+	plain, err := tools.GetFileAndSkillTools(nil)
+	if err != nil {
+		t.Fatalf("building the skill-less toolset: %v", err)
+	}
+	if fn := findTool(plain, skills.ToolUseSkill); fn != nil {
+		t.Errorf("the skill-less toolset offers %s: %v", skills.ToolUseSkill, skillEnum(t, fn))
+	}
+
+	// An unknown name is an explicit error: the list is code.
+	if _, err := tools.GetFileAndSkillTools([]string{"no-such-skill"}); err == nil {
+		t.Error("GetFileAndSkillTools accepted a skill name the registry does not have")
+	}
+
 	// Half two: the generic agent keeps the whole catalog. Fixing the
 	// generic's own pipeline is a separate effort (it is on the map's
-	// Out of scope), so the cut must stop at the dispatched toolset.
+	// Out of scope), so the narrowing must stop at the dispatched toolset.
 	generic := useSkillTool(t, tools.GetSkillAndTools())
 	enum := skillEnum(t, generic)
 	for _, name := range append(slices.Clone(pipelineSkills), "mermaid") {
 		if !slices.Contains(enum, name) {
-			t.Errorf("the cut reached the generic agent, which lost %q: %v", name, enum)
+			t.Errorf("the narrowing reached the generic agent, which lost %q: %v", name, enum)
 		}
 		if !strings.Contains(generic.Description.Value, name) {
 			t.Errorf("the generic catalog no longer lists %q: %s", name, generic.Description.Value)
@@ -124,15 +156,18 @@ func TestNoSkillCatalogForTheSubagente(t *testing.T) {
 	}
 }
 
-// TestReadSkillFileReachesMermaidWithoutTheCatalog is the second acceptance of
-// the cut: with use_skill gone from the dispatched toolset, read_skill_file
-// still serves the mermaid reference. The handler resolves against the full
-// registry and checks no activation (ReadSkillFileNoActivation), so losing the
-// catalog loses no reach.
-func TestReadSkillFileReachesMermaidWithoutTheCatalog(t *testing.T) {
+// TestReadSkillFileServesTheReferenceWithoutActivation: read_skill_file serves
+// the mermaid reference regardless of activation. The handler resolves against
+// the full registry and checks no activation (ReadSkillFileNoActivation), so a
+// turn that never called use_skill still reaches the references.
+func TestReadSkillFileServesTheReferenceWithoutActivation(t *testing.T) {
 	t.Chdir(repoRoot(t))
 
-	if findTool(tools.GetFileAndSkillTools(), skills.ToolReadSkillFile) == nil {
+	toolset, err := tools.GetFileAndSkillTools([]string{"mermaid"})
+	if err != nil {
+		t.Fatalf("building the narrowed toolset: %v", err)
+	}
+	if findTool(toolset, skills.ToolReadSkillFile) == nil {
 		t.Fatalf("%s is not offered to a dispatched Subagente", skills.ToolReadSkillFile)
 	}
 

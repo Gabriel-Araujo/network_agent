@@ -349,13 +349,15 @@ func TestCallToolKeepsSubAgentForTheGeneric(t *testing.T) {
 	}
 }
 
-// TestPromptSkillsMountedInTheSubagentPrompt: the Illustrator's system prompt
-// carries the mermaid syntax before the turn starts, without the model calling
-// anything. The model never runs a consultative read (use_skill 0/15,
-// ReadFile of the tech pack 0/4), so an activation the model has to choose is
-// not a delivery mechanism. The control is the table: with the illustrator
-// entry gone the prompt loses the syntax and this test fails.
-func TestPromptSkillsMountedInTheSubagentPrompt(t *testing.T) {
+// TestSubagentSkillActivationNarrowedToThePrompt: the Illustrator's syntax
+// reaches the model through the use_skill call, not through the prompt — the
+// body is gone from the system prompt and the activation tool is narrowed to
+// exactly the skill its AGENT.md names. The owner chose the call as the only
+// path (ticket 35); the narrowing keeps other descriptions from ordering other
+// activations — the 12 of 30 wasted calls of the ticket 28 batch. The control
+// is the table: with the illustrator entry gone the toolset loses use_skill
+// and this test fails.
+func TestSubagentSkillActivationNarrowedToThePrompt(t *testing.T) {
 	root := t.TempDir()
 	agentMD := "You are the Illustrator."
 	dir := filepath.Join(root, "illustrator")
@@ -371,26 +373,34 @@ func TestPromptSkillsMountedInTheSubagentPrompt(t *testing.T) {
 		t.Fatalf("forSubagentAt(illustrator): %v", err)
 	}
 
-	mermaid, ok := skills.LoadSkills().Get("mermaid")
-	if !ok {
-		t.Fatal("the mermaid skill is not in the registry")
+	if sub.systemPrompt != agentMD {
+		t.Errorf("systemPrompt = %q, want the AGENT.md and nothing else — the body travels by use_skill now", sub.systemPrompt)
 	}
-	if want := agentMD + "\n\n" + mermaid.Body; sub.systemPrompt != want {
-		t.Errorf("systemPrompt = %q,\nwant the AGENT.md then the mermaid body, blank line between", sub.systemPrompt)
+	var activation *responses.FunctionToolParam
+	for _, tool := range sub.availableTools {
+		if fn := tool.OfFunction; fn != nil && fn.Name == skills.ToolUseSkill {
+			activation = fn
+		}
 	}
-	if !strings.Contains(sub.systemPrompt, "Parentheses outside quotes break the diagram") {
-		t.Error("the mounted prompt does not carry the quotes rule, the one ticket 16 corrected")
+	if activation == nil {
+		t.Fatalf("illustrator toolset has no %s: %v", skills.ToolUseSkill, toolNames(sub.availableTools))
+	}
+	props, _ := activation.Parameters["properties"].(map[string]any)
+	skill, _ := props["skill_name"].(map[string]any)
+	enum, _ := skill["enum"].([]string)
+	if !slices.Equal(enum, []string{"mermaid"}) {
+		t.Errorf("use_skill enum = %v, want exactly [mermaid] — only what the prompt names", enum)
 	}
 }
 
-// TestPromptSkillsUnknownNameIsAnExplicitError: a name in the table that the
+// TestSubagentSkillsUnknownNameIsAnExplicitError: a name in the table that the
 // registry does not have fails the dispatch, like a missing AGENT.md. The
-// table is code; a prompt silently without the syntax is the failure the
-// mounting fixes, so it must never be the quiet outcome.
-func TestPromptSkillsUnknownNameIsAnExplicitError(t *testing.T) {
-	previous := promptSkills
-	promptSkills = map[string][]string{"illustrator": {"no-such-skill"}}
-	t.Cleanup(func() { promptSkills = previous })
+// table is code; a toolset silently without the activation is the failure the
+// narrowing exists to avoid, so it must never be the quiet outcome.
+func TestSubagentSkillsUnknownNameIsAnExplicitError(t *testing.T) {
+	previous := subagentSkills
+	subagentSkills = map[string][]string{"illustrator": {"no-such-skill"}}
+	t.Cleanup(func() { subagentSkills = previous })
 
 	root := t.TempDir()
 	dir := filepath.Join(root, "illustrator")
@@ -410,10 +420,11 @@ func TestPromptSkillsUnknownNameIsAnExplicitError(t *testing.T) {
 	}
 }
 
-// TestPromptSkillsLeavesTheBuilderAlone: the Builder does not draw, so its
-// prompt is its AGENT.md and nothing else. Mounting everywhere would be the
-// easy mistake; the table says who draws.
-func TestPromptSkillsLeavesTheBuilderAlone(t *testing.T) {
+// TestSubagentSkillsLeaveTheBuilderAlone: the Builder does not draw, so it
+// gets no skill at all — no body in the prompt and no use_skill in the
+// toolset. Mounting or offering everywhere would be the easy mistake; the
+// table says who draws.
+func TestSubagentSkillsLeaveTheBuilderAlone(t *testing.T) {
 	root := t.TempDir()
 	agentMD := "You are the Builder."
 	dir := filepath.Join(root, "builder")
@@ -431,13 +442,19 @@ func TestPromptSkillsLeavesTheBuilderAlone(t *testing.T) {
 	if sub.systemPrompt != agentMD {
 		t.Errorf("systemPrompt = %q, want the AGENT.md untouched", sub.systemPrompt)
 	}
+	for _, tool := range sub.availableTools {
+		if fn := tool.OfFunction; fn != nil && fn.Name == skills.ToolUseSkill {
+			t.Errorf("builder toolset offers %s: it names no skill", skills.ToolUseSkill)
+		}
+	}
 }
 
-// TestActivationSentenceGoneFromTheDrawingPrompts: the two AGENT.md files no
-// longer tell the model to activate the skill. The sentence asked for
-// something already in the prompt and that the model never did; leaving it
-// would teach a call that buys nothing.
-func TestActivationSentenceGoneFromTheDrawingPrompts(t *testing.T) {
+// TestActivationSentenceInTheDrawingPrompts: the two AGENT.md files order the
+// activation their toolset offers. The sentence died with the mounting
+// (ticket 22) because the body was already in the prompt; with the call as the
+// only path (ticket 35) the sentence is what makes it happen — and the tool it
+// names exists for exactly these two names.
+func TestActivationSentenceInTheDrawingPrompts(t *testing.T) {
 	for _, name := range []string{"illustrator", "teacher"} {
 		path, err := paths.RepoFile(filepath.Join("resources/agents", name, "AGENT.md"))
 		if err != nil {
@@ -447,8 +464,8 @@ func TestActivationSentenceGoneFromTheDrawingPrompts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading %s/AGENT.md: %v", name, err)
 		}
-		if strings.Contains(string(body), skills.ToolUseSkill) {
-			t.Errorf("%s/AGENT.md still names %s: the skill is mounted, not activated", name, skills.ToolUseSkill)
+		if !strings.Contains(string(body), skills.ToolUseSkill) {
+			t.Errorf("%s/AGENT.md does not name %s: the body travels by activation and nothing orders it", name, skills.ToolUseSkill)
 		}
 	}
 }

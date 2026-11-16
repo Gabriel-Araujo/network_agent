@@ -46,8 +46,35 @@ export interface Connection {
   cause?: string
 }
 
+export interface MermaidFailure {
+  index: number
+  source: string
+  error: string
+}
+
+export interface MermaidReplacement {
+  index: number
+  source: string
+}
+
+export interface MermaidRepair {
+  attemptId: string
+  messageId: string
+  state: 'repairing' | 'started' | 'candidate' | 'accepted' | 'rejected' | 'failed'
+  correctedContent?: string
+  error?: string
+  usage?: TokenUsage
+}
+
+/** O que a operação de início devolve: a tentativa e os candidatos. */
+export interface MermaidRepairStart {
+  attemptId: string
+  replacements: MermaidReplacement[]
+}
+
 export interface Message {
   id: string
+  persistentId?: string
   role: Role
   content: string
   status: MsgStatus
@@ -70,6 +97,7 @@ export interface Message {
    * respondeu — degradação nunca mata o turno —, mas com menos do que devia.
    */
   warnings?: string[]
+  mermaidRepair?: MermaidRepair
 }
 
 /** Conversa como o Go a devolve (`history.Conversation`): transcript junto, updatedAt desc. */

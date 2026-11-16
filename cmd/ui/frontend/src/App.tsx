@@ -14,6 +14,7 @@ import {
   Connection,
   ContextWindow,
   Conversation,
+  MermaidRepair,
   Message,
   TokenUsage,
   activeModel,
@@ -22,6 +23,7 @@ import {
   sortByUpdatedDesc,
   toUiMessages,
 } from './types'
+import { runMermaidRepair } from './mermaidRepair'
 
 /**
  * Por que o envio está bloqueado. O alerta era fixo em "Configuração
@@ -238,10 +240,12 @@ function App() {
       setMessages((prev) => {
         // Balão do turno ao vivo mantém o id que já está na tela quando
         // role+conteúdo batem: trocar a chave remontaria o balão e a animação
-        // de entrada rodaria de novo sobre texto que já estava visível.
+        // de entrada rodaria de novo sobre texto que já estava visível. O id
+        // persistido segue no `persistentId` — é ele que o reparo de diagrama
+        // usa para falar com a ponte (o id da tela é só uma chave de render).
         for (let i = 0; i < prev.length && i < disk.length; i++) {
           if (prev[i].role === disk[i].role && prev[i].content === disk[i].content) {
-            disk[i] = { ...disk[i], id: prev[i].id }
+            disk[i] = { ...disk[i], id: prev[i].id, persistentId: disk[i].id }
           }
         }
         return disk
@@ -268,6 +272,19 @@ function App() {
               error: { what: be.what, why: be.why, next: be.next },
             }
           : m,
+      ),
+    )
+  }, [])
+
+  // Estado do reparo de diagrama na mensagem dona da resposta. O alvo é o id
+  // persistido (o id da tela é chave de render e muda no turno ao vivo); o
+  // estado só existe na conversa aberta — a verdade persistida vem depois, na
+  // conversa que a operação de conclusão devolve.
+  const patchRepairState = useCallback((convID: string, messageID: string, repair: MermaidRepair) => {
+    if (activeIdRef.current !== convID) return
+    setMessages((prev) =>
+      prev.map((m) =>
+        (m.persistentId ?? m.id) === messageID ? { ...m, mermaidRepair: repair } : m,
       ),
     )
   }, [])
@@ -346,6 +363,39 @@ function App() {
       // como ela ficou; o stream (agent:token/agent:done) chega no meio.
       const conv: Conversation = await app.AskAgent(convId, text)
       applyConversation(conv)
+
+      // Reparo automático de diagrama (UMA tentativa): só para a resposta que
+      // este turno acabou de concluir — nunca ao reabrir histórico, durante o
+      // streaming, nem para resposta de outro reparo —, e sem mensagem de
+      // usuário fictícia. Um falha do reparo NUNCA derruba o turno: a resposta
+      // original e o fonte do bloco continuam na tela.
+      const fresh = [...conv.messages].reverse().find((m) => m.role === 'agent')
+      if (fresh && app.StartMermaidRepair && app.FinishMermaidRepair) {
+        const messageID = fresh.id
+        try {
+          const updated = await runMermaidRepair(
+            conv.id,
+            messageID,
+            fresh.content,
+            {
+              startRepair: (mid, failures) => app.StartMermaidRepair(conv.id, mid, failures),
+              retryRepair: (attemptID, failures) =>
+                app.RetryMermaidRepair(conv.id, attemptID, failures),
+              finishRepair: (attemptID, accepted) =>
+                app.FinishMermaidRepair(conv.id, attemptID, accepted),
+            },
+            (repair) => patchRepairState(conv.id, messageID, repair),
+          )
+          if (updated) applyConversation(updated)
+        } catch (e) {
+          patchRepairState(conv.id, messageID, {
+            attemptId: '',
+            messageId: messageID,
+            state: 'failed',
+            error: parseBridgeError(e).why,
+          })
+        }
+      }
     } catch (e) {
       const be = parseBridgeError(e)
       // A conversa sumiu do disco no meio do turno: além do erro, atualiza a

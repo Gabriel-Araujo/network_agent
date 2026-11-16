@@ -18,6 +18,8 @@ export function DeleteModel(arg1:number,arg2:number):Promise<types.Config>;
 
 export function DeleteProvider(arg1:number):Promise<types.Config>;
 
+export function FinishMermaidRepair(arg1:string,arg2:string,arg3:boolean):Promise<history.Conversation>;
+
 export function GetConfig():Promise<types.Config>;
 
 export function GetConnection():Promise<main.connection>;
@@ -36,9 +38,13 @@ export function Reconnect():Promise<main.connection>;
 
 export function RenameConversation(arg1:string,arg2:string):Promise<history.Conversation>;
 
+export function RetryMermaidRepair(arg1:string,arg2:string,arg3:Array<history.MermaidFailure>):Promise<main.MermaidRepairStart>;
+
 export function SelectProvider(arg1:number):Promise<types.Config>;
 
 export function SetDefaultModel(arg1:number,arg2:number):Promise<types.Config>;
+
+export function StartMermaidRepair(arg1:string,arg2:string,arg3:Array<history.MermaidFailure>):Promise<main.MermaidRepairStart>;
 
 export function UpdateModel(arg1:number,arg2:number,arg3:types.Model):Promise<types.Config>;
 

@@ -8,18 +8,23 @@ import (
 // MermaidBlock is one ```mermaid fence of a reply, with the verdict of the
 // turn's narrow scanner on it.
 //
-// Violation empty means **not faulted**, never "valid": the scanner is five
+// Violation empty means **not faulted**, never "valid": the scanner is seven
 // rules over the measured failure modes (6 of the 7 the mounted batch showed,
-// plus the two classes of ticket 27), not a Mermaid parser, so a block it does
+// plus the two classes of ticket 27, linkStyle and the comment after a
+// statement), not a Mermaid parser, so a block it does
 // not accuse may still fail to render. The distinction is in CONTEXT.md, under
 // Bloco de diagrama
 // (decision 8: .agent/roteamento/issues/23-validar-os-blocos-mermaid-no-turno.md).
+//
+// Five of the seven are flowchart vocabulary and only run on a block that
+// declares one, so outside a flowchart silence is of two rules and not of seven
+// (.agent/ui/issues/30-o-scanner-conhece-o-tipo-do-diagrama.md).
 type MermaidBlock struct {
 	// Index is the 1-based position of the fence in the reply.
 	Index int
 
 	// Violation names the rule the block broke ("" = not faulted by these
-	// three rules).
+	// seven rules).
 	Violation string
 
 	// Line is the 1-based line of the violation, counted in the reply, and
@@ -32,7 +37,7 @@ type MermaidBlock struct {
 // the rules' violation texts, constant and model-agnostic like the file
 // tools' notices (internal/tools/file/prompts.go).
 //
-// The last two carry no quoting advice on purpose: they are the first two
+// The last four carry no quoting advice on purpose: they are
 // modes whose fix is not double quotes, measured in the pele 1.13.0 —
 // `A -- CRITICAL LINK |"Failure Point"| B` fails quoted exactly as it fails
 // bare (.agent/ui/assets/27-rotulo-de-traco/probe-oraculo.txt).
@@ -40,8 +45,10 @@ const (
 	violationSpecialInLabel    = "unquoted ( ) { } [ ] inside a label delimiter or a subgraph title — Mermaid needs double quotes around text with punctuation"
 	violationSinglePercent     = "comment with a single % — Mermaid comments need %%"
 	violationUnclosedFence     = "the ```mermaid fence was opened and never closed — the reply was truncated"
-	violationDashLabelNoArrow  = "an edge with a -- text label and a |label|, and no arrow closing the link — Mermaid needs the arrow after the pipe: A -- text |label| --> B"
+	violationDashLabelNoArrow  = "an edge with a -- text label and no arrow closing the link — Mermaid needs the arrow after the text: A -- text --> B"
 	violationUnclosedPipeLabel = "a |label| opened and never closed on its line — the edge label needs its second |"
+	violationLinkStyleHex      = "linkStyle ends with a hexadecimal color followed by a semicolon — remove the semicolon or move the color before another property"
+	violationTailComment       = "a comment after a statement on the same line — Mermaid only takes a %% comment at the start of its own line"
 )
 
 // scanMermaid finds every ```mermaid block of the text and applies the rules
@@ -102,12 +109,39 @@ type bodyLine struct {
 // violation found — one record per block, so the re-ask points at one line
 // instead of a list the model has to triage.
 func verdict(index int, body []bodyLine) MermaidBlock {
+	flow := flowchartBlock(body)
 	for _, l := range body {
-		if v := scanLine(l.text); v != "" {
+		if v := scanLine(l.text, flow); v != "" {
 			return MermaidBlock{Index: index, Violation: v, Line: l.n, Snippet: strings.TrimSpace(l.text)}
 		}
 	}
 	return MermaidBlock{Index: index}
+}
+
+// flowchartBlock reports whether the block declares a flowchart, which is what
+// licenses the four rules that are flowchart vocabulary (ticket 30). The
+// allowlist is deliberate: an unknown type — `gantt`, `mindmap`, a type newer
+// than this code — runs only the two rules that hold for every diagram, so a
+// vocabulary the rules never measured can no longer be accused by adjacency.
+// It costs nothing measured: all 20 accusations over the three corpora of 89
+// blocks (the 44 of the pele oracle, the 15 calibration sessions, 30 blocks of
+// real history) are on a flowchart or a graph.
+//
+// The declaration is the first token of the block's first non-empty line, in
+// 89 of 89 measured blocks: none opens with front matter or a %%{init}%%
+// directive. A block that did would read as an unknown type and fall to the
+// quiet side, which is a miss and never a false positive.
+func flowchartBlock(body []bodyLine) bool {
+	for _, l := range body {
+		trimmed := strings.TrimSpace(l.text)
+		if trimmed == "" {
+			continue
+		}
+		for kind := range strings.FieldsSeq(trimmed) {
+			return kind == "flowchart" || kind == "graph"
+		}
+	}
+	return false
 }
 
 // scanLine applies the per-line rules to one line of a block's body in a
@@ -115,26 +149,38 @@ func verdict(index int, body []bodyLine) MermaidBlock {
 //
 // Rules 4 and 5 (ticket 27) ride on the same pass and fire at the end of the
 // line, because both are about something the line never did: rule 4 is a
-// `-- text` link label that picked up a `|label|` and no closing arrow
-// (`A -- CRITICAL LINK |Failure Point| B`, the line that breaks block 042 of
-// the corpus), rule 5 a pipe label that opened and never closed. Both are new
-// rules rather than a widening of rule 1, and both were measured in the pele
-// 1.13.0 first — .agent/ui/assets/27-rotulo-de-traco/README.md.
+// `-- text` link label that no arrow ever closed, rule 5 a pipe label that
+// opened and never closed. Both are new rules rather than a widening of rule 1,
+// and both were measured in the pele 1.13.0 first —
+// .agent/ui/assets/27-rotulo-de-traco/README.md.
 //
-// Rule 2 is deliberately only the **full-line** comment, because that is the
-// part that is true of every diagram type. Measured against mermaid 11.17.2:
-// a trailing `%%` breaks a flowchart but is fine in a sequenceDiagram, and a
-// bare % in text renders everywhere (`A -- 50% --> B`, `A -->|% of load| B`,
-// `A->>B: 50% done` all parse). Accusing a mid-line % would therefore trade
-// one more catch for a class of false positives, and telling the valid case
-// from the invalid one needs each diagram type's vocabulary — the parser
-// decision 1 refused. The trailing-comment modes are left uncovered and
-// written down as such.
+// Rule 4 no longer asks for a `|label|` (ticket 33): the pipe used to be the
+// rule's licence, because `A -- CRITICAL LINK B` could not be told from
+// classDiagram's bare association `Animal -- Dog`, which renders. The type
+// gate tells them apart, so the pipe is gone from the rule and `A -- t B`,
+// `A == t B` and `A -. t B` — all measured FALHA — are accused too.
 //
-// A %% that is not at the start of the line stops the scan instead: a
-// comment's text is not label text, and 9 of the 14 comment lines in the
-// calibration corpus carry parentheses.
-func scanLine(line string) string {
+// Rule 7 is the comment after a statement, `%` or `%%` alike. It is this
+// scanner's only rule where the **statement** decides, not the character:
+// measured in the pele 1.13.0 with a valid prelude of four nodes and three
+// edges (.agent/ui/assets/33-alargamento/probe-oraculo-6.txt), a trailing
+// comment breaks an edge, a node and an `end`, and renders after `style`,
+// `classDef`, `subgraph` and a `linkStyle` with no `;` — those four swallow it
+// as part of a value or a title. It needs the type for the same reason rule 2
+// does not have it: the same trailing `%%` renders in a sequenceDiagram and in
+// a stateDiagram-v2.
+//
+// Rule 2 stays deliberately the **full-line** comment, because that is the part
+// that is true of every diagram type, and it is one of the two rules that run
+// outside a flowchart. A bare % in text renders everywhere (`A -- 50% --> B`,
+// `A -->|% of load| B`, `A->>B: 50% done`, `style A width:50%`), which is why
+// rule 7 fires only on a % that starts a token, outside every delimiter and
+// outside an open `-- text` label: inside one, `A -- % --> B` renders.
+//
+// A %% that rule 7 does not accuse stops the scan instead: a comment's text is
+// not label text, and 9 of the 14 comment lines in the calibration corpus carry
+// parentheses.
+func scanLine(line string, flow bool) string {
 	trimmed := strings.TrimSpace(line)
 
 	// Rule 2: a comment is only ever %% at the start of its own line.
@@ -145,9 +191,35 @@ func scanLine(line string) string {
 		return violationSinglePercent
 	}
 
+	// Everything below is flowchart vocabulary — the label delimiters, the
+	// link and its text label, the edge's linkStyle — so outside a
+	// flowchart it does not run (ticket 30). The line that used to guess
+	// another type's relationship token from the characters around a pipe
+	// (classDiagram's `--|>`, erDiagram's `||--|{`) is gone with it: the
+	// type answers what adjacency was guessing.
+	if !flow {
+		return ""
+	}
+
+	if linkStyleHexSemicolon(trimmed) {
+		return violationLinkStyleHex
+	}
+
 	// A subgraph title is the one place where punctuation outside any
 	// bracket still breaks the diagram: `subgraph Site A (AS 64512)`.
 	subgraph := strings.HasPrefix(trimmed, "subgraph ")
+
+	// Rule 7's exceptions: the statements that swallow a trailing comment as
+	// part of a value or a title, so one after them renders. `linkStyle` is
+	// the odd one out — it swallows the comment only up to a `;`, which is
+	// what breaks block 024 of the corpus (`linkStyle 2 stroke:#0a0,
+	// stroke-width:2px; %% Area Border Link`, the block ticket 29 measured
+	// its own rule would pass by) while `linkStyle 0 stroke:red %% nota`
+	// renders. `style` and `classDef` swallow it past the `;` too.
+	swallows := subgraph ||
+		strings.HasPrefix(trimmed, "style ") ||
+		strings.HasPrefix(trimmed, "classDef ")
+	linkStyle := strings.HasPrefix(trimmed, "linkStyle ")
 
 	var closer byte // 0 = outside a delimiter, else the char that closes it
 	quoted := false
@@ -161,14 +233,17 @@ func scanLine(line string) string {
 	// `A --> |list 0]| B` accused.
 	run, shape := false, false
 
-	// Rule 4's state. openKind is the kind of link whose text label is open
-	// ('-' for `--` and `-.`, '=' for `==`, 0 for none), and pipeClosed
-	// records that a `|label|` closed while it was open. The kind matters:
+	// Rule 4's state: openKind is the kind of link whose text label is open
+	// ('-' for `--` and `-.`, '=' for `==`, 0 for none). The kind matters:
 	// only a closing link of the same kind closes the text, measured in the
 	// pele — `A -- t |l| --- B` renders and `A -- t |l| === B` does not.
+	//
+	// Rule 7 reads it too: a % inside an open text label is text, not a
+	// comment. And semi records a `;`, which is what exposes a comment on a
+	// `linkStyle` line.
 	var linkKind, openKind byte
 	linkRun := 0
-	pipeClosed := false
+	semi := false
 
 	for i := range len(line) {
 		c := line[i]
@@ -185,23 +260,19 @@ func scanLine(line string) string {
 				linkRun++
 			case linkRun > 0:
 				switch {
-				case linkRun >= 3 || c == '>':
-					// A closing link: `---`, `-->`, `.->`. It
-					// closes the text label only if it is of the
-					// same kind.
+				case linkRun >= 3 || linkEnd(c):
+					// A closing link: `---`, `-->`, `.->`,
+					// `--o`, `--x`. It closes the text label
+					// only if it is of the same kind.
 					if linkKind == openKind {
-						openKind, pipeClosed = 0, false
+						openKind = 0
 					}
 				case linkRun == 2:
 					// `--`, `==` or `-.`: the link's text label
-					// opens here, and from now on only an arrow
-					// can close it. A run of three is a whole
-					// link (`A --- B` renders) and opens nothing.
-					//
-					// pipeClosed survives the re-open on purpose:
-					// it can only be set by a label that is still
-					// open, so `A -- t |l| -- B` — measured FALHA,
-					// a run of two closes nothing — stays accused.
+					// opens here, and from now on only a link
+					// end can close it. A run of three is a
+					// whole link (`A --- B` renders) and opens
+					// nothing.
 					openKind = linkKind
 				}
 				linkRun = 0
@@ -216,11 +287,6 @@ func scanLine(line string) string {
 		case closer != 0:
 			switch {
 			case c == closer:
-				if closer == '|' && openKind != 0 {
-					// Rule 4: a `|label|` closed while a `-- text`
-					// label is open.
-					pipeClosed = true
-				}
 				closer, run, shape = 0, false, false
 			case !special(c):
 				run = false
@@ -233,12 +299,19 @@ func scanLine(line string) string {
 				return violationSpecialInLabel
 			}
 		case c == '%':
-			// A trailing %% is a comment: its text is not label text,
-			// so the scan of this line ends here. A single % mid-line
-			// is ordinary text that renders.
+			// Rule 7: a comment after a statement, which the
+			// statement only swallows in the four measured cases.
+			if openKind == 0 && tokenStart(line, i) && !swallows && (!linkStyle || semi) {
+				return violationTailComment
+			}
+			// A %% the rule let through is a comment: its text is not
+			// label text, so the scan of this line ends here. A % that
+			// does not start a token is ordinary text that renders.
 			if i+1 < len(line) && line[i+1] == '%' {
 				return ""
 			}
+		case c == ';':
+			semi = true
 		case subgraph && undelimited(c):
 			return violationSpecialInLabel
 		case c == '[':
@@ -247,7 +320,7 @@ func scanLine(line string) string {
 			closer, run = ')', true
 		case c == '{':
 			closer, run = '}', true
-		case c == '|' && !relationPipe(line, i):
+		case c == '|':
 			// The edge label's pipe opens and closes with the same
 			// character, unlike the other three, so an odd count leaves
 			// the scan inside it to the end of the line — which is
@@ -262,11 +335,59 @@ func scanLine(line string) string {
 	case closer == '|':
 		// Rule 5: the line ended inside an edge label.
 		return violationUnclosedPipeLabel
-	case openKind != 0 && pipeClosed:
-		// Rule 4: a `-- text |label|` that no arrow ever closed.
+	case openKind != 0:
+		// Rule 4: a `-- text` label that no link end ever closed.
 		return violationDashLabelNoArrow
 	}
 	return ""
+}
+
+// tokenStart reports whether the byte at i opens a token, which is what tells
+// rule 7's comment from a percentage: `A50% --> B` and `style A width:50%`
+// render, `A --> B % nota` does not. The `;` counts as a boundary because that
+// is where the statement ends — the measured form of block 010 of the corpus
+// is `C3; % Link interfaces`.
+func tokenStart(line string, i int) bool {
+	if i == 0 {
+		return true
+	}
+	c := line[i-1]
+	return c == ' ' || c == '\t' || c == ';'
+}
+
+// linkEnd are the characters that end a Mermaid link next to its dashes: the
+// arrowhead, the circle and the cross. The circle and the cross were measured
+// in the pele 1.13.0 only in ticket 33, and measuring them closed five false
+// positives rule 4 had been making since ticket 27 — `A -- t |l| --o B`,
+// `A -- t |l| --x B`, `A == t |l| ==o B`, `A --o |l| B` and `A --x |l| B` all
+// render (.agent/ui/assets/33-alargamento/probe-oraculo-4.txt).
+//
+// Adjacency is the whole discriminator: `A --o B` renders and `A --open the
+// valve B` does not, so a link end only counts right after the dashes. The
+// second of those is a measured miss, written down as one.
+func linkEnd(c byte) bool {
+	return c == '>' || c == 'o' || c == 'x'
+}
+
+// linkStyleHexSemicolon recognizes the narrowly measured entity-encoding bug.
+func linkStyleHexSemicolon(line string) bool {
+	if !strings.HasPrefix(line, "linkStyle ") && !strings.HasPrefix(line, "linkStyle\t") {
+		return false
+	}
+	if !strings.HasSuffix(line, ";") {
+		return false
+	}
+	_, color, found := strings.CutLast(line, "#")
+	if !found || len(color) <= 1 {
+		return false
+	}
+	for i := 0; i < len(color)-1; i++ {
+		c := color[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // linkChar are the characters Mermaid draws a link with: the dash, the equals
@@ -284,32 +405,6 @@ func linkKindOf(c byte) byte {
 		return '='
 	}
 	return '-'
-}
-
-// relationPipe reports whether the pipe at i belongs to another diagram type's
-// relationship token instead of opening a flowchart edge label. The pipe is
-// vocabulary in two other types, both measured RENDER in the pele 1.13.0:
-// classDiagram's `--|>`, `..|>` and `<|..`, and erDiagram's cardinalities
-// (`||--|{`, `}|--||`, `}o--o|`). Without this, rule 5 would accuse every one
-// of them, and rule 1 already accused the `{` of `||--|{` — a false positive
-// that predates this ticket and lives outside the calibration corpus, which
-// has no erDiagram in it.
-//
-// Keyed on adjacency, which is what tells them apart: a flowchart label's pipe
-// is followed by its text (`-->|eBGP|`, `--- |Router bgp 1|`), never by `>`,
-// `{` or another pipe, and is never preceded by `<`, `}`, `o` or another pipe.
-// The cost is a label that starts with `>` or `{`, the empty `||`, or a node
-// id ending in `o` with no link before the pipe — none of them legal Mermaid.
-func relationPipe(line string, i int) bool {
-	var prev, next byte
-	if i > 0 {
-		prev = line[i-1]
-	}
-	if i+1 < len(line) {
-		next = line[i+1]
-	}
-	return next == '>' || next == '{' || next == '|' ||
-		prev == '<' || prev == '}' || prev == 'o' || prev == '|'
 }
 
 // special are the characters rule 1 accuses inside a delimiter: the parentheses

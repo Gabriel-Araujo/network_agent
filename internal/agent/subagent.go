@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
-	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3/responses"
@@ -24,13 +23,15 @@ var deniedTools = map[string][]string{
 	"modifier": {filetools.WRITE_TOOL_NAME},
 }
 
-// promptSkills is the table of Skills *mounted* into a named Subagente's system
-// prompt, next to deniedTools and in the same form. Mounted, not activated: the
-// model never runs a consultative read — use_skill was 0/15 in the diagram
-// batch and the Builder's ReadFile of the tech pack 0/4 — so the syntax has to
-// be in the prompt before the turn starts instead of waiting on a call the
-// model does not make (ticket 22). The Builder gets none: it does not draw.
-var promptSkills = map[string][]string{
+// subagentSkills is the table of Skills a named Subagente *activates* through
+// use_skill, next to deniedTools and in the same form: the skills its AGENT.md
+// names and orders activated before drawing. The activation tool is narrowed
+// to exactly these names (tools.GetFileAndSkillTools), so no other description
+// can order a different activation — the 12 of 30 wasted calls the ticket 28
+// batch measured. Nothing is mounted in the prompt: the use_skill call is the
+// only path the body travels (owner decision, ticket 35). A name absent from
+// the registry is an explicit error. The Builder gets none: it does not draw.
+var subagentSkills = map[string][]string{
 	"illustrator": {"mermaid"},
 	"teacher":     {"mermaid"},
 }
@@ -38,12 +39,13 @@ var promptSkills = map[string][]string{
 // ForSubagent returns the Agent that answers the turn as the named Subagente:
 // same connection and model, the system prompt is
 // resources/agents/<name>/AGENT.md — under the Agent root, the mirror
-// config.MaterialFile projects from the binary — mounted whole followed by whatever
-// promptSkills mounts for this name, tools are the file tools plus
-// read_skill_file, without the subagent tool (no nesting), without the
-// use_skill catalog, and minus whatever deniedTools withholds from this name.
-// A missing folder or AGENT.md — or an empty one — is an explicit error, never
-// silent. The name -> folder table is the routing List in rag.Lists.
+// config.MaterialFile projects from the binary — mounted whole and nothing
+// else, tools are the file tools plus read_skill_file and, for a name whose
+// subagentSkills lists skills, use_skill narrowed to them, without the
+// subagent tool (no nesting) and minus whatever deniedTools withholds from
+// this name. A missing folder or AGENT.md — or an empty one — is an explicit
+// error, never silent. The name -> folder table is the routing List in
+// rag.Lists.
 func (a *Agent) ForSubagent(name string) (*Agent, error) {
 	root, err := config.MaterialFile("resources/agents")
 	if err != nil {
@@ -70,7 +72,7 @@ func (a *Agent) forSubagentAt(root, name string) (*Agent, error) {
 	if strings.TrimSpace(string(raw)) == "" {
 		return nil, fmt.Errorf("configuration of subagent %q is empty (%s)", name, file)
 	}
-	prompt, err := mountPromptSkills(string(raw), name)
+	toolset, err := subagentTools(name)
 	if err != nil {
 		return nil, err
 	}
@@ -80,49 +82,28 @@ func (a *Agent) forSubagentAt(root, name string) (*Agent, error) {
 		providerURL:      a.providerURL,
 		apiKey:           a.apiKey,
 		modelContextSize: a.modelContextSize,
-		availableTools:   subagentTools(name),
+		availableTools:   toolset,
 		workspace:        a.workspace,
-		systemPrompt:     prompt,
+		systemPrompt:     string(raw),
 	}, nil
 }
 
-// mountPromptSkills appends the body of every Skill promptSkills names for this
-// Subagente to its AGENT.md, raw and separated by a blank line: the SKILL.md
-// already opens with its own heading, so a wrapper would duplicate it. A name
-// absent from the registry is an explicit error, like a missing AGENT.md — the
-// table is code, and a prompt silently without the syntax is the very failure
-// the mounting fixes. A name absent from the table mounts nothing.
-func mountPromptSkills(prompt, name string) (string, error) {
-	mounted := promptSkills[name]
-	if len(mounted) == 0 {
-		return prompt, nil
-	}
-	registry := skills.LoadSkills()
-	var out strings.Builder
-	out.WriteString(prompt)
-	for _, skillName := range mounted {
-		skill, ok := registry.Get(skillName)
-		if !ok {
-			return "", fmt.Errorf("skill %q mounted in the prompt of subagent %q not found in the skills registry", skillName, name)
-		}
-		out.WriteString("\n\n")
-		out.WriteString(skill.Body)
-	}
-	return out.String(), nil
-}
-
 // subagentTools is the dispatched toolset for the named Subagente: the file
-// tools plus read_skill_file (see tools.GetFileAndSkillTools for why no
-// use_skill), minus the tools deniedTools withholds from this name. The denied
-// tool is gone from the request, so the model never reads its description; a
-// call by name is refused by callTool.
-func subagentTools(name string) []responses.ToolUnionParam {
-	toolset := tools.GetFileAndSkillTools()
+// tools plus read_skill_file and — only for a name whose subagentSkills lists
+// skills — use_skill narrowed to those skills (see tools.GetFileAndSkillTools),
+// minus the tools deniedTools withholds from this name. The denied tool is
+// gone from the request, so the model never reads its description; a call by
+// name is refused by callTool.
+func subagentTools(name string) ([]responses.ToolUnionParam, error) {
+	toolset, err := tools.GetFileAndSkillTools(subagentSkills[name])
+	if err != nil {
+		return nil, err
+	}
 	denied := deniedTools[name]
 	if len(denied) == 0 {
-		return toolset
+		return toolset, nil
 	}
 	return slices.DeleteFunc(toolset, func(t responses.ToolUnionParam) bool {
 		return t.OfFunction != nil && slices.Contains(denied, t.OfFunction.Name)
-	})
+	}), nil
 }

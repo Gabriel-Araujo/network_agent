@@ -16,6 +16,80 @@ export namespace history {
 	        this.next = source["next"];
 	    }
 	}
+	export class MermaidReplacement {
+	    index: number;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MermaidReplacement(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.source = source["source"];
+	    }
+	}
+	export class MermaidFailure {
+	    index: number;
+	    source: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MermaidFailure(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.source = source["source"];
+	        this.error = source["error"];
+	    }
+	}
+	export class MermaidRepair {
+	    attemptId: string;
+	    messageId: string;
+	    state: string;
+	    failures?: MermaidFailure[];
+	    replacements?: MermaidReplacement[];
+	    correctedContent?: string;
+	    error?: string;
+	    usage?: TokenUsage;
+	
+	    static createFrom(source: any = {}) {
+	        return new MermaidRepair(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.attemptId = source["attemptId"];
+	        this.messageId = source["messageId"];
+	        this.state = source["state"];
+	        this.failures = this.convertValues(source["failures"], MermaidFailure);
+	        this.replacements = this.convertValues(source["replacements"], MermaidReplacement);
+	        this.correctedContent = source["correctedContent"];
+	        this.error = source["error"];
+	        this.usage = this.convertValues(source["usage"], TokenUsage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ToolCall {
 	    id: string;
 	    action: string;
@@ -69,6 +143,7 @@ export namespace history {
 	    error?: AgentError;
 	    subagent?: string;
 	    warnings?: string[];
+	    mermaidRepair?: MermaidRepair;
 	
 	    static createFrom(source: any = {}) {
 	        return new Message(source);
@@ -88,6 +163,7 @@ export namespace history {
 	        this.error = this.convertValues(source["error"], AgentError);
 	        this.subagent = source["subagent"];
 	        this.warnings = source["warnings"];
+	        this.mermaidRepair = this.convertValues(source["mermaidRepair"], MermaidRepair);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -152,11 +228,46 @@ export namespace history {
 	}
 	
 	
+	
+	
+	
 
 }
 
 export namespace main {
 	
+	export class MermaidRepairStart {
+	    attemptId: string;
+	    replacements: history.MermaidReplacement[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MermaidRepairStart(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.attemptId = source["attemptId"];
+	        this.replacements = this.convertValues(source["replacements"], history.MermaidReplacement);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class connection {
 	    state: string;
 	    cause?: string;

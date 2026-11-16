@@ -30,6 +30,10 @@ export function DeleteProvider(arg1) {
   return window['go']['main']['App']['DeleteProvider'](arg1);
 }
 
+export function FinishMermaidRepair(arg1, arg2, arg3) {
+  return window['go']['main']['App']['FinishMermaidRepair'](arg1, arg2, arg3);
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
@@ -66,12 +70,20 @@ export function RenameConversation(arg1, arg2) {
   return window['go']['main']['App']['RenameConversation'](arg1, arg2);
 }
 
+export function RetryMermaidRepair(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RetryMermaidRepair'](arg1, arg2, arg3);
+}
+
 export function SelectProvider(arg1) {
   return window['go']['main']['App']['SelectProvider'](arg1);
 }
 
 export function SetDefaultModel(arg1, arg2) {
   return window['go']['main']['App']['SetDefaultModel'](arg1, arg2);
+}
+
+export function StartMermaidRepair(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StartMermaidRepair'](arg1, arg2, arg3);
 }
 
 export function UpdateModel(arg1, arg2, arg3) {

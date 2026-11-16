@@ -128,6 +128,9 @@ func (a *App) ListConversations() ([]history.Conversation, error) {
 	if err != nil {
 		return nil, errHistory(err)
 	}
+	for i := range convs {
+		convs[i] = history.ProjectConversation(convs[i])
+	}
 	return convs, nil
 }
 
@@ -172,7 +175,7 @@ func (a *App) RenameConversation(id, title string) (history.Conversation, error)
 	if err != nil {
 		return history.Conversation{}, errHistory(err)
 	}
-	return conv, nil
+	return history.ProjectConversation(conv), nil
 }
 
 // DeleteConversation apaga a conversa do disco.
@@ -318,7 +321,7 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 	// Modo RAG com skip rule, retrieval, <recovered_context>, scanner de
 	// Mermaid, chamada ao LLM). Daqui para baixo este método só persiste e
 	// transmite o que ela devolveu.
-	out, state, err := runTurn(a.ctx, ag, conv.Messages, prompt, a.loadTurnState(convID))
+	out, state, err := runTurn(a.ctx, ag, history.ProjectTranscript(conv.Messages), prompt, a.loadTurnState(convID))
 
 	// O State é guardado ANTES de olhar o erro: ele vale nas duas saídas do
 	// turn.Run, e perdê-lo num turno que falhou faria o seguinte re-disparar
@@ -374,7 +377,7 @@ func (a *App) AskAgent(convID, prompt string) (history.Conversation, error) {
 		"messageId":      agentMsg.ID,
 	})
 
-	return conv, nil
+	return history.ProjectConversation(conv), nil
 }
 
 // recordFailedTurn grava o turno que falhou: a resposta do agente vira uma
@@ -402,7 +405,7 @@ func (a *App) recordFailedTurn(convID string, cause error, warnings []string) (h
 		log.Error("falha ao gravar o turno que falhou", "conv", convID, "err", err, "cause", cause)
 		return history.Conversation{}, errHistory(err)
 	}
-	return conv, nil
+	return history.ProjectConversation(conv), nil
 }
 
 // projectUsage projeta o uso que o provedor reportou no TokenUsage persistido.

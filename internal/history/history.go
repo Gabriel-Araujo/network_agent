@@ -45,8 +45,9 @@ var ErrInvalid = errors.New("history: conversa inválida")
 type Role string
 
 const (
-	RoleUser  Role = "user"
-	RoleAgent Role = "agent"
+	RoleUser   Role = "user"
+	RoleAgent  Role = "agent"
+	RoleRepair Role = "mermaid_repair"
 )
 
 // Status é o estado de uma mensagem. StatusStreaming é transiente e nunca chega
@@ -119,6 +120,8 @@ type Message struct {
 	// Store é append-only — aviso não gravado junto da resposta se perde —
 	// e porque é a resposta degradada que eles explicam.
 	Warnings []string `json:"warnings,omitempty"`
+
+	MermaidRepair *MermaidRepair `json:"mermaidRepair,omitempty"`
 }
 
 // Conversation é uma conversa completa, com o transcript.

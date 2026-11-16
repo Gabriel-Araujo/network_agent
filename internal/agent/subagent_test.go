@@ -9,16 +9,17 @@ import (
 	"testing"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
+	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3/responses"
 )
 
 // TestForSubagentMountsTheConfiguration pins the minimal loader: the Subagente
-// answers with its folder's AGENT.md mounted whole as the system prompt, the
-// same connection and model as the generic agent, and the file tools plus
-// read_skill_file — without the subagent tool (no nesting) and without the
-// use_skill catalog.
+// answers with its folder's AGENT.md mounted whole as the system prompt and
+// nothing else, the same connection and model as the generic agent, and the
+// file tools plus read_skill_file — without the subagent tool (no nesting) and
+// without use_skill, since the modifier fixture names no skill.
 func TestForSubagentMountsTheConfiguration(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "modifier")
@@ -108,11 +109,15 @@ func TestSubagentToolsetDeniesWriteFileToTheModifier(t *testing.T) {
 		}
 	}
 
-	whole := toolNames(tools.GetFileAndSkillTools())
-	if !slices.Contains(whole, filetools.WRITE_TOOL_NAME) {
-		t.Fatalf("the dispatched toolset no longer has %s at all: %v", filetools.WRITE_TOOL_NAME, whole)
+	whole, err := tools.GetFileAndSkillTools(nil)
+	if err != nil {
+		t.Fatalf("building the dispatched toolset: %v", err)
 	}
-	withoutWrite := slices.DeleteFunc(slices.Clone(whole), func(n string) bool { return n == filetools.WRITE_TOOL_NAME })
+	wholeNames := toolNames(whole)
+	if !slices.Contains(wholeNames, filetools.WRITE_TOOL_NAME) {
+		t.Fatalf("the dispatched toolset no longer has %s at all: %v", filetools.WRITE_TOOL_NAME, wholeNames)
+	}
+	withoutWrite := slices.DeleteFunc(slices.Clone(wholeNames), func(n string) bool { return n == filetools.WRITE_TOOL_NAME })
 
 	base := &Agent{}
 	for _, name := range []string{"builder", "modifier", "teacher", "illustrator"} {
@@ -122,11 +127,18 @@ func TestSubagentToolsetDeniesWriteFileToTheModifier(t *testing.T) {
 		}
 		got := toolNames(sub.availableTools)
 
-		want := whole
+		want := wholeNames
 		if name == "modifier" {
 			want = withoutWrite
 		}
-		if !slices.Equal(got, want) {
+		if len(subagentSkills[name]) > 0 {
+			want = append(slices.Clone(wholeNames), skills.ToolUseSkill)
+		}
+		// Ordem de emissão não é contrato: o conjunto é.
+		sortedGot, sortedWant := slices.Clone(got), slices.Clone(want)
+		slices.Sort(sortedGot)
+		slices.Sort(sortedWant)
+		if !slices.Equal(sortedGot, sortedWant) {
 			t.Errorf("toolset of %s is %v, want %v", name, got, want)
 		}
 		if slices.Contains(got, tools.SUB_AGENT_TOOL_NAME) {
@@ -150,8 +162,9 @@ func toolNames(toolset []responses.ToolUnionParam) []string {
 // real ForSubagent — not the forSubagentAt seam the tests above drive — mounts
 // the AGENT.md that lives under the Agent root in the user's home, projected
 // there from the binary, and nothing in the path depends on the source tree
-// existing. Driving "teacher" covers both Go readers at once: mountPromptSkills
-// calls LoadSkills for the mermaid skill, which resolves in the same mirror.
+// existing. Driving "teacher" covers both Go readers at once: subagentTools
+// calls LoadSkills for the narrowed activation tool, which resolves in the
+// same mirror.
 //
 // This is the call the live drive of ticket 07 found reaching into the source
 // tree through runtime.Caller.
@@ -169,11 +182,7 @@ func TestForSubagentResolvesInTheMirror(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the mirrored AGENT.md: %v", err)
 	}
-	if !strings.HasPrefix(sub.systemPrompt, string(raw)) {
-		t.Errorf("the mounted prompt does not start with %s", mirrored)
-	}
-	// The mermaid skill is appended after it, so the prompt is strictly longer.
-	if len(sub.systemPrompt) <= len(raw) {
-		t.Errorf("prompt of %d bytes, want the AGENT.md (%d) plus the mounted skill", len(sub.systemPrompt), len(raw))
+	if sub.systemPrompt != string(raw) {
+		t.Errorf("prompt of %d bytes, want exactly the AGENT.md (%d) — nothing is mounted", len(sub.systemPrompt), len(raw))
 	}
 }

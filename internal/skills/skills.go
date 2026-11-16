@@ -20,36 +20,57 @@ const (
 	// ReadSkillFileNoActivation diz o que o HandleSkillCall realmente faz: lê o
 	// arquivo bundled pelo nome da skill, sem conferir ativação em lugar nenhum.
 	// A descrição antiga prometia "use somente depois de ativar a skill", regra
-	// que nenhum código impõe, e a montagem da skill no prompt depende de a
-	// leitura funcionar sem ativação. Mesma forma do
-	// EDIT_MULTIPLE_MATCHES_NOTICE: a constante é a frase que o modelo lê.
+	// que nenhum código impõe. Mesma forma do EDIT_MULTIPLE_MATCHES_NOTICE: a
+	// constante é a frase que o modelo lê.
 	//
-	// A frase não nomeia o use_skill de propósito: o Subagente despachado não
-	// recebe essa tool (tools.GetFileAndSkillTools), e citar tool que não se
-	// tem é o defeito que o modifier/AGENT.md corrigiu no ticket 20. O sentido
-	// é o mesmo para quem tem o catálogo e para quem não tem.
+	// A frase não nomeia o use_skill de propósito: builder e modifier não
+	// recebem essa tool (só quem tem skill nomeada no prompt recebe, estreita),
+	// e citar tool que não se tem é o defeito que o modifier/AGENT.md corrigiu
+	// no ticket 20. O sentido é o mesmo para quem tem ativação e para quem não
+	// tem: a leitura não depende dela.
 	ReadSkillFileNoActivation = "Não exige ativação prévia da skill: o arquivo é lido pelo nome dela."
 )
 
 // BuildTools gera as tools de skill enviadas ao modelo a cada request: o
 // catálogo de ativação mais a leitura de arquivo bundled. É o par que o agente
-// genérico recebe; o Subagente despachado leva só o ReadSkillFileTool.
-// Estágio de Discovery: só nome + descrição de cada skill aparecem aqui,
-// nunca o corpo inteiro do SKILL.md.
+// genérico recebe; o Subagente despachado recebe o UseSkillTool com o catálogo
+// estreitado às skills que o prompt dele nomeia. Estágio de Discovery: só nome
+// + descrição de cada skill aparecem aqui, nunca o corpo inteiro do SKILL.md.
 func (r *Registry) BuildTools() []responses.ToolUnionParam {
 	return []responses.ToolUnionParam{r.useSkillTool(), ReadSkillFileTool()}
+}
+
+// UseSkillTool é a tool de ativação com o catálogo estreitado aos nomes
+// recebidos: é o que o Subagente despachado leva — só as skills que o
+// AGENT.md dele nomeia e manda ativar. Nome fora do registry é erro explícito:
+// a lista é código, e um prompt silencioso sem a skill é exatamente o defeito
+// que a estreiteira existe para não reintroduzir.
+func (r *Registry) UseSkillTool(names []string) (responses.ToolUnionParam, error) {
+	for _, name := range names {
+		if _, ok := r.skills[name]; !ok {
+			return responses.ToolUnionParam{}, fmt.Errorf("skill %q not found in the skills registry", name)
+		}
+	}
+	return r.useSkillToolFor(names), nil
 }
 
 // useSkillTool é a tool de ativação, e a única que carrega o catálogo: o nome e
 // a descrição de cada skill do registry viajam na descrição dela e no enum do
 // parâmetro. Quem não recebe esta tool não lê nome de skill nenhum.
 func (r *Registry) useSkillTool() responses.ToolUnionParam {
-	var catalog strings.Builder
-	catalog.WriteString("Ativa uma skill (procedimento especializado) pelo nome exato. Skills disponíveis:\n")
-
 	names := make([]string, 0, len(r.skills))
 	for _, s := range r.skills {
 		names = append(names, s.Name)
+	}
+	return r.useSkillToolFor(names)
+}
+
+func (r *Registry) useSkillToolFor(names []string) responses.ToolUnionParam {
+	var catalog strings.Builder
+	catalog.WriteString("Ativa uma skill (procedimento especializado) pelo nome exato. Skills disponíveis:\n")
+
+	for _, name := range names {
+		s := r.skills[name]
 		fmt.Fprintf(&catalog, "- %s: %s\n", s.Name, s.Description)
 	}
 

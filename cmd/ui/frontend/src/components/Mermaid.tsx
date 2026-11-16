@@ -1,12 +1,5 @@
 import { render } from 'pele'
-
-// O pele lança PeleError, cujo `message` já vem legível (traz a linha e a linha
-// de caret). O fallback cobre o que não for Error.
-function causa(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e)
-  // O aviso não pode ficar sem corpo: seria falha silenciosa.
-  return msg.trim() || 'O pele não informou a causa.'
-}
+import { peleErrorMessage } from '../mermaidBlocks'
 
 // Renderiza um Bloco de diagrama (sintaxe Mermaid) como SVG inline, pelo pele.
 //
@@ -35,7 +28,7 @@ export default function Mermaid({ code }: { code: string }) {
     return (
       <div className="mermaid mermaid--failed" role="alert">
         <p className="error__title">O diagrama não renderizou</p>
-        <p className="error__why">{causa(e)}</p>
+        <p className="error__why">{peleErrorMessage(e)}</p>
         <p className="error__next">
           O fonte está abaixo; peça o diagrama de novo se quiser tentar outra forma.
         </p>
