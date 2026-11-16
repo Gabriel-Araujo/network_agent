@@ -253,7 +253,7 @@ func TestAgentForTurnPicksTheSubagenteByValue(t *testing.T) {
 		t.Fatalf("reported Subagente %q, want %q", subagent, "modifier")
 	}
 
-	if _, _, err := turnAgent.Chat(context.Background(), nil, "hello"); err != nil {
+	if _, _, _, err := turnAgent.Chat(context.Background(), nil, "hello"); err != nil {
 		t.Fatalf("the turn chat failed: %v", err)
 	}
 	body := fake.lastResponseBody

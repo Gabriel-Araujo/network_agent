@@ -10,6 +10,7 @@
 package turn
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -93,6 +94,15 @@ type Outcome struct {
 	// extra Chat call. It does not say the retry shipped: that is
 	// MermaidBlocks plus Warnings.
 	MermaidRetried bool
+
+	// SkillsActivated names each Skill the model ordered activated in this
+	// turn, in call order, both calls included (the final one and the
+	// diagram re-ask). Empty means the model activated nothing — which for
+	// a reply carrying a diagram is the whole point of recording it: the
+	// prompts of the three agents that draw order the mermaid activation,
+	// and a drawing turn with nothing here is an order that did not land
+	// (.agent/ui/issues/32-o-generico-desenha-sem-a-skill.md).
+	SkillsActivated []string
 }
 
 // Run composes and runs one turn for the given transcript and input, and
@@ -166,8 +176,9 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 	// As falhas de tool do Chat são drenadas antes do erro, não depois: a
 	// lista é o que aconteceu no turno, e uma tool pode ter falhado no
 	// caminho de um turno que o provedor derrubou depois (ticket 18, §4).
-	resp, failures, err := turnAgent.Chat(ctx, transcript, out.Prompt)
+	resp, failures, activated, err := turnAgent.Chat(ctx, transcript, out.Prompt)
 	warnFailures(&out, failures)
+	out.SkillsActivated = append(out.SkillsActivated, activated...)
 	if err != nil {
 		return out, state, err
 	}
@@ -175,6 +186,23 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 	out.Usage = resp.Usage
 
 	recheckMermaid(ctx, turnAgent, transcript, &out)
+
+	// Os dois fatos de diagrama do turno saem juntos numa linha: qual skill
+	// o modelo ativou e quantos blocos ele emitiu. É o que transforma
+	// "desenhou sem a skill" num grep — a pergunta que o dono teve de fazer
+	// ao próprio modelo antes desta linha existir (ticket 32). Vale para os
+	// dois fronts, que é por que ela mora aqui e não no logTurn da UI.
+	//
+	// Turno sem bloco e sem ativação não loga: a linha é o par, não um
+	// contador de turnos. O turno que o provedor derrubou também não chega
+	// aqui — o erro é logado por quem o recebe.
+	if len(out.SkillsActivated) > 0 || len(out.MermaidBlocks) > 0 {
+		log.Info("diagram turn",
+			"subagent", cmp.Or(out.Subagent, "generic"),
+			"skills_activated", out.SkillsActivated,
+			"mermaid_blocks", len(out.MermaidBlocks),
+		)
+	}
 	return out, state, nil
 }
 
@@ -215,8 +243,9 @@ func recheckMermaid(ctx context.Context, turnAgent *agentapi.Agent, transcript [
 	// As falhas do re-ask entram no mesmo campo da chamada final, e o dedup
 	// é o que impede a mesma recusa de aparecer duas vezes quando o modelo
 	// repete a tool na segunda tentativa.
-	resp, failures, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
+	resp, failures, activated, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
 	warnFailures(out, failures)
+	out.SkillsActivated = append(out.SkillsActivated, activated...)
 	if err != nil {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("diagram block faulted (%s, line %d) and the re-ask failed — shipping the first reply: %v", first[0].Violation, first[0].Line, err))
 		return

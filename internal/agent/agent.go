@@ -63,6 +63,11 @@ func Init(client openai.Client, providerURL, apiKey, modelName string, modelCont
 // (OutputText, Usage). O provedor pode não reportar uso:
 // resp.Usage.JSON.InputTokens.Valid distingue "não reportou" de zero.
 //
+// Devolve também o nome de cada skill que o modelo ordenou ativar no turno,
+// na ordem das chamadas: é o fato que o turno loga ao lado dos blocos de
+// diagrama, e sem ele "desenhou sem a skill" só se descobre perguntando ao
+// modelo (ticket 32 do mapa da UI).
+//
 // Devolve também as falhas de tool do turno, na ordem em que aconteceram
 // (ticket 18). Falha de tool **é** degradação: antes só a string de erro que o
 // modelo lê existia, e o app ficava sabendo da recusa no máximo pela boca dele.
@@ -72,9 +77,10 @@ func Init(client openai.Client, providerURL, apiKey, modelName string, modelCont
 // Um turno pode gastar várias idas ao provedor por causa das ferramentas. Como
 // não há estado no servidor, cada volta reenvia o que já foi trocado: o input
 // acumulado mais as chamadas e os resultados desta resposta.
-func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMessage string) (*responses.Response, []tools.Failure, error) {
+func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMessage string) (*responses.Response, []tools.Failure, []string, error) {
 	input := a.buildInput(transcript, userMessage)
 	var failures []tools.Failure
+	var activated []string
 
 	for {
 		resp, err := a.Client.Responses.New(ctx, responses.ResponseNewParams{
@@ -83,7 +89,7 @@ func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMess
 			Tools: a.availableTools,
 		})
 		if err != nil {
-			return nil, failures, err
+			return nil, failures, activated, err
 		}
 
 		var calls, results []responses.ResponseInputItemUnionParam
@@ -101,10 +107,20 @@ func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMess
 			result, failed := a.callTool(ctx, call)
 			results = append(results, result)
 			failures = append(failures, failed...)
+
+			// A ativação só conta depois do dispatch, e só quando ele
+			// entregou o corpo: a tool que este Agent não oferece é
+			// recusada sem falha nenhuma (a.offers), e uma skill fora do
+			// registry volta como falha. Registrar a intenção em vez da
+			// entrega diria "ativou" num turno em que o modelo nunca leu
+			// a regra — o oposto do que a linha existe para medir.
+			if skill := skills.ActivatedSkill(call); skill != "" && a.offers(call.Name) && len(failed) == 0 {
+				activated = append(activated, skill)
+			}
 		}
 
 		if len(calls) == 0 {
-			return resp, failures, nil
+			return resp, failures, activated, nil
 		}
 
 		input = append(input, calls...)
@@ -242,7 +258,9 @@ func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctio
 		systemPrompt:   a.systemPrompt,
 	}
 
-	resp, failures, err := sub.Chat(ctx, nil, args.Task)
+	// A ativação do aninhado não sobe: o SubAgentCall devolve o resultado da
+	// tool e as falhas, e o fato de skill é do turno de fora, que é quem loga.
+	resp, failures, _, err := sub.Chat(ctx, nil, args.Task)
 	if err != nil {
 		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro no sub-agente: %v", err)),
 			append(failures, tools.Failure{Tool: call.Name, Err: fmt.Errorf("o turno do sub-agente falhou: %w", err)})

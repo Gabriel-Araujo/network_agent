@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 // TestBuildInputProjetaOTranscript fixa a projeção transcript → itens de input:
@@ -100,7 +102,7 @@ func TestChatReenviaOTurnoSemEstadoNoServidor(t *testing.T) {
 		systemPrompt: "PROMPT",
 	}
 
-	resp, _, err := a.Chat(context.Background(), nil, "use a ferramenta")
+	resp, _, _, err := a.Chat(context.Background(), nil, "use a ferramenta")
 	if err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
@@ -193,7 +195,7 @@ func TestConnectConfiguraJanelaDoLMStudioAntesDoChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Connect devolveu erro: %v", err)
 	}
-	if _, _, err := ag.Chat(context.Background(), nil, "pergunta"); err != nil {
+	if _, _, _, err := ag.Chat(context.Background(), nil, "pergunta"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 }
@@ -286,7 +288,7 @@ func TestCallToolRefusesTheToolNotOffered(t *testing.T) {
 	work := t.TempDir()
 	t.Chdir(work)
 
-	if _, _, err := modifier.Chat(context.Background(), nil, "edite o frr.conf"); err != nil {
+	if _, _, _, err := modifier.Chat(context.Background(), nil, "edite o frr.conf"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 
@@ -311,7 +313,7 @@ func TestCallToolRefusesSubAgentToADispatchedSubagente(t *testing.T) {
 		answers("pronto"))
 	builder := subagentAgent(t, client, "builder")
 
-	if _, _, err := builder.Chat(context.Background(), nil, "delegue"); err != nil {
+	if _, _, _, err := builder.Chat(context.Background(), nil, "delegue"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 
@@ -334,7 +336,7 @@ func TestCallToolKeepsSubAgentForTheGeneric(t *testing.T) {
 		answers("pronto"))
 	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools()}
 
-	if _, _, err := generic.Chat(context.Background(), nil, "delegue"); err != nil {
+	if _, _, _, err := generic.Chat(context.Background(), nil, "delegue"); err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
 
@@ -467,7 +469,7 @@ func TestChatCarriesTheToolFailureOutOfTheTurn(t *testing.T) {
 			answers("pronto"))
 		ag := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.Tools, workspace: workspace}
 
-		_, failures, err := ag.Chat(context.Background(), nil, "leia o frr.conf")
+		_, failures, _, err := ag.Chat(context.Background(), nil, "leia o frr.conf")
 		if err != nil {
 			t.Fatalf("Chat devolveu erro: %v", err)
 		}
@@ -525,7 +527,7 @@ func TestChatComposesTheNestedSubagentFailures(t *testing.T) {
 		answers("pronto"))
 	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools(), workspace: workspace}
 
-	_, failures, err := generic.Chat(context.Background(), nil, "delegue a leitura")
+	_, failures, _, err := generic.Chat(context.Background(), nil, "delegue a leitura")
 	if err != nil {
 		t.Fatalf("Chat devolveu erro: %v", err)
 	}
@@ -537,5 +539,62 @@ func TestChatComposesTheNestedSubagentFailures(t *testing.T) {
 	}
 	if failures[0].Tool != filetools.READ_TOOL_NAME {
 		t.Errorf("tool da falha = %q, want a do aninhado (%q), não a do sub_agent", failures[0].Tool, filetools.READ_TOOL_NAME)
+	}
+}
+
+// TestChatRegistraAAtivacaoEntregue prova o terceiro retorno do Chat (ticket 32
+// do mapa da UI): o nome da skill que o modelo ordenou ativar sobe para o turno
+// — e sobe só quando o corpo foi entregue. O provedor de mentira responde uma
+// chamada de use_skill e depois a resposta final; a tool está oferecida, então o
+// corpo carrega e o nome aparece. O segundo caso é o mesmo turno com a tool
+// fora da lista: o callTool recusa, o modelo nunca lê a regra, e registrar
+// "ativou" ali seria a mentira que esta linha existe para não contar.
+func TestChatRegistraAAtivacaoEntregue(t *testing.T) {
+	provider := func(t *testing.T) *httptest.Server {
+		var calls int
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			w.Header().Set("Content-Type", "application/json")
+			if calls == 1 {
+				io.WriteString(w, `{"id":"resp_1","object":"response","created_at":0,"status":"completed","model":"modelo",
+					"output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"use_skill","arguments":"{\"skill_name\": \"mermaid\"}","status":"completed"}],
+					"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`)
+				return
+			}
+			io.WriteString(w, `{"id":"resp_2","object":"response","created_at":0,"status":"completed","model":"modelo",
+				"output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"desenhado","annotations":[]}]}],
+				"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`)
+		}))
+	}
+
+	useSkill := responses.ToolUnionParam{OfFunction: &responses.FunctionToolParam{Name: skills.ToolUseSkill}}
+
+	for _, tc := range []struct {
+		name  string
+		tools []responses.ToolUnionParam
+		want  []string
+	}{
+		{name: "tool oferecida: o corpo carrega e o nome sobe", tools: []responses.ToolUnionParam{useSkill}, want: []string{"mermaid"}},
+		{name: "tool não oferecida: recusada, nada sobe", tools: nil, want: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := provider(t)
+			defer server.Close()
+
+			a := &Agent{
+				Client:         openai.NewClient(option.WithBaseURL(server.URL), option.WithAPIKey("teste")),
+				ModelName:      "modelo",
+				systemPrompt:   "PROMPT",
+				availableTools: tc.tools,
+			}
+
+			_, _, activated, err := a.Chat(t.Context(), nil, "desenhe a topologia")
+			if err != nil {
+				t.Fatalf("Chat devolveu erro: %v", err)
+			}
+			if !slices.Equal(activated, tc.want) {
+				t.Errorf("skills ativadas = %v, esperava %v", activated, tc.want)
+			}
+		})
 	}
 }

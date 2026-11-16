@@ -57,3 +57,25 @@ func HandleSkillCall(call responses.ResponseFunctionToolCall) (responses.Respons
 			errors.New("não é uma tool de skill")
 	}
 }
+
+// ActivatedSkill devolve o nome da skill que uma chamada use_skill ordena
+// ativar, e "" quando a chamada não é de ativação ou os argumentos não são
+// legíveis. É o fato que o turno registra: sem ele, "o agente desenhou sem a
+// skill" só se descobre perguntando ao modelo, que é como o dono descobriu
+// (.agent/ui/issues/32-o-generico-desenha-sem-a-skill.md).
+//
+// O parse é o mesmo do HandleSkillCall, no mesmo encoding/json: dois parsers
+// de strictness diferente sobre os mesmos bytes diriam coisas diferentes sobre
+// a mesma chamada, e o nome registrado tem de ser o nome que carregou o corpo.
+func ActivatedSkill(call responses.ResponseFunctionToolCall) string {
+	if call.Name != ToolUseSkill {
+		return ""
+	}
+	var args struct {
+		SkillName string `json:"skill_name"`
+	}
+	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+		return ""
+	}
+	return args.SkillName
+}

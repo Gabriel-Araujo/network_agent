@@ -171,6 +171,13 @@ configured at `resources/agents/<name>/AGENT.md`. Exactly one answers a turn; an
 buy a **Re-pergunta do roteamento** and, failing that, falls back to the generic agent.
 _Avoid_: agente, agent, persona, roteador, router
 
+**Agente genérico**:
+The agent that answers a turn with the project's own `SystemPrompt` and the whole skills catalog,
+when the **Classificador** named no **Subagente** — or when the named one did not load. Exactly
+one agent answers a turn; this is the one that answers when no persona was chosen, and it emits a
+**Bloco de diagrama** like a **Subagente** does.
+_Avoid_: agente default, agente base, fallback
+
 **Re-pergunta do roteamento**:
 The one extra classification a turn buys when the **Classificador** names no **Subagente** but
 did fill some search filter — the input was understood as in-domain and only the routing
@@ -235,9 +242,9 @@ _Avoid_: skill injetada, inlinada, pré-carregada, embutida
 
 **Bloco de diagrama**:
 One ` ```mermaid ` fence of a turn's reply. The **Subagente** Illustrator emits them as its answer
-and the Teacher may include them in an explanation; nothing writes them to a file. Every block of
-a reply goes through the turn's scanner, whoever wrote it — the check is of the text, not of the
-author.
+and the Teacher may include them in an explanation; the **Agente genérico** emits them too.
+Nothing writes them to a file. Every block of a reply goes through the turn's scanner, whoever
+wrote it — the check is of the text, not of the author.
 _Avoid_: diagrama, mermaid, gráfico, imagem
 
 **Bloco não reprovado**:

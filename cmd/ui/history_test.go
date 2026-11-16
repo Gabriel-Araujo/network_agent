@@ -273,7 +273,7 @@ func trocaOTurno(t *testing.T, fake composicao) {
 // sem retrieval, sem scanner de Mermaid — o provedor de mentira recebe o
 // transcript e o prompt como os recebia antes da composição entrar.
 func turnoSoDoChat(ctx context.Context, ag *agent.Agent, transcript []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
-	resp, _, err := ag.Chat(ctx, transcript, input)
+	resp, _, _, err := ag.Chat(ctx, transcript, input)
 	if err != nil {
 		return turn.Outcome{Prompt: input}, state, err
 	}
