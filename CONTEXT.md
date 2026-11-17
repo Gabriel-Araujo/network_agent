@@ -170,7 +170,9 @@ _Avoid_: opções, vocabulário, categorias
 **Subagente**:
 The persona that answers one turn with its own configuration: one of Builder, Modifier,
 Illustrator or Teacher, chosen by the `subagent` **Lista** of the **Classificador** and
-configured at `resources/agents/<name>/AGENT.md`. Exactly one answers a turn, and one of the four
+configured at `resources/agents/<name>/AGENT.md`. The user sees one agent, named **Newton**,
+whichever of the four answers: the four names are internal roles, and every `AGENT.md` presents
+itself as Newton. Exactly one answers a turn, and one of the four
 is the **default**: the Teacher. An empty value with no search filter filled *is* the Teacher, with
 no **Aviso** — that is the routing working, not degrading. An empty value that did fill a search
 filter also reaches the Teacher, but with one **Aviso**: the input was understood as in-domain, so

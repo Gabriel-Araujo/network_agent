@@ -37,25 +37,44 @@ const DefaultSubagent = "teacher"
 // configuration: resources/agents/<nome>/AGENT.md mounts the turn's system
 // prompt. These rows are the single source of that name -> folder table.
 //
-// This set is closed by contract and must not be derived from the database,
-// whose frr_docs contents vary with ingestion. Annotated spellings from the
-// intent-analyser table ("ospf (v2)") become value descriptions.
+// This set is closed by contract and is never derived from the database at
+// runtime. Its protocol and daemon values do mirror, by hand, the labels the
+// frr_docs rows carry — one per FRR user-guide file the chucker ingested —
+// because a filter value works only through an exact WHERE match: a value with
+// no rows hides the whole corpus, and a label missing here is reachable only
+// through an empty value. Re-ingesting a new doc means adding its label here
+// (decision: .agent/classifier/issues/10-listas-de-filtro-alinhadas-ao-corpus.md).
+// Descriptions tell same-daemon siblings apart (bgp, evpn, bmp, bgp-linkstate
+// are all bgpd; ospf and ospf-fundamentals are both ospfd).
 func Lists() []classifier.List {
 	return []classifier.List{
 		{
 			Name: "protocol",
 			Values: []classifier.Value{
-				{Name: "bgp"},
-				{Name: "ospf", Description: "v2"},
-				{Name: "ospf6", Description: "v3/IPv6"},
-				{Name: "isis"},
-				{Name: "rip"},
-				{Name: "ripng"},
-				{Name: "pim"},
-				{Name: "ldp"},
-				{Name: "vrrp"},
-				{Name: "bfd"},
-				{Name: "static"},
+				{Name: "bgp", Description: "BGP in FRR: neighbors, address families, policy, L3VPN"},
+				{Name: "evpn", Description: "BGP EVPN / VXLAN: L2VNI, L3VNI, type-2 and type-5 routes"},
+				{Name: "bmp", Description: "BGP Monitoring Protocol: exporting BGP data to a BMP collector"},
+				{Name: "bgp-linkstate", Description: "BGP-LS: link-state topology distributed over BGP"},
+				{Name: "ospf", Description: "OSPFv2 in FRR: configuration and commands"},
+				{Name: "ospf-fundamentals", Description: "OSPF theory: link-state routing, LSA types, LSDB, areas, SPF"},
+				{Name: "ospf6", Description: "OSPFv3 / IPv6"},
+				{Name: "isis", Description: "IS-IS"},
+				{Name: "openfabric", Description: "OpenFabric: IS-IS based fabric routing"},
+				{Name: "ldp", Description: "MPLS LDP"},
+				{Name: "bfd", Description: "BFD"},
+				{Name: "babel", Description: "Babel routing protocol"},
+				{Name: "eigrp", Description: "EIGRP"},
+				{Name: "nhrp", Description: "NHRP / DMVPN"},
+				{Name: "basic", Description: "common FRR commands: VTY access, passwords, logging, hostname, config files"},
+				{Name: "filter", Description: "access-lists and prefix-lists"},
+				{Name: "ipv6", Description: "IPv6 router advertisement / neighbor discovery"},
+				{Name: "kernel", Description: "kernel interface: netlink, sysctl"},
+				{Name: "nexthop-groups", Description: "nexthop groups / ECMP"},
+				{Name: "affinitymap", Description: "affinity maps: link administrative groups"},
+				{Name: "extlog", Description: "extended syslog targets"},
+				{Name: "frr-reload", Description: "the frr-reload.py script"},
+				{Name: "grpc", Description: "gRPC northbound interface"},
+				{Name: "mgmt", Description: "mgmtd: management daemon, YANG datastores"},
 			},
 		},
 		{
@@ -65,15 +84,14 @@ func Lists() []classifier.List {
 				{Name: "ospfd"},
 				{Name: "ospf6d"},
 				{Name: "isisd"},
-				{Name: "ripd"},
-				{Name: "ripngd"},
-				{Name: "pimd"},
-				{Name: "pim6d"},
+				{Name: "fabricd"},
 				{Name: "ldpd"},
-				{Name: "vrrpd"},
 				{Name: "bfdd"},
-				{Name: "staticd"},
-				{Name: "zebra", Description: "general routing / RIB / kernel"},
+				{Name: "babeld"},
+				{Name: "eigrpd"},
+				{Name: "nhrpd"},
+				{Name: "mgmtd"},
+				{Name: "zebra", Description: "general routing / RIB / kernel, and the common FRR commands, filters and logging"},
 			},
 		},
 		{
@@ -85,11 +103,16 @@ func Lists() []classifier.List {
 		},
 		{
 			Name: SubagentListName,
+			// The Classificador reads only the user's input, so each
+			// description says how that Subagente's request arrives, not
+			// what the Subagente does — its limits live in its AGENT.md and
+			// in deniedTools (decision:
+			// .agent/generico/issues/09-descricoes-da-lista-subagent.md).
 			Values: []classifier.Value{
-				{Name: "builder", Description: "Request to create a new FRR configuration: writes a new config file, never edits an existing one"},
-				{Name: "modifier", Description: "Request to change an FRR configuration file that already exists: edits that file, never creates one"},
-				{Name: "illustrator", Description: "Request to draw or diagram a topology or a configuration: answers with a diagram, never prose"},
-				{Name: "teacher", Description: "Request to explain a concept or an existing file: answers in text, never writes or edits a file"},
+				{Name: "builder", Description: "Asks for a new FRR configuration to be written — create, write, generate, from scratch — from requirements such as AS, router-id, neighbors or networks"},
+				{Name: "modifier", Description: "Asks to change a configuration file that already exists — add, remove, replace, fix or enable something in a named file such as frr.conf"},
+				{Name: "illustrator", Description: "Asks for a picture — draw, diagram, visualize — of a topology, a configuration or a protocol flow"},
+				{Name: "teacher", Description: "Asks to understand something — what, why or how a concept, command, behavior or existing file works — or what this assistant is and does"},
 			},
 		},
 	}
