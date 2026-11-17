@@ -107,11 +107,14 @@ type Message struct {
 	ToolCalls []ToolCall  `json:"toolCalls,omitempty"`
 	Error     *AgentError `json:"error,omitempty"`
 
-	// Subagent é quem respondeu o turno, "" para o agente genérico. É quem
-	// DE FATO respondeu, não quem a classificação nomeou: Subagente cuja
-	// configuração não carregou responde com o genérico e fica vazio
-	// (turn.Outcome.Subagent). Conversa gravada antes desta decisão vem sem
-	// o campo — e o turno dela foi do genérico, que é o mesmo vazio.
+	// Subagent é quem respondeu o turno, e é um dos quatro em toda resposta
+	// gravada daqui para frente: o ponto de entrada não responde turno
+	// nenhum, então classificação vazia, que falhou, ou que nomeou
+	// Subagente cuja configuração não carregou, respondem com o default e
+	// gravam o nome dele (turn.Outcome.Subagent). É quem DE FATO respondeu,
+	// não quem a classificação nomeou. Conversa gravada antes desta decisão
+	// vem sem o campo — o turno dela foi do genérico, e o vazio legado fica
+	// como está.
 	Subagent string `json:"subagent,omitempty"`
 
 	// Warnings são os avisos de degradação do turno, na ordem em que

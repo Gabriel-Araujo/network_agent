@@ -18,9 +18,13 @@ import (
 // next to the name -> folder mapping it belongs with. The prompt is not a
 // barrier: the Modifier's prompt forbids WriteFile and it still called it on a
 // missing path, recreating the file from the transcript (ticket 13, K2). A name
-// absent from the table gets the whole dispatched toolset.
+// absent from the table gets the whole dispatched toolset. The Teacher is in it
+// because it is the default of the empty routing: every "nenhum" lands on it,
+// so its "never writes or edits a file" has to be the toolset's rule and not
+// the prompt's.
 var deniedTools = map[string][]string{
 	"modifier": {filetools.WRITE_TOOL_NAME},
+	"teacher":  {filetools.WRITE_TOOL_NAME, filetools.EDIT_TOOL_NAME},
 }
 
 // subagentSkills is the table of Skills a named Subagente *activates* through

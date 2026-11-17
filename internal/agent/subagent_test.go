@@ -94,10 +94,13 @@ func TestForSubagentExplicitErrors(t *testing.T) {
 	}
 }
 
-// TestSubagentToolsetDeniesWriteFileToTheModifier pins the per-name toolset:
-// the Modifier is dispatched without WriteFile, and the other three Subagentes
-// keep the whole dispatched toolset. None of them gets the subagent tool.
-func TestSubagentToolsetDeniesWriteFileToTheModifier(t *testing.T) {
+// TestSubagentToolsetDeniesTheWriteTools pins the per-name toolset: the
+// Modifier is dispatched without WriteFile and the Teacher without either write
+// tool, while Builder and Illustrator keep the whole dispatched toolset. The
+// expected denials are spelled out here rather than read from deniedTools, so
+// deleting a row of that table fails this test instead of agreeing with it.
+// None of them gets the subagent tool.
+func TestSubagentToolsetDeniesTheWriteTools(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"builder", "modifier", "teacher", "illustrator"} {
 		dir := filepath.Join(root, name)
@@ -117,7 +120,14 @@ func TestSubagentToolsetDeniesWriteFileToTheModifier(t *testing.T) {
 	if !slices.Contains(wholeNames, filetools.WRITE_TOOL_NAME) {
 		t.Fatalf("the dispatched toolset no longer has %s at all: %v", filetools.WRITE_TOOL_NAME, wholeNames)
 	}
-	withoutWrite := slices.DeleteFunc(slices.Clone(wholeNames), func(n string) bool { return n == filetools.WRITE_TOOL_NAME })
+	// The "never" of each prompt made the toolset's rule: the Modifier never
+	// creates a file (ticket 13, K2) and the Teacher never writes or edits one
+	// — and the Teacher is the default of the empty routing, so every "nenhum"
+	// lands on it.
+	denied := map[string][]string{
+		"modifier": {filetools.WRITE_TOOL_NAME},
+		"teacher":  {filetools.WRITE_TOOL_NAME, filetools.EDIT_TOOL_NAME},
+	}
 
 	base := &Agent{}
 	for _, name := range []string{"builder", "modifier", "teacher", "illustrator"} {
@@ -127,12 +137,11 @@ func TestSubagentToolsetDeniesWriteFileToTheModifier(t *testing.T) {
 		}
 		got := toolNames(sub.availableTools)
 
-		want := wholeNames
-		if name == "modifier" {
-			want = withoutWrite
-		}
+		want := slices.DeleteFunc(slices.Clone(wholeNames), func(n string) bool {
+			return slices.Contains(denied[name], n)
+		})
 		if len(subagentSkills[name]) > 0 {
-			want = append(slices.Clone(wholeNames), skills.ToolUseSkill)
+			want = append(want, skills.ToolUseSkill)
 		}
 		// Ordem de emissão não é contrato: o conjunto é.
 		sortedGot, sortedWant := slices.Clone(got), slices.Clone(want)

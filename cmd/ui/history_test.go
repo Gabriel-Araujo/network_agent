@@ -931,9 +931,12 @@ func TestAskAgentGravaOAutorEOsAvisosDoTurno(t *testing.T) {
 		t.Errorf("autor/avisos não chegaram ao disco: %+v", disk.Messages[1])
 	}
 
-	// Turno do agente genérico: autor vazio e nenhum aviso — é o contrato que
-	// o balão lê para escrever "Agente", o mesmo de uma conversa gravada antes
-	// desta decisão.
+	// Autor vazio e nenhum aviso: o contrato que o balão lê para escrever
+	// "Agente". O turno não produz mais esse vazio — o ponto de entrada não
+	// responde, então todo turno com err == nil nomeia um dos quatro —, e é
+	// justamente por isso que ele continua pinado aqui: é o que uma conversa
+	// gravada antes desta decisão tem no disco, e o balão dela tem de
+	// sobreviver à mudança.
 	trocaOTurno(t, func(_ context.Context, _ *agent.Agent, _ []history.Message, input string, state turn.State) (turn.Outcome, turn.State, error) {
 		return turn.Outcome{Text: "resposta do genérico", Prompt: input}, state, nil
 	})
@@ -951,7 +954,7 @@ func TestAskAgentGravaOAutorEOsAvisosDoTurno(t *testing.T) {
 // retrieval que não veio) antes de a chamada ao LLM matar o turno, e esses
 // avisos são o que o usuário tem para saber o que o turno tentou.
 func TestAskAgentGravaOsAvisosDoTurnoQueFalhou(t *testing.T) {
-	avisos := []string{"generic classification failed — answering with the generic agent: sem provedor"}
+	avisos := []string{"routing classification failed — answering with the default (teacher): sem provedor"}
 
 	fp := &fakeProvider{reply: "ignorado"}
 	srv := httptest.NewServer(http.HandlerFunc(fp.handler))

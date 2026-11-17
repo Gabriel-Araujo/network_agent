@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -74,18 +75,16 @@ func main() {
 		out, next, err := turn.Run(ctx, agent, transcript, userInput, state)
 		state = next
 
-		// Display: one name=value line per generic list ("(vazio)" for
-		// empty), then the reply. The lines print even when the LLM call
-		// failed — the classification metadata is valid either way.
-		if out.Generic != nil {
-			for _, l := range rag.Lists() {
-				value := out.Generic[l.Name]
-				if value == "" {
-					value = "(vazio)"
-				}
-				fmt.Printf("%s=%s\n", l.Name, value)
-			}
-		}
+		// Display: the turn's two classification answers, printed as the
+		// same name=value lines ("(vazio)" for empty), then the reply.
+		// They print even when the turn failed — the metadata is valid
+		// either way. Explicit prints and not a loop over rag.Lists():
+		// the turn's truth is two typed fields now, and no single call
+		// carries all four dimensions.
+		fmt.Printf("protocol=%s\n", cmp.Or(out.Filters.Protocol, "(vazio)"))
+		fmt.Printf("daemon=%s\n", cmp.Or(out.Filters.Daemon, "(vazio)"))
+		fmt.Printf("chunk_type=%s\n", cmp.Or(out.Filters.ChunkType, "(vazio)"))
+		fmt.Printf("%s=%s\n", rag.SubagentListName, cmp.Or(out.Subagent, "(vazio)"))
 		for _, warning := range out.Warnings {
 			log.Warn(warning)
 		}

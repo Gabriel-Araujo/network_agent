@@ -48,9 +48,16 @@ func TestAgentResourcesFitTheReadCap(t *testing.T) {
 // List: every value of rag.SubagentListName loads its AGENT.md from
 // resources/agents/<name>/. The List rows are the single source of that table,
 // so a value with no configuration fails here and nowhere else.
+//
+// It also asserts that rag.DefaultSubagent is one of those values, which is
+// what keeps the turn's last resort out of reach: a default that is not in the
+// List, or whose configuration is missing, is the one case that kills a turn
+// (decision 4 of .agent/generico/issues/01-quem-responde-o-nenhum.md), and it
+// is barred here instead of live.
 func TestSubagentConfigsOnDisk(t *testing.T) {
 	base := &llm2.Agent{}
 	found := false
+	defaultInList := false
 	for _, l := range rag.Lists() {
 		if l.Name != rag.SubagentListName {
 			continue
@@ -60,6 +67,9 @@ func TestSubagentConfigsOnDisk(t *testing.T) {
 			t.Fatal("the routing List has no values")
 		}
 		for _, v := range l.Values {
+			if v.Name == rag.DefaultSubagent {
+				defaultInList = true
+			}
 			if _, err := base.ForSubagent(v.Name); err != nil {
 				t.Errorf("subagent %q has no usable configuration: %v", v.Name, err)
 			}
@@ -67,5 +77,8 @@ func TestSubagentConfigsOnDisk(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("List %q not found in rag.Lists()", rag.SubagentListName)
+	}
+	if !defaultInList {
+		t.Errorf("the default Subagente %q is not a value of List %q", rag.DefaultSubagent, rag.SubagentListName)
 	}
 }

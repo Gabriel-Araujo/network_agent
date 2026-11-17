@@ -1,22 +1,29 @@
-// Package turn composes and runs one chat turn: the generic classification
-// (display + routing), the Subagente dispatch, RAG mode (skip rule, retrieval,
-// the <recovered_context> block) and the LLM call — a single function, ready for
-// the cmd/ui front to consume (decision:
+// Package turn composes and runs one chat turn: the two classifications
+// (routing and RAG mode), the Subagente dispatch, the retrieval with its skip
+// rule and <recovered_context> block, and the LLM call — a single function,
+// ready for the cmd/ui front to consume (decision:
 // .agent/roteamento/issues/06-extrair-a-composicao-do-turno.md).
 //
+// The agent handed to Run is the turn's **entry point**: it classifies,
+// dispatches and composes, and never authors the reply. Every path routes to a
+// Subagente — the one the classification named, or rag.DefaultSubagent
+// (decision: .agent/generico/issues/03-tirar-o-generico-do-papel-de-resposta.md).
+//
 // The caller owns the Conversation around the turn: reading the input, the
-// transcript and the printing. Nothing here prints, and no degradation kills
-// the turn — every fallback comes back as a warning in Outcome.Warnings.
+// transcript and the printing. Nothing here prints, and degradation does not
+// kill the turn — fallbacks come back as warnings in Outcome.Warnings. There is
+// exactly one exception, and it is the one case that leaves nobody to answer:
+// the default Subagente's own configuration failing to load.
 package turn
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
 
 	agentapi "github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
@@ -58,15 +65,13 @@ type Outcome struct {
 	// nothing leaves the zero value.
 	Usage responses.ResponseUsage
 
-	// Subagent names the Subagente that answered ("" = the generic agent).
-	// It is who actually answered: a classification that names a Subagente
-	// whose configuration did not load answers with the generic agent and
-	// stays "".
+	// Subagent names the Subagente that answered, and it is an invariant of
+	// a turn that answered: whenever Run returns err == nil this is one of
+	// the four, never "". A classification that named none, named one whose
+	// configuration did not load, or failed outright, answers with
+	// rag.DefaultSubagent and reports that name. "" only ever reaches a
+	// caller alongside an error.
 	Subagent string
-
-	// Generic is the generic classification (display + routing), nil when
-	// that call failed. The display line per list derives from it.
-	Generic map[string]string
 
 	// Filters is the retrieval filter set of this turn (zero = none, either
 	// "nothing fits" or a failed RAG classification).
@@ -107,43 +112,65 @@ type Outcome struct {
 
 // Run composes and runs one turn for the given transcript and input, and
 // returns the reply with its metadata plus the updated State. The agent is the
-// generic one; the turn may be answered by a Subagente mounted from it.
+// turn's entry point; a Subagente mounted from it is who answers.
 //
-// Degradation never fails the turn: a failed classification answers with the
-// generic agent and empty filters, a failed retrieval answers without context —
-// each with a warning. The error is what stopped the turn from existing: a
-// failed LLM call. The State is valid either way.
+// Degradation does not fail the turn: a failed classification answers with
+// rag.DefaultSubagent and empty filters, a failed retrieval answers without
+// context — each with a warning. Two things return an error: a failed LLM call,
+// which stopped the turn from existing, and the default Subagente's
+// configuration failing to load, which leaves nobody to answer it. The State is
+// valid either way.
 func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Message, input string, state State) (Outcome, State, error) {
 	if agent == nil {
 		return Outcome{}, state, errors.New("turn: nil agent")
 	}
 	var out Outcome
 
-	// Generic classification — display + routing: the subagent list's value
-	// picks the Subagente that answers the turn.
-	generic, classificationErr := classifier.Do(ctx, input, rag.Lists(), false, agent)
-	if classificationErr == nil {
-		out.Generic = generic
-	}
-	turnAgent, subagent, warning := routeTurn(ctx, agent, input, generic, classificationErr)
-	if warning != "" {
-		out.Warnings = append(out.Warnings, warning)
-	}
-	out.Subagent = subagent
+	// The turn asks two disjoint questions, and asks them concurrently
+	// (route (b) of
+	// .agent/generico/issues/02-caminho-de-classificacao-do-ponto-de-entrada.md):
+	// the routing call carries the subagent list alone and picks who
+	// answers, the RAG call carries the three filter lists and produces the
+	// retrieval's single filter set. The subagent list stays out of the RAG
+	// call, so switching Subagente does not re-trigger the search with no
+	// gain; the filter lists stay out of the routing call, which is what
+	// retired the conditional re-ask — the narrow question *is* the routing
+	// call now.
+	var (
+		routing           map[string]string
+		routingErr        error
+		classification    map[string]string
+		classificationErr error
+		classifying       sync.WaitGroup
+	)
+	classifying.Go(func() {
+		routing, routingErr = classifier.Do(ctx, input, []classifier.List{rag.SubagentList()}, false, agent)
+	})
+	classifying.Go(func() {
+		classification, classificationErr = classifier.Do(ctx, input, rag.FilterLists(), true, agent)
+	})
+	classifying.Wait()
 
-	// RAG classification — the retrieval's single filter set. Only the
-	// three filter lists ride here (rag.FilterLists): the subagent list
-	// rides the generic call only, so switching Subagente does not
-	// re-trigger the search with no gain. Failure: empty filters (identical
-	// to "nothing fits") and the comparison zeroes — no half-updated state,
-	// the next turn searches again.
-	classification, err := classifier.Do(ctx, input, rag.FilterLists(), true, agent)
-	if err != nil {
-		out.Warnings = append(out.Warnings, fmt.Sprintf("RAG classification failed — continuing with empty filters: %v", err))
+	// The RAG answer is read first: it is a data dependency, not a time
+	// one — the routing's Aviso-vs-silence split reads the filters that
+	// actually filtered, which is also why its Aviso lands second. Failure:
+	// empty filters (identical to "nothing fits") and the comparison zeroes
+	// — no half-updated state, the next turn searches again.
+	if classificationErr != nil {
+		out.Warnings = append(out.Warnings, fmt.Sprintf("RAG classification failed — continuing with empty filters: %v", classificationErr))
 		classification = nil
 	} else {
 		out.Filters = rag.FiltersFrom(classification)
 	}
+
+	turnAgent, subagent, warning, err := agentForTurn(agent, routing, routingErr, out.Filters)
+	if err != nil {
+		return out, state, err
+	}
+	if warning != "" {
+		out.Warnings = append(out.Warnings, warning)
+	}
+	out.Subagent = subagent
 
 	// Skip rule: the retrieval only runs when the RAG classification differs
 	// from the previous turn; skipped, the context is the last real
@@ -198,7 +225,7 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 	// aqui — o erro é logado por quem o recebe.
 	if len(out.SkillsActivated) > 0 || len(out.MermaidBlocks) > 0 {
 		log.Info("diagram turn",
-			"subagent", cmp.Or(out.Subagent, "generic"),
+			"subagent", out.Subagent,
 			"skills_activated", out.SkillsActivated,
 			"mermaid_blocks", len(out.MermaidBlocks),
 		)
@@ -274,80 +301,55 @@ func sumUsage(a, b responses.ResponseUsage) responses.ResponseUsage {
 	return a
 }
 
-// routeTurn picks the Agent that answers the turn, with the targeted re-ask in
-// between: "no Subagente but some filter list filled" is the measured signature
-// of the empty routing (9 of 9 cases), and it buys one extra classification
-// call before the fallback to the generic agent
-// (decision: .agent/roteamento/issues/24-remedio-para-a-classificacao-vazia.md).
-// The happy path pays nothing: a classification that names a Subagente never
-// gets here.
-func routeTurn(ctx context.Context, base *agentapi.Agent, input string, generic map[string]string, classificationErr error) (*agentapi.Agent, string, string) {
-	if !needsReask(generic, classificationErr) {
-		return agentForTurn(base, generic, classificationErr)
-	}
-
-	log.Info("empty routing with filters filled — re-asking the subagent list alone", "input", input)
-	name, err := reaskSubagent(ctx, base, input)
-	if err != nil {
-		return base, "", fmt.Sprintf("no Subagente in two attempts (%s=vazio, then the re-ask failed) — answering with the generic agent: %v", rag.SubagentListName, err)
-	}
-	if name == "" {
-		return base, "", fmt.Sprintf("no Subagente in two attempts (%s=vazio in the generic classification and in the re-ask) — answering with the generic agent", rag.SubagentListName)
-	}
-
-	// The re-ask's answer replaces the empty one in the classification
-	// itself — the map Outcome.Generic holds — so the display line, the
-	// routing and the metadata the front consumes cannot contradict
-	// each other.
-	generic[rag.SubagentListName] = name
-	log.Info("the re-ask routed the turn", "subagent", name)
-	return agentForTurn(base, generic, nil)
-}
-
-// needsReask is the re-ask's trigger: the generic classification succeeded,
-// named no Subagente, and still filled at least one filter list — it understood
-// the input as in-domain and only the routing dimension came back empty. Any of
-// the three filter lists counts; all four empty is out-of-domain routing
-// working, and never re-asks.
-func needsReask(generic map[string]string, classificationErr error) bool {
-	if classificationErr != nil || generic[rag.SubagentListName] != "" {
-		return false
-	}
-	return rag.FiltersFrom(generic) != rag.Filters{}
-}
-
-// reaskSubagent runs the re-ask: one classification with the routing list alone
-// (rag.SubagentList), the same classifier untouched. The call has Temperature 0,
-// so re-asking the same prompt would return the same answer — the second call
-// has to be a different question, and a single list is the same task, narrower,
-// without asking any model for a capability it may not have.
-func reaskSubagent(ctx context.Context, base *agentapi.Agent, input string) (string, error) {
-	result, err := classifier.Do(ctx, input, []classifier.List{rag.SubagentList()}, false, base)
-	if err != nil {
-		return "", err
-	}
-	return result[rag.SubagentListName], nil
-}
-
-// agentForTurn picks the Agent that answers the turn from the generic
-// classification (display + routing): the subagent list's value mounts the
-// Subagente's configuration at resources/agents/<name>/AGENT.md. An empty value
-// or a classification error falls back to the generic agent, with an explicit
-// warning — the turn never dies. It also reports the name of the Subagente that
-// actually answers ("" when the generic agent does).
-func agentForTurn(base *agentapi.Agent, generic map[string]string, classificationErr error) (*agentapi.Agent, string, string) {
-	if classificationErr != nil {
-		return base, "", fmt.Sprintf("generic classification failed — answering with the generic agent: %v", classificationErr)
-	}
-	name := generic[rag.SubagentListName]
-	if name == "" {
-		return base, "", fmt.Sprintf("no Subagente in the classification (%s=vazio) — answering with the generic agent", rag.SubagentListName)
-	}
+// agentForTurn mounts the Subagente that answers the turn and reports its name,
+// the Aviso of getting there when there is one, and the one error that kills
+// the turn. It never returns base: the entry point classifies, dispatches and
+// composes, and is never the author of a reply
+// (.agent/generico/issues/03-tirar-o-generico-do-papel-de-resposta.md).
+//
+// The name comes from routedName; mounting it reads
+// resources/agents/<name>/AGENT.md. A named Subagente that does not load is
+// degradation like any other — the default answers for it, with an Aviso naming
+// both. The default failing to load is the last resort, and the only case with
+// nobody left to answer: the error goes up through Run (decision 4 of
+// .agent/generico/issues/01-quem-responde-o-nenhum.md).
+func agentForTurn(base *agentapi.Agent, routing map[string]string, routingErr error, filters rag.Filters) (*agentapi.Agent, string, string, error) {
+	name, warning := routedName(routing, routingErr, filters)
 	sub, err := base.ForSubagent(name)
-	if err != nil {
-		return base, "", fmt.Sprintf("configuration of Subagente %q did not load — answering with the generic agent: %v", name, err)
+	if err != nil && name != rag.DefaultSubagent {
+		warning = fmt.Sprintf("configuration of Subagente %q did not load — answering with the default (%s): %v", name, rag.DefaultSubagent, err)
+		name = rag.DefaultSubagent
+		sub, err = base.ForSubagent(name)
 	}
-	return sub, name, ""
+	if err != nil {
+		return nil, "", "", fmt.Errorf("configuration of the default Subagente %q did not load, so no one can answer the turn: %w", name, err)
+	}
+	return sub, name, warning, nil
+}
+
+// routedName is the routing decision alone: which of the four the turn goes to,
+// and the Aviso when the app has evidence that getting there was a defect.
+// Every path names one — "no Subagente" is answered by rag.DefaultSubagent, not
+// by nobody.
+//
+// The Aviso exists exactly where the app has that evidence (decision 6 of
+// .agent/generico/issues/02-caminho-de-classificacao-do-ponto-de-entrada.md):
+// a routing call that failed, and an empty value that still filled a search
+// filter — the input was read as in-domain, so an empty routing dimension is a
+// defect. An empty value with no filter at all is the measured out-of-domain
+// signature and stays **silent**: there, vazio ≡ the default is the routing's
+// contract, not degradation.
+func routedName(routing map[string]string, routingErr error, filters rag.Filters) (string, string) {
+	switch {
+	case routingErr != nil:
+		return rag.DefaultSubagent, fmt.Sprintf("routing classification failed — answering with the default (%s): %v", rag.DefaultSubagent, routingErr)
+	case routing[rag.SubagentListName] != "":
+		return routing[rag.SubagentListName], ""
+	case filters != (rag.Filters{}):
+		return rag.DefaultSubagent, fmt.Sprintf("no Subagente in the classification (%s=vazio) with a search filter filled — answering with the default (%s)", rag.SubagentListName, rag.DefaultSubagent)
+	default:
+		return rag.DefaultSubagent, ""
+	}
 }
 
 // shouldSearch applies the skip rule: the retriever only runs when the RAG

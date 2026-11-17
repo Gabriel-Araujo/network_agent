@@ -144,7 +144,10 @@ _Avoid_: history, log, message list
 **Aviso**:
 What the app asserts about what **it** did in a turn, in the turn where it did
 it: a fallback of the composition (classification, retrieval, Subagente,
-diagram re-ask) or a tool call that failed. It rides the turn's outcome, is
+diagram re-ask) or a tool call that failed. Not every fallback: it exists where
+the app has evidence that the fallback was a defect, which is why one of them —
+the empty routing with no search filter, see **Subagente** — is silent. It
+rides the turn's outcome, is
 persisted on the Message and shows in its bubble. Distinct from the model's
 prose, which may report the same failure — and may report it with the wrong
 cause: an Aviso is the app's claim about its own action, never the model's. A
@@ -167,24 +170,22 @@ _Avoid_: opções, vocabulário, categorias
 **Subagente**:
 The persona that answers one turn with its own configuration: one of Builder, Modifier,
 Illustrator or Teacher, chosen by the `subagent` **Lista** of the **Classificador** and
-configured at `resources/agents/<name>/AGENT.md`. Exactly one answers a turn; an empty value may
-buy a **Re-pergunta do roteamento** and, failing that, falls back to the generic agent.
+configured at `resources/agents/<name>/AGENT.md`. Exactly one answers a turn, and one of the four
+is the **default**: the Teacher. An empty value with no search filter filled *is* the Teacher, with
+no **Aviso** — that is the routing working, not degrading. An empty value that did fill a search
+filter also reaches the Teacher, but with one **Aviso**: the input was understood as in-domain, so
+the empty routing is evidence of a defect rather than a contract.
 _Avoid_: agente, agent, persona, roteador, router
 
 **Agente genérico**:
-The agent that answers a turn with the project's own `SystemPrompt` and the whole skills catalog,
-when the **Classificador** named no **Subagente** — or when the named one did not load. Exactly
-one agent answers a turn; this is the one that answers when no persona was chosen, and it emits a
-**Bloco de diagrama** like a **Subagente** does.
+The turn's **entry point**: it classifies, dispatches and composes the turn, and is never the
+author of a reply. When no **Subagente** was chosen, the default one answers — the entry point does
+not. There is no path left in which it does: every outcome of the routing classification mounts a
+Subagente, and the one case with nobody to answer (the default's own configuration failing to
+load) kills the turn instead of falling back to it. The term's older meaning — the agent that
+answered with the project's own prompt and the whole skills catalog — describes nothing in the
+code.
 _Avoid_: agente default, agente base, fallback
-
-**Re-pergunta do roteamento**:
-The one extra classification a turn buys when the **Classificador** names no **Subagente** but
-did fill some search filter — the input was understood as in-domain and only the routing
-dimension came back empty. It classifies the `subagent` **Lista** alone, and its answer replaces
-the empty one in the turn's classification; empty twice falls back to the generic agent with one
-warning naming both attempts.
-_Avoid_: retry, votação, segunda chance, correção
 
 **Modo RAG**:
 The **Classificador**'s flag-on mode, in which it serves as the RAG's classifier instead of a
@@ -237,9 +238,10 @@ _Avoid_: skill carregada, discovery, ativação de tool, skill montada
 
 **Bloco de diagrama**:
 One ` ```mermaid ` fence of a turn's reply. The **Subagente** Illustrator emits them as its answer
-and the Teacher may include them in an explanation; the **Agente genérico** emits them too.
-Nothing writes them to a file. Every block of a reply goes through the turn's scanner, whoever
-wrote it — the check is of the text, not of the author.
+and the Teacher may include them in an explanation — the two that carry the `mermaid` **Skill**,
+which is why routing the empty value to the Teacher keeps them reachable. The **Agente genérico**
+emits none: it authors no reply. Nothing writes them to a file. Every block of a reply goes through
+the turn's scanner, whoever wrote it — the check is of the text, not of the author.
 _Avoid_: diagrama, mermaid, gráfico, imagem
 
 **Bloco não reprovado**:

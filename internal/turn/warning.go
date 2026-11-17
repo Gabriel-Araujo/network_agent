@@ -11,7 +11,7 @@ import (
 // O AVISO DA FALHA DE TOOL
 //
 // Uma tool que falhou é degradação do turno, não um turno que morreu: ela entra
-// em Outcome.Warnings, o mesmo campo dos quatro fallbacks da composição, e daí
+// em Outcome.Warnings, o mesmo campo dos fallbacks da composição, e daí
 // segue pelo caminho que já existe — a Message, a tira da bolha, o log e o
 // cmd/cli (ticket 19, §1).
 //

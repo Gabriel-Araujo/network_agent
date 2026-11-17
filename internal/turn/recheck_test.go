@@ -56,8 +56,8 @@ func TestRunReasksOnceAndShipsTheFix(t *testing.T) {
 		t.Errorf("Warnings = %v, want none: a re-ask that fixed the diagram is not degradation", out.Warnings)
 	}
 	// The re-ask reclassifies nothing and searches nothing.
-	if fake.classifications != 2 {
-		t.Errorf("classification calls = %d, want 2 (the generic and the RAG one, neither repeated)", fake.classifications)
+	if fake.classifications != 1 || fake.routings != 1 {
+		t.Errorf("RAG calls = %d, routing calls = %d, want one each (neither repeated by the re-ask)", fake.classifications, fake.routings)
 	}
 	if *retrievals != 1 {
 		t.Errorf("retrievals = %d, want 1 — the re-ask must not search again", *retrievals)

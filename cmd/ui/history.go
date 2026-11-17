@@ -195,11 +195,14 @@ func (a *App) DeleteConversation(id string) error {
 // troca.
 var runTurn = turn.Run
 
-// logTurn registra o metadado do turno que NÃO vai à tela: a classificação
-// genérica, os filtros de busca, o tamanho do contexto recuperado e o resultado
-// do scanner de Mermaid. Só o autor e os avisos ficam na mensagem (o usuário não
-// infere nenhum dos dois do texto); o resto é observabilidade, e aqui ele existe
-// em vez de desaparecer.
+// logTurn registra o metadado do turno que NÃO vai à tela: o Subagente que
+// respondeu, os filtros de busca, o tamanho do contexto recuperado e o
+// resultado do scanner de Mermaid. Só o autor e os avisos ficam na mensagem (o
+// usuário não infere nenhum dos dois do texto); o resto é observabilidade, e
+// aqui ele existe em vez de desaparecer.
+//
+// Sem a chave `classificacao`: a classificação de roteamento carrega uma
+// dimensão só, e o valor dela é o `subagente` desta mesma linha.
 //
 // Os avisos também saem no log, em Warn: a bolha os mostra no turno em que
 // aconteceram, e o arquivo é onde o turno de ontem ainda pode ser lido.
@@ -207,7 +210,6 @@ func logTurn(convID string, out turn.Outcome) {
 	log.Debug("turno composto",
 		"conv", convID,
 		"subagente", out.Subagent,
-		"classificacao", out.Generic,
 		"filtros", out.Filters,
 		"contexto_chars", len(out.RecoveredContext),
 		"mermaid_checado", out.MermaidChecked,
