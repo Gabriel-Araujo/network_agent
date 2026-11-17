@@ -1,6 +1,6 @@
 # BGP Checklist
 
-Stage 06 answers every item against the artifact as it stands: met, not
+Answer every item against the artifact as it stands: met, not
 applicable with a reason, or violated.
 
 ## Security

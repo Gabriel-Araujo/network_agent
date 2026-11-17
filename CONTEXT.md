@@ -62,11 +62,11 @@ Run in flight. Only 3 and 4 appear in the Source column of an Inputs table.
 _Avoid_: tier, level
 
 **Tech pack**:
-The reference material for one technology in a Subagente's `tech-packs/`
-folder, named by a slug. Its shape is the one that folder's `CONTEXT.md`
-defines: the Builder keeps a folder of files per slug, the Teacher a single
-`<slug>.md`. In a Run, the slug picked at the start binds `{{TECH}}` for the
-whole Run.
+The reference material for one technology, named by a slug. The
+`frr-file-builder` **Skill** keeps a folder of files per slug in its
+`references/`, and a request loads every pack it touches; the Teacher keeps a
+single `<slug>.md` in its `tech-packs/`. In a Run, the slug picked at the start
+binds `{{TECH}}` for the whole Run.
 _Avoid_: module, plugin, technology folder, guide
 
 **Checkpoint**:

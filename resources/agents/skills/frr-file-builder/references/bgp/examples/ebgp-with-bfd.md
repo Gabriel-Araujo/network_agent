@@ -36,7 +36,7 @@ exit
 
 What the shape demonstrates:
 
-- `bfdd` added to the daemon set, which the plan has to justify
+- `bfdd` added to the daemon set, which needs a justification
 - a named BFD profile reused by the peer-group instead of per-neighbor
   timers
 - `remote-as external`, valid with interface-based unnumbered peers

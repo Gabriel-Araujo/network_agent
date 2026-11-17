@@ -15,7 +15,6 @@ builder/
 ├── CONTEXT.md         (you are here: start here for task routing)
 ├── setup/             (onboarding questionnaire, run once)
 ├── shared/            (cross-stage rules every LLM stage loads)
-├── tech-packs/        (per-technology reference: doctrine, syntax, checklist)
 └── stages/
     ├── 01-intent/     (request into structured briefing)
     ├── 02-evidence/   (retrieve docs for the version of record)
@@ -24,6 +23,9 @@ builder/
     ├── 05-validate/   (mechanical syntax and reference check)
     └── 06-review/     (checklist and operator delivery)
 ```
+
+The tech packs live outside this folder, in the `frr-file-builder` skill:
+`../skills/frr-file-builder/references/`.
 
 ## Triggers
 
@@ -69,7 +71,7 @@ Do not guess.
 | Resource | Location | Contains |
 |----------|----------|----------|
 | Execution rules | `shared/execution-rules.md` | Boundaries, version of record, output register. Every LLM stage loads it |
-| Tech packs | `tech-packs/CONTEXT.md` | Routing into the per-technology reference collection |
+| Tech packs | `../skills/frr-file-builder/references/CONTEXT.md` | Routing into the per-technology reference collection, owned by the `frr-file-builder` skill |
 | Onboarding | `setup/questionnaire.md` | Agent level defaults, asked once, never per run |
 | Skills | `../skills/*/SKILL.md` | Executable procedures the script stages call |
 
@@ -81,7 +83,7 @@ is authoritative.
 
 | Stage | Load These | Do NOT Load |
 |-------|-----------|-------------|
-| 01-intent | `shared/execution-rules.md`, tech pack `TECH.md`, `references/required-facts.md` | syntax, examples, checklist: this stage writes no config |
+| 01-intent | `shared/execution-rules.md`, tech pack `TECH.md` | syntax, examples, checklist: this stage writes no config |
 | 02-evidence | nothing, script stage | anything, no model runs here |
 | 03-plan | `shared/execution-rules.md`, tech pack `TECH.md` and `doctrine.md`, the `examples/` title list | syntax, example bodies: the plan names blocks and one shape, not commands |
 | 04-render | `shared/execution-rules.md`, tech pack `syntax.md`, the one example named by stage 03 | doctrine, questionnaire, every other example: those were settled in stage 03 |
@@ -96,7 +98,7 @@ CONTEXT.md declares. Reading on your own initiative is not allowed.
 ## Placeholders
 
 `{{TECH}}` in a stage Inputs table resolves to the tech pack slug chosen at
-the start of the run, for example `tech-packs/bgp/`.
+the start of the run, for example `../skills/frr-file-builder/references/bgp/`.
 
 ## Stage Handoffs
 
@@ -124,7 +126,7 @@ becomes the turn.
 | Source | Layer | Resolves against | Goes into |
 |--------|-------|------------------|-----------|
 | `Shared` | 3 | this folder | system prompt |
-| `Tech pack` | 3 | this folder, with `{{TECH}}` bound | system prompt |
+| `Tech pack` | 3 | `../skills/frr-file-builder/references/`, with `{{TECH}}` bound | system prompt |
 | `Reference` | 3 | the stage folder in this tree | system prompt |
 | `Previous stage` | 4 | `.agent/runs/builder/` | the turn |
 | `Retry only` | 4 | `.agent/runs/builder/`, only on a retry pass | the turn |

@@ -46,8 +46,8 @@ flag every version gated feature avoided because of it.
 
 If a fact is not in the files or in the conversation, it is an assumption.
 An assumption about an identity value (ASN, prefix, peer address, keychain
-name) is not allowed at all: it becomes a question. See
-`stages/01-intent/references/required-facts.md`.
+name) is not allowed at all: it becomes a question. See the "Required Facts"
+section of the tech pack `TECH.md`.
 
 ## Output Register
 

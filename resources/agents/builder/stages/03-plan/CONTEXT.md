@@ -14,9 +14,9 @@ of here: the plan names blocks, not commands.
 | Source | File/Location | Section/Scope | Why |
 |--------|--------------|---------------|-----|
 | Shared | `../../shared/execution-rules.md` | Full file | Boundaries and register |
-| Tech pack | `../../tech-packs/{{TECH}}/TECH.md` | "Daemons" and "Run vocabulary" | Which daemons are defensible |
-| Tech pack | `../../tech-packs/{{TECH}}/doctrine.md` | Full file | The posture the plan must declare against |
-| Tech pack | `../../tech-packs/{{TECH}}/examples/` | Titles only | The canonical shapes available to name |
+| Tech pack | `../../../skills/frr-file-builder/references/{{TECH}}/TECH.md` | "Daemons" and "Vocabulary" | Which daemons are defensible |
+| Tech pack | `../../../skills/frr-file-builder/references/{{TECH}}/doctrine.md` | Full file | The posture the plan must declare against |
+| Tech pack | `../../../skills/frr-file-builder/references/{{TECH}}/examples/` | Titles only | The canonical shapes available to name |
 | Previous stage | `../01-intent/brief.json` | Full file | What the user asked for |
 | Previous stage | `../02-evidence/evidence.json` | Full file | What the version of record supports |
 

@@ -4,8 +4,9 @@ Per-technology support material for the teacher. One file per technology,
 `tech-packs/<slug>.md`, which the teacher reads with `ReadFile` when a question
 touches that technology.
 
-The shape below is local to the teacher. The builder keeps its own, a folder of
-files per technology, in `../../builder/tech-packs/CONTEXT.md`.
+The shape below is local to the teacher. The `frr-file-builder` skill keeps its
+own, a folder of files per technology, in
+`../../skills/frr-file-builder/references/CONTEXT.md`.
 
 ## Contents of a Pack
 

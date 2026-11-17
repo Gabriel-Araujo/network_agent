@@ -15,8 +15,7 @@ without reinterpreting natural language again.
 | Source | File/Location | Section/Scope | Why |
 |--------|--------------|---------------|-----|
 | Shared | `../../shared/execution-rules.md` | Full file | Boundaries and register |
-| Tech pack | `../../tech-packs/{{TECH}}/TECH.md` | Full file | Scope, daemon set, vocabulary |
-| Reference | `references/required-facts.md` | Full file | What may be assumed, what must be asked |
+| Tech pack | `../../../skills/frr-file-builder/references/{{TECH}}/TECH.md` | Full file | Scope, daemon set, vocabulary, what may be assumed and what must be asked |
 | User | Current turn | Full text | The request itself |
 
 ## Process
@@ -29,8 +28,8 @@ without reinterpreting natural language again.
 3. List every session or link: from whom to whom, type, interface when stated.
 4. List known facts: only what the user said or what a file that was read
    contains.
-5. Cross check against `references/required-facts.md`. Split what is missing
-   into must-ask and may-assume.
+5. Cross check against the "Required Facts" section of the tech pack
+   `TECH.md`. Split what is missing into must-ask and may-assume.
 6. Save to the stage folder.
 
 Design nothing. Write no config. Suggest no syntax. This stage understands.

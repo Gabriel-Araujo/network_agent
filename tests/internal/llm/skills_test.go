@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -73,8 +74,75 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 	}
 }
 
+// TestFrrFileBuilderSkillInCatalog pins the frr-file-builder material: the
+// skill loads, use_skill delivers a body that is no longer the stub and that
+// never names the file tools (writing and replying belong to the agent that
+// activates it), and read_skill_file reaches every file of the bgp pack the
+// body orders read — TECH.md, syntax.md, doctrine.md — plus every example the
+// TECH.md index lists. The index is the only way the model finds an example,
+// since read_skill_file cannot list a folder, so a row naming a missing file
+// is an example the model asks for and never gets.
+func TestFrrFileBuilderSkillInCatalog(t *testing.T) {
+	t.Chdir(repoRoot(t))
+
+	const skill = "frr-file-builder"
+	if _, ok := skills.LoadSkills().Get(skill); !ok {
+		t.Fatalf("skill %q not loaded from resources/agents/skills", skill)
+	}
+
+	a := &llm2.Agent{}
+	read := func(path string) string {
+		t.Helper()
+		item, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{
+			CallID:    "call_read",
+			Name:      skills.ToolReadSkillFile,
+			Arguments: `{"skill_name": "` + skill + `", "relative_path": "` + path + `"}`,
+		})
+		got := callOutput(t, item)
+		if strings.HasPrefix(got, "erro:") {
+			t.Errorf("read_skill_file %s: %s", path, got)
+		}
+		return strings.ReplaceAll(got, "\r\n", "\n")
+	}
+
+	activated, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{
+		CallID:    "call_use",
+		Name:      skills.ToolUseSkill,
+		Arguments: `{"skill_name": "` + skill + `"}`,
+	})
+	body := callOutput(t, activated)
+	switch {
+	case strings.HasPrefix(body, "erro:"):
+		t.Fatalf("use_skill %s: %s", skill, body)
+	case strings.Contains(body, "reached frr-file-builder"):
+		t.Error("the activated body is still the stub")
+	case !strings.Contains(body, "<recovered_context>"):
+		t.Error("the activated body no longer orders the RAG read")
+	}
+	for _, tool := range []string{"WriteFile", "EditFile"} {
+		if strings.Contains(body, tool) {
+			t.Errorf("the activated body names %s: the content is the skill's, the write is the agent's", tool)
+		}
+	}
+
+	for _, path := range []string{"references/bgp/syntax.md", "references/bgp/doctrine.md"} {
+		read(path)
+	}
+	index := read("references/bgp/TECH.md")
+	examples := regexp.MustCompile("`(examples/[a-z0-9-]+\\.md)`").FindAllStringSubmatch(index, -1)
+	if len(examples) == 0 {
+		t.Fatal(`TECH.md of the bgp pack lists no example under "Examples"`)
+	}
+	for _, m := range examples {
+		if got := read("references/bgp/" + m[1]); !strings.Contains(got, "```") {
+			t.Errorf("%s has no fenced frr.conf shape", m[1])
+		}
+	}
+}
+
 // pipelineSkills are the skills a dispatched Subagente has no use for: the
-// frr-file-builder stub, the generic's intent analyzer, and the RAG retriever
+// frr-file-builder, whose consumers are the Builder and the Modifier, the
+// generic's intent analyzer, and the RAG retriever
 // whose briefing input no live prompt produces any more (the turn's RAG is Go,
 // internal/turn). Their descriptions order activation on any FRR question, so
 // a dispatched Subagente that can read the catalog spends calls on them: 12 of

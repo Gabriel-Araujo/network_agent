@@ -14,7 +14,7 @@ hands the operator what to run.
 | Source | File/Location | Section/Scope | Why |
 |--------|--------------|---------------|-----|
 | Shared | `../../shared/execution-rules.md` | Full file | Boundaries and register |
-| Tech pack | `../../tech-packs/{{TECH}}/checklist.md` | Full file | The pass/fail questions |
+| Tech pack | `../../../skills/frr-file-builder/references/{{TECH}}/checklist.md` | Full file | The pass/fail questions |
 | Previous stage | `../04-render/` | All files | What is being judged |
 | Previous stage | `../05-validate/report.json` | `findings[]` | What the mechanical pass already caught |
 | Previous stage | `../03-plan/plan.md` | "Blocks" and "Rollback" | Conformance and the rollback path to publish |

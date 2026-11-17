@@ -38,4 +38,4 @@ What the shape demonstrates:
   negotiated
 - `no bgp default ipv4-unicast`, which is what makes the two `activate`
   lines meaningful instead of decorative
-- the tradeoff stated in the framing, so the plan can reject it
+- the tradeoff stated in the framing, so it can be rejected

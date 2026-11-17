@@ -50,4 +50,4 @@ What the shape demonstrates:
   stops the site becoming transit between the two providers
 - prepend and provider community used together, because neither alone is
   reliable
-- direction named in every policy object, per the run vocabulary
+- direction named in every policy object, per the vocabulary in `TECH.md`

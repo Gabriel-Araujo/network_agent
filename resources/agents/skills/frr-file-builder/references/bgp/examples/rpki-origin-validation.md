@@ -38,7 +38,7 @@ exit
 
 What the shape demonstrates:
 
-- RPKI syntax is version gated: confirm against the version of record or
+- RPKI syntax is version gated: confirm against the FRR version in use or
   fall back to prefix-list filtering with a `VERSION NOTE`
 - two caches configured with a preference, so validation survives one being
   down
