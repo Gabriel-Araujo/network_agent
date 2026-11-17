@@ -326,29 +326,6 @@ func TestCallToolRefusesSubAgentToADispatchedSubagente(t *testing.T) {
 	}
 }
 
-// TestCallToolKeepsSubAgentForTheGeneric: the refusal cuts only what was not
-// offered. The generic agent carries sub_agent, so it still spawns — the sub's
-// own trip to the provider is the proof.
-func TestCallToolKeepsSubAgentForTheGeneric(t *testing.T) {
-	client, requests := scriptedProvider(t,
-		callsOneTool("sub_agent", `{"task":"escreva o frr.conf"}`),
-		answers("sub pronto"),
-		answers("pronto"))
-	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools()}
-
-	if _, _, _, err := generic.Chat(context.Background(), nil, "delegue"); err != nil {
-		t.Fatalf("Chat devolveu erro: %v", err)
-	}
-
-	if len(*requests) != 3 {
-		t.Fatalf("esperava 3 requisições (a do meio é do sub-agente), veio %d", len(*requests))
-	}
-	got := toolOutputs(t, (*requests)[2])
-	if len(got) != 1 || got[0] != "sub pronto" {
-		t.Errorf("resultado da tool %q, esperava a resposta do sub-agente", got)
-	}
-}
-
 // TestSubagentSkillActivationNarrowedToThePrompt: the Illustrator's syntax
 // reaches the model through the use_skill call, not through the prompt — the
 // body is gone from the system prompt and the activation tool is narrowed to
@@ -528,34 +505,6 @@ func TestChatCarriesTheToolFailureOutOfTheTurn(t *testing.T) {
 	}
 	if failures, outputs := chat(t); len(failures) != 0 {
 		t.Errorf("leitura que deu certo reportou %+v (resultado %q): sucesso não avisa", failures, outputs)
-	}
-}
-
-// TestChatComposesTheNestedSubagentFailures fixa a §2 do ticket 18: o Chat do
-// sub-agente roda dentro de uma tool do de fora, então uma leitura recusada lá
-// dentro é degradação deste turno também. Sem a composição, a falha morreria no
-// retorno do aninhado, que ninguém lê.
-func TestChatComposesTheNestedSubagentFailures(t *testing.T) {
-	workspace := t.TempDir()
-	client, requests := scriptedProvider(t,
-		callsOneTool(tools.SUB_AGENT_TOOL_NAME, `{"task":"leia o frr.conf"}`),
-		callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`),
-		answers("sub pronto"),
-		answers("pronto"))
-	generic := &Agent{Client: *client, ModelName: "modelo", availableTools: tools.GetSkillAndTools(), workspace: workspace}
-
-	_, failures, _, err := generic.Chat(context.Background(), nil, "delegue a leitura")
-	if err != nil {
-		t.Fatalf("Chat devolveu erro: %v", err)
-	}
-	if len(*requests) != 4 {
-		t.Fatalf("esperava 4 requisições (duas do sub-agente), veio %d", len(*requests))
-	}
-	if len(failures) != 1 || !errors.Is(failures[0].Err, filetools.ErrNotFound) {
-		t.Fatalf("falhas = %+v, want a leitura recusada dentro do sub-agente", failures)
-	}
-	if failures[0].Tool != filetools.READ_TOOL_NAME {
-		t.Errorf("tool da falha = %q, want a do aninhado (%q), não a do sub_agent", failures[0].Tool, filetools.READ_TOOL_NAME)
 	}
 }
 

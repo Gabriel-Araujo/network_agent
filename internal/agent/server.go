@@ -1,7 +1,6 @@
 package agent
 
 import (
-	_ "embed"
 	"fmt"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
@@ -9,10 +8,9 @@ import (
 	"github.com/openai/openai-go/v3/option"
 )
 
-//go:embed prompts/AGENT.md
-var baseAgent string
-
-// Connect monta o Agent da configuração escolhida. workspace é a pasta do
+// Connect monta o Agent da configuração escolhida. É o ponto de entrada:
+// classifica e despacha, nunca responde, então não leva system prompt nem
+// tools — quem responde é o Subagente que ForSubagent deriva dele. workspace é a pasta do
 // usuário, e é parâmetro em vez de campo do types.Config de propósito (ticket
 // 05, Q3): o arquivo de configuração é compartilhado com o cmd/cli, e fazer o
 // CLI honrar uma pasta escolhida noutro app redirecionaria a escrita para longe
@@ -41,8 +39,8 @@ func Connect(config types.Config, workspace string) (*Agent, error) {
 		provider.ApiKey,
 		model.Id,
 		model.ContextSize,
-		loadSkillsAndTools(),
-		baseAgent,
+		nil,
+		"",
 		workspace,
 	), nil
 }

@@ -45,8 +45,7 @@ var subagentSkills = map[string][]string{
 // resources/agents/<name>/AGENT.md — under the Agent root, the mirror
 // config.MaterialFile projects from the binary — mounted whole and nothing
 // else, tools are the file tools plus read_skill_file and, for a name whose
-// subagentSkills lists skills, use_skill narrowed to them, without the
-// subagent tool (no nesting) and minus whatever deniedTools withholds from
+// subagentSkills lists skills, use_skill narrowed to them, minus whatever deniedTools withholds from
 // this name. A missing folder or AGENT.md — or an empty one — is an explicit
 // error, never silent. The name -> folder table is the routing List in
 // rag.Lists.

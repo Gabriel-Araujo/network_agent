@@ -41,14 +41,6 @@ func GetFileAndSkillTools(skillNames []string) ([]responses.ToolUnionParam, erro
 	return append(toolset, Tools...), nil
 }
 
-// GetSkillAndTools is the generic agent's toolset: file + the whole skills
-// catalog, plus the subagent tool.
-func GetSkillAndTools() []responses.ToolUnionParam {
-	skillsTools := skills.LoadSkills().BuildTools()
-
-	return append(append(skillsTools, Tools...), SubAgentTool)
-}
-
 // Failure é uma chamada de tool que falhou. É o registro que sobe até o Chat
 // (ticket 18) para o app poder dizer ao usuário **o que ele fez** em vez de
 // deixar a falha morrer num log.Error que ninguém lê.

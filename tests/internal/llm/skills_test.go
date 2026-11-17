@@ -27,7 +27,7 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 		t.Fatal(`skill "mermaid" not loaded from resources/agents/skills`)
 	}
 
-	if enum := useSkillEnum(t, reg.BuildTools()); !slices.Contains(enum, "mermaid") {
+	if enum := useSkillEnum(t, mustUseSkillTool(t, reg)); !slices.Contains(enum, "mermaid") {
 		t.Errorf("use_skill does not enumerate mermaid: %v", enum)
 	}
 
@@ -140,20 +140,6 @@ func TestSkillActivationNarrowedForTheSubagente(t *testing.T) {
 	if _, err := tools.GetFileAndSkillTools([]string{"no-such-skill"}); err == nil {
 		t.Error("GetFileAndSkillTools accepted a skill name the registry does not have")
 	}
-
-	// Half two: the generic agent keeps the whole catalog. Fixing the
-	// generic's own pipeline is a separate effort (it is on the map's
-	// Out of scope), so the narrowing must stop at the dispatched toolset.
-	generic := useSkillTool(t, tools.GetSkillAndTools())
-	enum := skillEnum(t, generic)
-	for _, name := range append(slices.Clone(pipelineSkills), "mermaid") {
-		if !slices.Contains(enum, name) {
-			t.Errorf("the narrowing reached the generic agent, which lost %q: %v", name, enum)
-		}
-		if !strings.Contains(generic.Description.Value, name) {
-			t.Errorf("the generic catalog no longer lists %q: %s", name, generic.Description.Value)
-		}
-	}
 }
 
 // TestReadSkillFileServesTheReferenceWithoutActivation: read_skill_file serves
@@ -236,4 +222,13 @@ func skillEnum(t *testing.T, fn *responses.FunctionToolParam) []string {
 		t.Fatalf("use_skill has no string enum: %#v", fn.Parameters)
 	}
 	return enum
+}
+
+func mustUseSkillTool(t *testing.T, reg *skills.Registry) []responses.ToolUnionParam {
+	t.Helper()
+	tool, err := reg.UseSkillTool([]string{"mermaid"})
+	if err != nil {
+		t.Fatalf("building the use_skill tool: %v", err)
+	}
+	return []responses.ToolUnionParam{tool}
 }

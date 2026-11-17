@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -177,8 +176,7 @@ func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToo
 
 	case !a.offers(call.Name):
 		// A tool this Agent was not given never runs, whatever the model
-		// named: it is how the Modifier stays without WriteFile and how a
-		// dispatched Subagente stays without sub_agent (no nesting).
+		// named: it is how the Modifier stays without WriteFile.
 		log.Warn("tool não oferecida recusada", "name", call.Name)
 		result = responses.ResponseInputItemParamOfFunctionCallOutput(
 			fmt.Sprintf("Error: tool %q was not offered to you. Use only the tools in your list.", call.Name))
@@ -189,9 +187,6 @@ func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToo
 		if err != nil {
 			failures = append(failures, tools.Failure{Tool: call.Name, Err: err})
 		}
-
-	case call.Name == tools.SUB_AGENT_TOOL_NAME:
-		result, failures = a.SubAgentCall(ctx, call)
 
 	default:
 		var failed *tools.Failure
@@ -229,42 +224,4 @@ func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToo
 // devolvendo o corpo da skill (ou do arquivo bundlado) para o modelo.
 func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, error) {
 	return skills.HandleSkillCall(call)
-}
-
-// SubAgentCall cria um sub-agente dedicado a partir da task fornecida,
-// executa o loop de conversação dele e devolve a resposta final para o modelo.
-// O sub-agente não herda o transcript do pai: ele nasce sem estado e recebe a
-// task como sua única mensagem.
-//
-// As falhas de tool do aninhado se **compõem** nas do Chat de fora: o Chat do
-// sub-agente roda dentro de uma tool deste, então uma leitura recusada lá
-// dentro é degradação deste turno igual (ticket 18, §2).
-func (a *Agent) SubAgentCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, []tools.Failure) {
-	var args struct {
-		Task string `json:"task"`
-	}
-	if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
-		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err)),
-			[]tools.Failure{{Tool: call.Name, Err: fmt.Errorf("argumentos ilegíveis na chamada do sub-agente: %w", err)}}
-	}
-
-	sub := &Agent{
-		Client:         a.Client,
-		ModelName:      a.ModelName,
-		providerURL:    a.providerURL,
-		apiKey:         a.apiKey,
-		availableTools: a.availableTools,
-		workspace:      a.workspace,
-		systemPrompt:   a.systemPrompt,
-	}
-
-	// A ativação do aninhado não sobe: o SubAgentCall devolve o resultado da
-	// tool e as falhas, e o fato de skill é do turno de fora, que é quem loga.
-	resp, failures, _, err := sub.Chat(ctx, nil, args.Task)
-	if err != nil {
-		return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro no sub-agente: %v", err)),
-			append(failures, tools.Failure{Tool: call.Name, Err: fmt.Errorf("o turno do sub-agente falhou: %w", err)})
-	}
-
-	return responses.ResponseInputItemParamOfFunctionCallOutput(resp.OutputText()), failures
 }

@@ -150,9 +150,6 @@ func TestSubagentToolsetDeniesTheWriteTools(t *testing.T) {
 		if !slices.Equal(sortedGot, sortedWant) {
 			t.Errorf("toolset of %s is %v, want %v", name, got, want)
 		}
-		if slices.Contains(got, tools.SUB_AGENT_TOOL_NAME) {
-			t.Errorf("%s inherited %s (nested routing): %v", name, tools.SUB_AGENT_TOOL_NAME, got)
-		}
 	}
 }
 

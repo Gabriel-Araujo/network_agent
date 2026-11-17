@@ -1,20 +1,13 @@
 package llm
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	llm2 "github.com/Gabriel-Araujo/network_agent/internal/agent"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills"
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
 )
 
@@ -46,32 +39,6 @@ func callOutput(t *testing.T, res responses.ResponseInputItemUnionParam) string 
 		t.Fatalf("saída da chamada não é *string, é %T", anyOut)
 	}
 	return *out
-}
-
-// newRecordingServer retorna um servidor mockado da API de Responses
-// que devolve sempre o mesmo texto e registra o corpo da requisição.
-func newRecordingServer(t *testing.T, replyText string) (*httptest.Server, *[]byte) {
-	t.Helper()
-	var lastBody []byte
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		lastBody = body
-		w.Header().Set("Content-Type", "application/json")
-		payload := map[string]any{
-			"id":     "resp_test_1",
-			"object": "response",
-			"output": []map[string]any{
-				{
-					"type":    "message",
-					"role":    "assistant",
-					"content": []map[string]any{{"type": "output_text", "text": replyText}},
-				},
-			},
-		}
-		_ = json.NewEncoder(w).Encode(payload)
-	}))
-	t.Cleanup(ts.Close)
-	return ts, &lastBody
 }
 
 func TestToolCallReadsFileFromRepoRoot(t *testing.T) {
@@ -210,55 +177,5 @@ func TestSkillCallReadSkillFile(t *testing.T) {
 	// SKILL.md começa com frontmatter yaml (---)
 	if got[0:3] != "---" {
 		t.Fatalf("SKILL.md deveria começar com '---', veio %q", got[:min(3, len(got))])
-	}
-}
-
-func TestSubAgentCallDelegatesToSubAgent(t *testing.T) {
-	const reply = "resposta do sub-agente"
-
-	ts, lastBody := newRecordingServer(t, reply)
-	client := openai.NewClient(
-		option.WithBaseURL(ts.URL),
-		option.WithAPIKey("test-key"),
-	)
-
-	a := llm2.Init(client, "", "", "test-model", 0, []responses.ToolUnionParam{}, "você é um assistente", "")
-
-	call := responses.ResponseFunctionToolCall{
-		CallID: "call_sub",
-		Name:   "sub_agent",
-		Arguments: `{
-			"task": "faça alguma coisa"
-		}`,
-	}
-
-	res, _ := a.SubAgentCall(context.Background(), call)
-
-	got := callOutput(t, res)
-	if got != reply {
-		t.Fatalf("subAgentCall deve devolver a resposta do sub-agente.\nesperado: %q\nobtido:   %q", reply, got)
-	}
-
-	// o sub-agente deve ter enviado a task como mensagem para a API
-	if !bytes.Contains(*lastBody, []byte("faça alguma coisa")) {
-		t.Fatalf("corpo da requisição não contém a task: %s", *lastBody)
-	}
-}
-
-func TestSubAgentCallInvalidArguments(t *testing.T) {
-	a := &llm2.Agent{}
-	call := responses.ResponseFunctionToolCall{
-		CallID: "call_sub",
-		Name:   "sub_agent",
-		Arguments: `{
-			"task": 
-		}`,
-	}
-
-	res, _ := a.SubAgentCall(context.Background(), call)
-
-	got := callOutput(t, res)
-	if got == "" || got[0:len("erro: argumentos inválidos")] != "erro: argumentos inválidos" {
-		t.Fatalf("esperava erro de argumentos inválidos, veio %q", got)
 	}
 }

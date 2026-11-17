@@ -2,8 +2,6 @@ package agent
 
 import (
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
-	"github.com/Gabriel-Araujo/network_agent/internal/tools"
-	"github.com/openai/openai-go/v3/responses"
 )
 
 var log = logger.Named("MODELS")
@@ -28,8 +26,4 @@ func LoadEmbbedAgent() *Agent {
 	}
 
 	return _agent
-}
-
-func loadSkillsAndTools() []responses.ToolUnionParam {
-	return tools.GetSkillAndTools()
 }

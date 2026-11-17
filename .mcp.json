@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "goland": {
-      "url": "http://127.0.0.1:64422/stream",
+      "url": "http://127.0.0.1:64586/stream",
       "type": "http"
     }
   }
