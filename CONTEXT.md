@@ -169,6 +169,18 @@ cause: an Aviso is the app's claim about its own action, never the model's. A
 successful event never fills it.
 _Avoid_: erro, mensagem de erro, warning, log
 
+**Aba**:
+One of the window's tabs: the **Início**, fixed and always first, or one open **Conversa**. A
+Conversa has at most one Aba. Closing an Aba is not deleting its Conversa; deleting a Conversa
+closes its Aba. No Aba outlives the app: the Abas are what is open now, the Conversas are what is
+kept. The app runs one turn at a time across all of them.
+_Avoid_: tab, guia, janela, sessão
+
+**Início**:
+The Aba with no Conversa, where one is born: the first send from it creates the Conversa and opens
+it in an Aba of its own, leaving the Início empty.
+_Avoid_: home, nova aba, tela vazia
+
 ### Classification
 
 **Classificador**:

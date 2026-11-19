@@ -1,3 +1,6 @@
+/* Legado: numa camada abaixo da `_` do S2 até o visual novo apagá-lo (docs/FRONTEND.md, Stack e build). */
+@layer legacy, _;
+@layer legacy {
 /* ============================================================
    net_agent - dark mode + glass azulado
    Tokens: off-black azulado, um acento (azul elétrico dessaturado),
@@ -1974,4 +1977,5 @@ button {
 .logs__foot {
   padding: 8px 14px;
   border-top: 1px solid var(--border);
+}
 }

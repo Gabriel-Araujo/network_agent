@@ -20,7 +20,10 @@ Só fatos, nenhuma decisão: o que o app **decidiu e implementou** fica em
    1.0.0 (2025-12-16), exige React ^19. `SideNav`, `SideNavPanel` e `@react-spectrum/ai` são alpha.
 2. **Build:** `unplugin-parcel-macros` como **primeiro** plugin do Vite, `lightningcss` como devDep,
    `cssMinify: 'lightningcss'`, e todo o CSS do S2 + macros num chunk só. CSS global fora de `@layer`
-   vence o S2. Sub-paths por componente pedem `moduleResolution: "bundler"`.
+   vence o S2. Sub-paths por componente pedem `moduleResolution: "bundler"`. **Medido no app:** roda
+   no Vite 7 e no Vite 8 (Rolldown) com a mesma config; no 8, `rollupOptions` e `manualChunks` funcionam
+   mas estão deprecados. Nos dois, o `vite dev` precisa de `optimizeDeps.exclude` no
+   `@react-spectrum/s2/style`. Popover do S2 fica atrás de overlay legado com `z-index`.
 3. **Inventário:** os controles padrão existem. Faltam: `Tab` com fechar, Toast com título +
    subtítulo/ícone (o conteúdo é uma string), Toolbar, Drawer/Sheet, seções no ListView. O RAC
    (`react-aria-components`, sem estilo) tem Toolbar, GridList com seções e Sheet.
@@ -29,12 +32,15 @@ Só fatos, nenhuma decisão: o que o app **decidiu e implementou** fica em
 5. **Customização:** o prop `styles` aceita só layout. Visual próprio = RAC + macro `style`.
 6. **Fonte:** a Adobe Clean só vem da Typekit (`use.typekit.net`) e é restrita a produtos Adobe. A
    família troca por `--s2-font-family-sans` (não documentada). O `Provider` emite um `preload` para a
-   Typekit sempre, mesmo com a família trocada.
+   Typekit sempre, mesmo com a família trocada. **Medido no app:** sem a Typekit, saem 49 requisições e
+   a fonte cai na Segoe UI; um CSP `font-src 'self' data:` barra todas no próprio navegador.
 7. **Ícones:** um módulo por ícone em `@react-spectrum/s2/icons/<Nome>`. Faltam sidebar/painel,
    restaurar janela e sol/lua.
 8. **Movimento:** Toast, Tabs, Disclosure e SideNavPanel respeitam `prefers-reduced-motion`; Modal,
    Popover, Menu e Tooltip não têm a regra no CSS compilado.
-9. **Peso:** sub-path por componente e CSS atômico; o min+gz no app ainda não foi medido.
+9. **Peso:** sub-path por componente e CSS atômico. **Medido no app:** `Provider` + `Button` + `Picker`
+   somam +106 KB gz de JS e +9,6 KB gz de CSS; os 34 locales vêm junto (restringir a `pt-BR` tira 27
+   KB gz).
 
 ## Fatos levantados
 
@@ -50,6 +56,20 @@ Fontes: <https://registry.npmjs.org/@react-spectrum/s2>, <https://registry.npmjs
 `adobe/react-spectrum`. O pacote publicado 1.8.2 foi lido arquivo a arquivo pelo jsDelivr, que
 espelha o tarball do npm (`https://cdn.jsdelivr.net/npm/@react-spectrum/s2@1.8.2/...`). Nada foi
 instalado.
+
+**Método dos fatos _Medido no app_ (2026-11-19).** S2 1.8.2 instalado em `cmd/ui/frontend` (branch
+`frontend-v2`), Vite 7.3.6, `wails dev` do Wails 2.15.0, WebView2 157.0.4341.60. Um `Button` e um
+`Picker` dentro de um `Provider` foram renderizados no modal de Configurações. O Wails zera
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` e as chaves de registro equivalentes
+(`preventEnvAndRegistryOverrides` no `go-webview2`), então a janela não abre porta de depuração.
+Por isso, rede, fontes e estilos computados foram lidos por CDP num Edge 157.0.4341.60 headless
+(mesmo motor e mesma versão) apontado para o servidor do `wails dev` (`localhost:34115`). A janela
+real do WebView2 foi conferida por captura de tela.
+
+**Método dos fatos _Medido no app: Vite 8_ (2026-11-19).** Mesmo S2 1.8.2, Vite 8.3.8 com Rolldown
+1.2.19, `@vitejs/plugin-react` 5.2.0, `vitest` 5.1.0. Um `Button` dentro de um `Provider`, com um
+`style()`, foi montado no `main.tsx` e tirado depois. O `vite dev` foi carregado num Edge headless
+(`--dump-dom`) com o cache `node_modules/.vite` apagado antes, e o log do Vite lido ao fim.
 
 ---
 
@@ -178,6 +198,49 @@ instalado.
   Admin disables updating, or if the client is offline".
   Fontes: <https://cdn.jsdelivr.net/npm/@react-spectrum/s2@1.8.2/package.json>,
   <https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution>.
+- **Medido no app: Vite 7.** `unplugin-parcel-macros` 0.2.0 com a config oficial acima builda no
+  Vite 7.3.6 sem aviso, e o `s2-styles` sai como chunk de CSS próprio. O `npm install` do S2 1.8.2
+  trouxe 15 pacotes; o do plugin e do `lightningcss` 1.33.0, outros 15.
+- **Medido no app: Vite 8.** A mesma config builda no Vite 8.3.8 (Rolldown 1.2.19) sem aviso, e o
+  `s2-styles` sai como chunk de CSS próprio, com as camadas `_.a`…`_.h` do S2 e o CSS do macro. Os
+  peers aceitam o 8 sem subir nada: `@vitejs/plugin-react` 5.2.0 (`vite ^4 … ^8`), `vitest` 5.1.0
+  (`^6.4.0 || ^7.0.0 || ^8.0.0`); `unplugin-parcel-macros` 0.2.0 não declara peer. O exemplo oficial
+  `s2-vite-project` já usa `vite ^8.0.0` (ver acima).
+  - **Deprecado no 8, ainda funciona:** `build.rollupOptions` é alias de `build.rolldownOptions`
+    (`@deprecated Use rolldownOptions instead`), e `output.manualChunks` é
+    `@deprecated Please use output.codeSplitting instead`; se os dois estiverem definidos, o
+    `manualChunks` é ignorado. A config oficial do S2 (acima) ainda usa os nomes antigos.
+    Fontes: `node_modules/vite/dist/node/index.d.ts` 8.3.8,
+    `node_modules/rolldown/dist/shared/define-config-*.d.mts` 1.2.19.
+  - **`vite dev` no 8:** o scan de dependências agora roda no Rolldown e falha igual, com outra
+    mensagem: `"./style" is not exported under the conditions ["module", "browser", "development",
+    "import"]`. Sem o `optimizeDeps.exclude`, o log termina em `optimized dependencies changed.
+    reloading`; com ele, a página carrega sem recarregar e o macro compila em dev (o `className` sai
+    como classes atômicas).
+- **Medido no app: `vite dev`.** O scan de dependências do Vite 7 (esbuild) falha com
+  `No known conditions for "./style" specifier in "@react-spectrum/s2"`. O motivo é que o `exports`
+  do `./style` só tem a condição `node`, porque ele roda no build, via macro. O Vite então pula o
+  pré-bundling e recarrega a página na primeira carga. `optimizeDeps.exclude:
+  ['@react-spectrum/s2/style']` resolve. Com isso, o macro funciona no `wails dev`: editar um
+  `style({...})` chega por HMR, sem recarregar a página nem perder estado.
+- **Medido no app: TypeScript.** Com `moduleResolution: "Node"`, os sub-paths dão `TS2307` ("There
+  are types at '…/dist/types/exports/Button.d.ts', but this result could not be resolved under your
+  current 'moduleResolution' setting"). Com `"Bundler"`, passam. Isso confirma a inferência acima.
+- **Medido no app: `@swc/core`.** O `postinstall` só checa se o binário nativo carrega e, se não
+  carregar, instala `@swc/wasm`. O binário nativo (`@swc/core-win32-x64-msvc`) chega por
+  `optionalDependencies` e carrega sem o script, então negar o script no `allowScripts`
+  (`npm install-scripts deny @swc/core`) não quebra o build. Fonte:
+  `node_modules/@swc/core/postinstall.js` 1.16.22.
+- **Medido no app: CSS legado em `@layer`.** Com `@layer legacy, _;` seguido de `@layer legacy {…}`,
+  o `lightningcss` reescreve a saída para `@layer legacy{…}` + `@layer _;`, e a ordem (legado abaixo
+  do S2) se mantém. Nenhum conflito visível dentro dos controles: o `button`/`*` legado não alterou
+  padding, raio nem fonte do `Button`/`Picker`.
+- **Medido no app: popover atrás de overlay legado.** O popover do `Picker` vai num portal no fim do
+  `<body>`, com `position: absolute` e `z-index: auto`. Dentro de um overlay legado
+  `position: fixed; z-index: 100` (o `.settings-scrim`), ele pinta **atrás** do overlay e fica
+  invisível. Ao abrir, o S2 põe `inert` no `#root`, e por isso o clique atravessa o overlay e acerta
+  as opções invisíveis. Com `z-index` alto no popover, ele aparece normalmente. Visto no Edge
+  headless e na janela real do WebView2.
 
 ### 3. Inventário: elementos do protótipo e o que existe no S2
 
@@ -254,8 +317,10 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
 - **Como segue o SO:** um CSS de baixa especificidade define `--s2-color-scheme: light dark` e usa
   `@media (prefers-color-scheme: dark)`. As cores são emitidas como `light-dark(<claro>, <escuro>)`.
   A troca em runtime é só re-renderizar com outro `colorScheme`, ou, com `page.css`, trocar
-  `data-color-scheme` no `<html>`. Não requer recarregar a página; isso é inferência do mecanismo
-  CSS, não testada.
+  `data-color-scheme` no `<html>`. **Medido no app:** re-renderizar o `Provider` com outro
+  `colorScheme` troca as cores na hora, sem recarregar. O `color-scheme` computado acompanha
+  (`dark`/`light`), e o `background="layer-1"` vale `rgb(27, 27, 27)` no escuro e
+  `rgb(248, 248, 248)` no claro.
   Fontes: <https://github.com/adobe/react-spectrum/blob/main/packages/@react-spectrum/s2/src/page.macro.ts>,
   <https://cdn.jsdelivr.net/npm/@react-spectrum/s2@1.8.2/page.css>.
 - **O acento do protótipo é o acento padrão do S2.** `#3B63FB` = `rgb(59, 99, 251)` =
@@ -339,11 +404,23 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
 - **Offline:** não há cópia local da fonte no pacote, só URLs da Typekit. Sem rede, a requisição
   falha e vale a pilha de fallback do token `sans`:
   `var(--s2-font-family-sans, adobe-clean-spectrum-vf), adobe-clean-variable, adobe-clean, ui-sans-serif, system-ui, sans-serif`.
-  No Windows, `system-ui` costuma ser Segoe UI; isso é suposição, não confirmada.
+  No WebView2/Windows 11, `system-ui` resolve para a Segoe UI (medido, ver abaixo).
   **Mesmo com a família trocada, o `preload` para `use.typekit.net` continua sendo emitido**, porque
   é incondicional no `Fonts.tsx`.
   Fontes: <https://github.com/adobe/react-spectrum/blob/main/packages/@react-spectrum/s2/style/spectrum-theme.ts> (linhas 685–696),
   <https://github.com/adobe/react-spectrum/blob/main/packages/@react-spectrum/s2/src/Fonts.tsx>.
+- **Medido no app: rede e fallback.**
+  - **Online:** o `Provider` insere
+    `<link rel="preload" as="font" href="https://use.typekit.net/af/ca4cba/…">` e a Adobe Clean
+    Spectrum VF carrega da Typekit. É um único woff2 variável para todos os pesos.
+  - **Typekit inalcançável** (URLs bloqueadas por CDP): o navegador tenta 49 URLs, o preload mais os
+    16 `@font-face` × 3 formatos (`l`/`d`/`a`). Todas falham, e o `document.fonts` marca
+    `adobe-clean-spectrum-vf` como `error`. A fonte renderizada (`CSS.getPlatformFontsForNode`) é a
+    **Segoe UI**, o que confirma o `system-ui` no WebView2/Windows 11.
+  - **Bloqueio:** a requisição não tem como sair do `Provider` por API. Um
+    `<meta http-equiv="Content-Security-Policy" content="font-src 'self' data:">` no `index.html`
+    faz o próprio navegador barrar as 49 (`blockedReason: csp`), nada sai para a rede e o fallback é
+    o mesmo.
 - **Licença para embutir:** a documentação da Adobe para desenvolvedores diz que "Adobe Clean, Adobe
   Clean Serif, and Adobe Clean Han are restricted fonts… for the exclusive use of Adobe products and
   software". Uma engenheira do Spectrum, numa discussão pública, completou: "I am an engineer and
@@ -448,7 +525,20 @@ Contagem feita no CSS compilado da 1.8.2 (`dist/private/*.css`) e no código-fon
     ilustrações, que não entram no bundle.
   - As strings de i18n ficam em `dist/private/intl/<locale>.mjs` (~7–8 KB por locale), daí o
     `optimize-locales-plugin`.
-  - **O tamanho real minificado + gzip no app não foi medido.** Fica para o build de verdade.
+- **Medido no app (Vite 7.3.6, `npm run build`, gzip do relatório do Vite):** `Provider` + `Button`
+  + `Picker` + um `style()` acrescentaram ao bundle:
+  - JS: 1.193,05 → 1.551,61 KB (+358,6 KB); gzip 413,46 → 519,68 KB (+106,2 KB).
+  - CSS: chunk novo `s2-styles` de 49,01 KB (gzip 9,58 KB). O CSS legado passou de 34,41 para
+    33,27 KB por causa da troca de minificador para o `lightningcss`.
+  - Os 34 locales do S2 entram no bundle. Com `@react-aria/optimize-locales-plugin`
+    (`locales: ['pt-BR']`, `enforce: 'pre'`), o JS cai para 1.450,36 KB (gzip 492,62 KB), ou seja,
+    −101,3 KB e −27,1 KB gz.
+  - Sem nenhum componente importado, o S2 instalado não pesa: o tree-shaking o tira inteiro.
+- **Medido no app (Vite 8.3.8 / Rolldown 1.2.19, mesma medida):**
+  - Sem S2 importado, o JS sai menor que no 7: 1.167,15 KB (gzip 396,89 KB), contra 1.193,05 (413,46).
+    O CSS legado fica em 33,26 KB.
+  - `Provider` + `Button` + um `style()` (sem o `Picker`, então não comparável à medida do 7): JS
+    1.325,70 KB (gzip 439,98 KB, +43,1 KB gz), `s2-styles` 25,48 KB (gzip 4,56 KB).
 
   Fontes: <https://data.jsdelivr.com/v1/packages/npm/@react-spectrum/s2@1.8.2?structure=flat>,
   <https://registry.npmjs.org/@react-spectrum/s2/1.8.2>.
@@ -457,11 +547,7 @@ Contagem feita no CSS compilado da 1.8.2 (`dist/private/*.css`) e no código-fon
 
 ## Não confirmado
 
-- Se `unplugin-parcel-macros` 0.2.0 (que usa `unplugin ^1.9.0`) roda sem ressalvas no **Vite 7**:
-  a doc não fixa versão do Vite, e o exemplo oficial já está no Vite 8. Precisa de build real
-  no app.
-- O comportamento do macro em `vite dev`, com HMR e CSS injetado, dentro do WebView2 do Wails.
-- O tamanho real do bundle (min+gz) com os componentes do inventário.
+- O tamanho do bundle com o inventário inteiro (só `Provider` + `Button` + `Picker` foram medidos).
 - Se os overlays (Modal, Popover, Menu, Tooltip) reduzem movimento por algum caminho JS: o CSS
   compilado não tem a media query.
 - Uma licença formal da Adobe Clean para terceiros. Só achei a restrição "exclusive use of Adobe
@@ -469,4 +555,3 @@ Contagem feita no CSS compilado da 1.8.2 (`dist/private/*.css`) e no código-fon
 - Se `--s2-font-family-sans` é contrato estável: está no código-fonte e no CSS compilado da 1.8.2,
   mas não na documentação.
 - Se há plano de API de tema/acento no S2: não achei issue ou discussão oficial sobre isso.
-- A fonte que `system-ui` resolve no WebView2/Windows (presumivelmente Segoe UI).

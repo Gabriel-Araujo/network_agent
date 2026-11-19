@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <!-- Nada depende de rede: fonte só do próprio bundle. Barra o preload e os @font-face da Typekit que o Provider do S2 sempre tenta. -->
+    <meta http-equiv="Content-Security-Policy" content="font-src 'self' data:"/>
     <title>net_agent</title>
 </head>
 <body>

@@ -1,3 +1,4 @@
+@layer legacy {
 /* ============ modal de configurações ============ */
 
 .settings-scrim {
@@ -550,4 +551,5 @@
   text-align: center;
   font-size: 12px;
   color: var(--text-faint);
+}
 }
