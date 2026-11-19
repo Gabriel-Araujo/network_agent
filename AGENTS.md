@@ -3,6 +3,12 @@
 Agente de LLM para engenharia de rede com FRRouting. Backend OpenAI-compatible em
 `internal/agent`, UI desktop em `cmd/ui` (Wails v2 + React/Vite) e CLI em `cmd/cli`.
 
+## Frontend
+
+Antes de mudar `cmd/ui/frontend`, leia [`docs/FRONTEND.md`](docs/FRONTEND.md). Antes de pesquisar o
+React Spectrum, leia [`docs/REACT_SPECTRUM_S2.md`](docs/REACT_SPECTRUM_S2.md). Toda mudança no
+frontend e todo fato novo do S2 atualizam o documento correspondente no mesmo commit.
+
 ## Agent skills
 
 ### Issue tracker
