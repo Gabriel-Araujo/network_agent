@@ -1,11 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <!-- Nada depende de rede: fonte só do próprio bundle. Barra o preload e os @font-face da Typekit que o Provider do S2 sempre tenta. -->
     <meta http-equiv="Content-Security-Policy" content="font-src 'self' data:"/>
     <title>net_agent</title>
+    <!-- Antes de tudo: pinta o fundo com o tema salvo, para a janela não piscar (docs/FRONTEND.md, Tema).
+         `theme` no localStorage é 'light' ou 'dark'; ausente é o Sistema. -->
+    <script>
+        (function () {
+            var t = null
+            try { t = localStorage.getItem('theme') } catch (e) {}
+            var s = document.documentElement.style
+            s.colorScheme = t === 'light' || t === 'dark' ? t : 'light dark'
+            s.backgroundColor = 'Canvas'
+        })()
+    </script>
 </head>
 <body>
 <div id="root"></div>

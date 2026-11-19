@@ -1,5 +1,4 @@
-/* Legado: numa camada abaixo da `_` do S2 até o visual novo apagá-lo (docs/FRONTEND.md, Stack e build). */
-@layer legacy, _;
+/* Legado: na camada `legacy`, abaixo da `_` do S2 (ordem em global.css), até o visual novo apagá-lo (docs/FRONTEND.md, Stack e build). */
 @layer legacy {
 /* ============================================================
    net_agent - dark mode + glass azulado

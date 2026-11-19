@@ -27,6 +27,7 @@ import { runMermaidRepair } from './mermaidRepair'
 import { Events } from '@wailsio/runtime'
 import { App as GoApp } from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui'
 import { inWails } from './types'
+import { ToastContainer } from '@react-spectrum/s2'
 
 /**
  * Por que o envio está bloqueado. O alerta era fixo em "Configuração
@@ -736,6 +737,8 @@ function App() {
       </main>
 
       <LogDrawer open={logsOpen} onClose={() => setLogsOpen(false)} />
+      {/* Só as cópias e as falhas delas disparam toast (docs/FRONTEND.md, Início, barra de status e toast). */}
+      <ToastContainer placement="bottom end" />
     </div>
   )
 }

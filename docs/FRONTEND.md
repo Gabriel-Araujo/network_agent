@@ -39,9 +39,10 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
 
 - **Versões:** `@react-spectrum/s2` 1.8.2, que traz `react-aria-components` 1.22.1 e
   `react-aria` 3.53.1. Nas devDeps: `unplugin-parcel-macros` 0.2.0, que puxa `@swc/core` 1.16.22, e
-  `lightningcss` 1.33.0. O Vite é o 8.3.8, que empacota com Rolldown 1.2.19, com
+  `lightningcss` 1.33.0 e `@react-aria/optimize-locales-plugin` 2.1.0. O Vite é o 8.3.8, que empacota com Rolldown 1.2.19, com
   `@vitejs/plugin-react` 5.2.0 e `vitest` 5.1.0.
-- **`vite.config.ts`:** a config oficial do S2. `macros.vite()` é o primeiro plugin, com
+- **`vite.config.ts`:** a config oficial do S2. `macros.vite()` é o primeiro plugin, seguido do
+  `optimizeLocales.vite({locales: ['pt-BR']})` com `enforce: 'pre'` (ver **Idioma**), com
   `build.target: ['es2022']`, `cssMinify: 'lightningcss'` e um `manualChunks` que junta o CSS do S2
   e dos macros no chunk `s2-styles`. Há ainda `optimizeDeps.exclude: ['@react-spectrum/s2/style']`:
   sem ele, o scan do `vite dev` não resolve o import do macro e recarrega a página na primeira
@@ -57,21 +58,25 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   `esModuleInterop` (sempre ligado), então a opção saiu do `tsconfig.json`.
 - **`allowScripts`:** `"@swc/core": false`. O `postinstall` dele só instala o fallback wasm, e o
   binário nativo chega por `optionalDependencies`.
-- **CSS legado:** `App.css` e `Settings.css` ficam inteiros dentro de `@layer legacy { … }`.
-  `App.css` abre com `@layer legacy, _;`, que põe o legado abaixo da camada `_` do S2. Assim, o CSS
-  global antigo (`*`, `body`, `button`) não vence os controles do S2. Fica assim até o visual novo
-  apagar os dois arquivos.
+- **CSS global:** `src/global.css`, importado primeiro no `main.tsx`, é o único CSS global do app.
+  Ele declara a ordem das camadas, `@layer legacy, _, reduced-motion;`, e traz os `@font-face`
+  (**Fonte**) e a regra de movimento reduzido (**Movimento**). No build, o `index-*.css` (legado e
+  global) carrega antes do `s2-styles-*.css`, e a ordem final é `legacy`, `_`, `reduced-motion`.
+- **CSS legado:** `App.css` e `Settings.css` ficam inteiros dentro de `@layer legacy { … }`, abaixo da
+  camada `_` do S2 pela ordem do `global.css`. Assim, o CSS global antigo (`*`, `body`, `button`) não
+  vence os controles do S2. Fica assim até o visual novo apagar os dois arquivos.
   - Conflito conhecido: popover do S2 (Picker, Menu) aberto dentro de um overlay legado com
     `z-index` (o modal de Configurações, `.settings-scrim`, `z-index: 100`) fica invisível atrás
     dele. Controle S2 com popover só entra em superfície legada se essa superfície já tiver saído.
-  - `style.css` não é importado por ninguém, então a Nunito de `assets/fonts` não chega ao bundle. A
-    fonte do app hoje é a pilha de sistema do `App.css` (Segoe UI no Windows).
+  - As superfícies legadas seguem com a pilha de sistema do `App.css` (Segoe UI no Windows). Só os
+    controles S2 e as superfícies novas recebem a Source Sans 3.
 - **Rede:** o `index.html` traz `<meta http-equiv="Content-Security-Policy" content="font-src 'self' data:">`.
   O `Provider` do S2 sempre tenta a Adobe Clean em `use.typekit.net`, e essa política faz o WebView2
-  barrar essas requisições antes de saírem. Os controles S2 caem na Segoe UI.
+  barrar essas requisições antes de saírem (medido: 49 entradas de `use.typekit.net`, todas com
+  status 0 e 0 bytes). As fontes que carregam são só as do bundle (**Fonte**).
 - **Wails v3.1.0** (fixada por decisão do usuário, 2026-11-19; fatos em [`WAILS_V3.md`](WAILS_V3.md)):
   - `cmd/ui/main.go` monta `application.New` com o `App` como único serviço e uma janela frameless
-    1024×768 de fundo `#0a0f1c`. O `App.ServiceStartup` guarda o `ctx` dos turnos, e o `emit` dos
+    1024×768 que nasce escondida (ver **Tema**). O `App.ServiceStartup` guarda o `ctx` dos turnos, e o `emit` dos
     eventos `agent:token`/`agent:done` vai pelo `Event.Emit` do app.
   - **Bindings:** `frontend/bindings/` é gerada pelo `wails3 generate bindings` em TypeScript
     (`-ts`, a única edição no Taskfile gerado: o TS 7 não lê o `@enum` do JSDoc das bindings em JS)
@@ -93,32 +98,33 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     `errorText(e)` tira dele o texto.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
-- **Bundle (Vite 8):** sem nenhum componente S2 importado, o tree-shaking deixa o S2 de fora (JS
-  1.167 KB, gzip 397 KB). Com `Provider` + `Button`, o JS vai a 1.326 KB (gzip 440 KB) e o chunk
-  `s2-styles` soma 25 KB (gzip 4,6 KB). Os 34 locales do S2 vão juntos. Medição completa em
+- **Bundle (Vite 8):** com `Provider` + `ToastContainer` e só o pt-BR, o JS tem 1.327 KB (gzip
+  446 KB) e o chunk `s2-styles` 44 KB (gzip 7,3 KB); sem o filtro de locales seriam 1.427 KB (gzip
+  469 KB). As três fontes somam 98 KB. Medição anterior em
   [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
 
 ## Tema
 
-_Decidido, a implementar._
+O `Provider` (`main.tsx`) não recebe `colorScheme`, então hoje o app está sempre no Sistema. O
+**Seletor** e o **Diagrama** ainda faltam.
 
 - **Três escolhas, padrão Sistema.** Claro e Escuro passam `colorScheme` ao `Provider`. Sistema,
   que vale também quando nada foi salvo, omite o prop, e então o app acompanha o Windows mesmo com a
   janela aberta. Não há paleta própria: o escuro é o do S2.
-- **Seletor:** em Configurações → Aparência, um `SelectBoxGroup` com cartões de prévia. A troca
+- **Seletor** (_Decidido, a implementar_): em Configurações → Aparência, um `SelectBoxGroup` com cartões de prévia. A troca
   vale ao clicar, sem botão Salvar.
-- **Persistência:** a escolha vai para o `localStorage` do WebView2. Para que o `wails dev`, o `go run` e o binário construído
-  enxerguem a mesma escolha, o `main.go` fixa `windows.Options.WebviewUserDataPath` em
-  `~/.network_agent/webview2`. Sem ele, o go-webview2 usa `%AppData%\<nome do exe>`, uma pasta por
-  forma de rodar.
-- **Sem piscar ao abrir:** a janela nasce com `StartHidden: true`, e o `OnDomReady` do Go chama
-  `runtime.WindowShow`. Antes disso, um script inline no `<head>` do `index.html` lê a escolha
-  salva e pinta o fundo do documento: claro ou escuro direto, ou `color-scheme: light dark` no
-  Sistema. O `BackgroundColour` fixo `#0a0f1c` deixa de importar. **A conferir no `wails dev`:** a
-  janela escondida precisa aparecer já renderizada, sem WebView2 em branco. Se aparecer em branco,
-  o plano B é o Go descobrir o tema antes de abrir a janela: a escolha salva passa para o
-  `config.json`, e no Sistema ele lê o `AppsUseLightTheme` do registro.
-- **Diagrama:** o SVG na tela usa `var(--pele-*)`, então troca de tema sozinho, sem renderizar de
+- **Persistência:** a escolha vai para o `localStorage` do WebView2, na chave `theme` (`'light'` ou
+  `'dark'`; ausente é o Sistema). Para que o `wails3 dev`, o `go run` e o binário construído
+  enxerguem a mesma escolha, o `main.go` fixa `application.Options.Windows.WebviewUserDataPath` em
+  `~/.network_agent/webview2` (ao lado do `config.json`). Sem ele, o WebView2 usa
+  `%AppData%\<nome do exe>`, uma pasta por forma de rodar.
+- **Sem piscar ao abrir:** a janela nasce com `Hidden: true`, e o `main.go` chama `window.Show()` no
+  `events.Windows.WebViewNavigationCompleted`. Antes disso, um script inline no `<head>` do
+  `index.html` lê a chave `theme` e pinta o fundo do `<html>` com `background-color: Canvas` sob
+  `color-scheme` `light` ou `dark`, ou `light dark` no Sistema. A janela não tem mais
+  `BackgroundColour`. Enquanto o visual legado existir, o `body` do `App.css` pinta o vidro escuro
+  por cima nos dois temas.
+- **Diagrama** (_Decidido, a implementar_): o SVG na tela usa `var(--pele-*)`, então troca de tema sozinho, sem renderizar de
   novo. O SVG baixado leva o tema em uso, com as cores **resolvidas** (rgb/hex) no `<style>`
   injetado: um `light-dark(…)` dos tokens do S2 não pode ir para o arquivo, porque fora do app ele
   sempre resolveria para o claro ou nem renderizaria.
@@ -203,10 +209,12 @@ A barra mora em `components/TabBar.tsx`.
 
 ## Componentes
 
-_Decidido, a implementar._ Cada elemento é um **controle S2** ou uma **superfície própria** (RAC ou
-HTML, estilizada pelo macro `style` com os tokens do S2). `App.css` e `Settings.css` são apagados
-sem uma folha de superfícies no lugar. O único CSS global é um arquivo pequeno com os `@font-face`,
-a ordem das camadas e a regra de movimento reduzido. O Markdown estiliza cada elemento pelo
+Cada elemento é um **controle S2** ou uma **superfície própria** (RAC ou HTML, estilizada pelo macro
+`style` com os tokens do S2). O único CSS global é o `src/global.css`, com os `@font-face`, a ordem
+das camadas e a regra de movimento reduzido.
+
+_Decidido, a implementar_ (a tabela abaixo e **Ícones**): `App.css` e `Settings.css` são apagados
+sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 `components` do `react-markdown`, com uma classe do macro por elemento.
 
 | Elemento | Origem | Hoje | Arquivo |
@@ -237,7 +245,7 @@ a ordem das camadas e a regra de movimento reduzido. O Markdown estiliza cada el
 | Avisos | um S2 `InlineAlert variant="notice"` por mensagem, com a lista dentro; na bolha, nunca num toast | `WarningList` | `MessageBubble.tsx` |
 | Status do reparo do diagrama | texto com `role="status"` | `MessageBubble.tsx` | `MessageBubble.tsx` |
 | Trilho de Perguntas | própria | `QuestionNav.tsx` | `QuestionNav.tsx` |
-| Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | — | `App.tsx` |
+| Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | o `ToastContainer` já está no `App.tsx`, sem nada que o dispare | `App.tsx` |
 | Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | `LogDrawer.tsx` | `LogDrawer.tsx` |
 | Barra de status | própria | rodapé do `InputDock.tsx` | `components/StatusBar.tsx` |
 | Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
@@ -251,19 +259,22 @@ a ordem das camadas e a regra de movimento reduzido. O Markdown estiliza cada el
 
 ### Ícones
 
-Os do S2 (`@react-spectrum/s2/icons/<Nome>`), em todo o app. Dois são próprios, desenhados a partir
+_Decidido, a implementar._ Os do S2 (`@react-spectrum/s2/icons/<Nome>`), em todo o app. Dois são próprios, desenhados a partir
 do SVG do protótipo e convertidos pelo `@react-spectrum/s2-icon-builder`: **painel lateral** (recolher)
 e **restaurar janela**. Ícone de ação do tool call sem equivalente no S2 segue o mesmo caminho. O
 `@phosphor-icons/react` sai do `package.json`.
 
 ### Fonte
 
-Source Sans 3 (interface) e JetBrains Mono (bloco de código, Logs), em woff2 variável embutido em
-`src/assets/fonts`. Os controles S2 e as superfícies com `fontFamily: 'sans'` recebem a família por
-`--s2-font-family-sans: 'Source Sans 3'` num ancestral do `Provider`. A variável não é documentada;
+Source Sans 3 (interface, normal e itálico) e JetBrains Mono (bloco de código, Logs), em woff2
+variável embutido em `src/assets/fonts`, só o subconjunto latino (cobre o pt-BR), com as licenças
+OFL ao lado (`OFL-SourceSans3.txt`, `OFL-JetBrainsMono.txt`). Os arquivos vêm dos pacotes
+`@fontsource-variable/source-sans-3` 5.3.1 e `@fontsource-variable/jetbrains-mono` 5.3.0, copiados
+à mão, sem dependência. Os `@font-face` ficam no `global.css`. Os controles S2 e as superfícies com
+`fontFamily: 'sans'` recebem a família por `--s2-font-family-sans: 'Source Sans 3'` no `:root`. A variável não é documentada;
 se sumir, a queda é a Segoe UI. A JetBrains Mono entra pelo escape-hatch `css()` do macro, porque o
-`fontFamily` dele só aceita os tokens, e o token `code` é fixo. A Nunito de `assets/fonts` e o
-`style.css` são apagados.
+`fontFamily` dele só aceita os tokens, e o token `code` é fixo. Nenhuma superfície usa a JetBrains
+Mono ainda: o navegador só baixa o arquivo quando alguma usar.
 
 ### Movimento
 
@@ -278,7 +289,8 @@ componente S2 mais próximo, com os tokens de transição do macro (`transition`
 
 As keyframes do protótipo (`od-*`, `toast-in`, `toast-out`) não entram. Com movimento reduzido, uma
 regra `@media (prefers-reduced-motion: reduce)` zera `transition` e `animation` numa `@layer`
-declarada depois da `_` do S2. Ela cobre Modal, Popover, Menu e Tooltip, que não têm a regra no CSS do
+declarada depois da `_` do S2 (`reduced-motion`, no `global.css`), que vence o S2 sem `!important`.
+Ela cobre Modal, Popover, Menu e Tooltip, que não têm a regra no CSS do
 S2.
 
 ### Idioma

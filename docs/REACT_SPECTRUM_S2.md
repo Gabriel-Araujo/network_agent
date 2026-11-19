@@ -442,6 +442,12 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   Fontes: <https://react-spectrum.adobe.com/style-macro.md>,
   <https://github.com/adobe/react-spectrum/blob/main/packages/@react-spectrum/s2/style/spectrum-theme.ts>,
   <https://cdn.jsdelivr.net/npm/@react-spectrum/s2@1.8.2/dist/private/Button.css>.
+- **Medido no app (S2 1.8.2, WebView2, 2026-11-19, por CDP):** `--s2-font-family-sans: 'Source Sans 3'`
+  no `:root` basta, porque o CSS compilado lê a variável por `var()` em cada regra de fonte (ex.:
+  `dist/private/ActionButton.css`) e ela herda do documento. Com a Source Sans 3 e a JetBrains Mono
+  embutidas e o CSP `font-src 'self' data:`, o `document.fonts` mostra as duas como `loaded` e as
+  famílias da Adobe Clean como `unloaded`. As 49 URLs da Typekit continuam aparecendo no Resource
+  Timing, todas com `responseStatus` 0, 0 bytes e duração 0, ou seja, barradas antes de sair.
 - As métricas tipográficas do S2 assumem a Adobe Clean Spectrum VF ("slightly updated metrics
   allowing for better vertical centering"). O efeito visual de outra família nos componentes não
   foi verificado.
@@ -539,6 +545,10 @@ Contagem feita no CSS compilado da 1.8.2 (`dist/private/*.css`) e no código-fon
     O CSS legado fica em 33,26 KB.
   - `Provider` + `Button` + um `style()` (sem o `Picker`, então não comparável à medida do 7): JS
     1.325,70 KB (gzip 439,98 KB, +43,1 KB gz), `s2-styles` 25,48 KB (gzip 4,56 KB).
+
+  - `Provider` + `ToastContainer` (2026-11-19, `@react-aria/optimize-locales-plugin` 2.1.0 pelo
+    `optimizeLocales.vite()`): JS 1.327,11 KB (gzip 446,38 KB) com o filtro, 1.426,59 KB (gzip
+    469,34 KB) sem ele, ou seja, −99,5 KB e −23,0 KB gz. `s2-styles` 43,72 KB (gzip 7,27 KB).
 
   Fontes: <https://data.jsdelivr.com/v1/packages/npm/@react-spectrum/s2@1.8.2?structure=flat>,
   <https://registry.npmjs.org/@react-spectrum/s2/1.8.2>.

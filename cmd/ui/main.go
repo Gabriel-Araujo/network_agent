@@ -8,6 +8,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -42,10 +43,16 @@ func main() {
 		Name:     "net_agent",
 		Services: []application.Service{application.NewService(app)},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
-		Windows:  application.WindowsOptions{AdditionalBrowserArgs: debugArgs()},
+		Windows: application.WindowsOptions{
+			AdditionalBrowserArgs: debugArgs(),
+			// Um perfil do WebView2 só, para o wails3 dev, o go run e o binário
+			// lerem o mesmo localStorage (o tema). Sem isto, cada nome de exe
+			// ganha uma pasta própria em %AppData%.
+			WebviewUserDataPath: filepath.Join(filepath.Dir(config.Path()), "webview2"),
+		},
 	})
 
-	wails.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := wails.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  "net_agent",
 		Width:  1024,
 		Height: 768,
@@ -55,9 +62,12 @@ func main() {
 		// (--wails-draggable), e o menu de sistema (Alt+Space, snap com
 		// Win+setas) continua.
 		Frameless: true,
-		// Mesma cor de fundo do tema (--bg-base: #0a0f1c), para não haver
-		// flash branco entre a criação da janela e o carregamento do webview.
-		BackgroundColour: application.NewRGB(0x0a, 0x0f, 0x1c),
+		// Nasce escondida e só aparece com a página carregada, já com o fundo
+		// do tema pintado pelo script inline do index.html: sem flash.
+		Hidden: true,
+	})
+	window.OnWindowEvent(events.Windows.WebViewNavigationCompleted, func(*application.WindowEvent) {
+		window.Show()
 	})
 
 	if err := wails.Run(); err != nil {
