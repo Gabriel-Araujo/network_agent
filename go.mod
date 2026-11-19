@@ -1,6 +1,6 @@
 module github.com/Gabriel-Araujo/network_agent
 
-go 1.27.1
+go 1.27.4
 
 require (
 	github.com/google/uuid v1.6.0
