@@ -311,4 +311,6 @@ Workspace. No Workspace picked, or one that is gone, is a refusal by the tool
 with its own text, not a turn that fails. Distinct from the **Run tree**, ICM's
 layer 4, and from the **Agent root**, which is read-only. See
 [ADR 0003](./docs/adr/0003-agent-and-run-tree-are-different-trees.md).
+A **recent Workspace** is a folder that was the Workspace before and can be
+picked again; it is not a root until picked, so there is still one Workspace.
 _Avoid_: run tree, project folder, output folder

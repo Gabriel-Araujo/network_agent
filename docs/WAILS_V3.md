@@ -304,6 +304,9 @@ variável em build sem a tag `production`, `internal/assetserver/build_dev.go:16
 - **`window._wails.environment`** (`{"OS":"windows","Arch":"amd64","Debug":true}`) existe na página
   do app. O app o usa para saber se a ponte existe, porque o `@wailsio/runtime` cria o
   `window._wails` sozinho, até no browser puro.
+- **Arrasto pela topbar e escolher uma pasta no seletor** funcionam (conferido à mão pelo usuário):
+  o `--wails-draggable` arrasta com o `@wailsio/runtime` importado, e a pasta escolhida grava o
+  Workspace.
 - **Primeira carga com o `@wailsio/runtime` novo:** o Vite otimiza a dependência e recarrega a
   página uma vez. Uma chamada feita antes do reload pode falhar. Na carga seguinte não acontece.
 
@@ -311,9 +314,6 @@ variável em build sem a tag `production`, `internal/assetserver/build_dev.go:16
 
 Os itens medidos saíram daqui e estão no §6.
 
-- Se o arrasto pela topbar funciona e se o duplo clique não começa um arrasto. Não foi conferido
-  por script, porque pede o mouse real.
-- Se escolher uma pasta no seletor grava o Workspace (o cancelar foi medido).
 - Se `Hidden` + `Show()` no `WebViewNavigationCompleted` abre sem WebView2 em branco, e se o plano B
   do Tema continua necessário. Também não se sabe se o #6219 aparece no bundle do app.
 - O efeito visual do `BackgroundColour` zero (`RGBA{0,0,0,0}`) com a janela escondida.

@@ -122,6 +122,16 @@ Wails v3 eles são conferidos pela pesquisa _Wails v3 no app_ (ver [Stack e buil
   arrasta (`--wails-draggable: drag`), e cada controle leva `no-drag`. Só a titlebar arrasta; a
   barra de abas, não. O duplo clique na área de arrasto maximiza ou restaura a janela: no Windows o
   runtime do v3 não faz isso sozinho, então um `onDoubleClick` chama `Window.ToggleMaximise()`.
+- **Chip do Workspace:** mostra o nome da pasta do Workspace em uso, com o caminho no `title`. O
+  menu lista até 5 **Workspaces recentes** (`menuitemradio`: nome e, embaixo, o caminho), por uso
+  mais recente, com o atual marcado, e depois um separador e "Abrir outra pasta…" (o
+  `PickWorkspace`). A lista fica no `config.json` (`recentWorkspaces`, ao lado do `workspace`), e o Go
+  a atualiza a cada escolha de Workspace, pelo chip ou pelas Configurações. Um recente cuja pasta
+  não existe mais aparece desabilitado, com "Pasta não encontrada", e sai sozinho quando cinco outros
+  entram na frente; não há remoção à mão. Se a pasta some entre abrir o menu e clicar, o Go recusa,
+  o Workspace não muda e o menu reabre com o item desabilitado, sem toast. Enquanto um turno roda,
+  trocar de Workspace fica bloqueado no chip e no campo das Configurações, com o motivo no `title`,
+  como o renomear e o apagar.
 - **Modelo e conexão:** na titlebar, antes dos botões da janela, aparece o texto "provedor ·
   modelo". Enquanto o modelo carrega, um `ProgressCircle size="S"` fica ao lado dele. Quando a
   conexão falha, aparece um `ActionButton` "Reconectar", com a causa no `title`. Sem modelo
@@ -311,11 +321,13 @@ O `Link` da gaveta de Logs fica sempre com o rótulo "Copiar o caminho do arquiv
 - `npm run build` e `npm test` verdes em `cmd/ui/frontend`.
 - `gofmt -l .`, `go vet ./...` e `go build ./...` verdes na raiz.
 - Ao vivo no dev: Início, Conversa com diagrama e bloco de código, Logs e Configurações, conferidas
-  contra o protótipo **nos dois temas**. O dev são dois processos, sem a CLI `wails3`:
-  1. em `cmd/ui/frontend`, `npm run dev -- --port 9245 --strictPort`;
-  2. na raiz, `FRONTEND_DEVSERVER_URL=http://localhost:9245 go run ./cmd/ui` (o `frontend/dist`
-     precisa existir para o `go:embed`; um `npm run build` o cria). O Go não recompila sozinho:
-     mudou Go, rode de novo.
-- **Porta de depuração:** com `NETWORK_AGENT_CDP_PORT=9333` no ambiente do item 2, a janela abre o
+  contra o protótipo **nos dois temas**.
+- **Dev e build** (_Decidido, a implementar_): o projeto segue o modelo do Wails v3, com a CLI
+  `wails3` 3.1.0, e os comandos rodam de dentro de `cmd/ui`. O dev é o `wails3 dev`: ele sobe o Vite
+  na 9245, o front recarrega sozinho e o Go recompila ao salvar. O build é o `wails3 build`, e o
+  `.exe` sai em `cmd/ui/bin/`. Os dois seguem o `build/config.yml` e o `Taskfile.yml` gerados. As
+  bindings ficam em `frontend/bindings/`, versionadas. Até isso ser implementado, valem os dois
+  processos do [`cmd/ui/README.md`](../cmd/ui/README.md).
+- **Porta de depuração:** com `NETWORK_AGENT_CDP_PORT=9333` no ambiente do app, a janela abre o
   CDP em `localhost:9333` (`/json/list` dá o `webSocketDebuggerUrl` da página). O DevTools da
   janela também abre à mão, em build sem a tag `production`.
