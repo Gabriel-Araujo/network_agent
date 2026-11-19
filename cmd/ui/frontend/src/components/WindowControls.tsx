@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Application, Window, goApp } from '../wails'
+import { Application, Window } from '@wailsio/runtime'
+import { inWails } from '../types'
 
 // Controles de janela para o modo frameless.
 //
@@ -24,7 +25,7 @@ export default function WindowControls() {
   // Mantém o glifo em sincronia com o estado real da janela (o usuário pode
   // maximizar por duplo clique na barra, snap do Windows ou Win+setas).
   useEffect(() => {
-    if (!goApp()) return
+    if (!inWails()) return
 
     let alive = true
     const sync = async () => {

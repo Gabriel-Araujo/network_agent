@@ -1,7 +1,7 @@
 # Frontend (`cmd/ui/frontend`)
 
-O frontend do app desktop: React 19 + TypeScript + Vite, empacotado pelo Wails v3.1.0 e renderizado no
-WebView2. Conversa com o Go por `src/wails.ts`, que chama os métodos do `App` pelo nome com o
+O frontend do app desktop: React 19 + TypeScript 7 + Vite, empacotado pelo Wails v3.1.0 e renderizado
+no WebView2. Conversa com o Go pelas bindings geradas em `frontend/bindings/` e pelo
 `@wailsio/runtime`.
 
 Este documento descreve o frontend **como ele está**. Os fatos sobre a biblioteca de componentes
@@ -46,11 +46,15 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   e dos macros no chunk `s2-styles`. Há ainda `optimizeDeps.exclude: ['@react-spectrum/s2/style']`:
   sem ele, o scan do `vite dev` não resolve o import do macro e recarrega a página na primeira
   carga (no Vite 8 também). Os nomes `rollupOptions` e `manualChunks` estão deprecados no Vite 8, mas
-  funcionam; ficam como na doc do S2.
+  funcionam; ficam como na doc do S2. Do template do Wails v3 vêm o plugin `wails('./bindings')` e o
+  bloco `server` (`host: '127.0.0.1'`, porta de `WAILS_VITE_PORT` ou 9245, `strictPort`). O
+  `package.json` tem o `build:dev` do template (`vite build --minify false --mode development`), que
+  o `wails3 dev` chama, e o `build` passa `--mode production`.
 - **`tsconfig.json`:** `moduleResolution: "Bundler"`, porque com `"Node"` os sub-paths
   (`@react-spectrum/s2/Button`) dão `TS2307`. O `tsconfig.node.json`, que só cobre o
   `vite.config.ts`, segue em `"Node"`. Ele já não passava no `tsc -p` antes do S2 e não entra no
-  `npm run build`.
+  `npm run build`. O `include` cobre `src` e `bindings`. O TypeScript é o 7.0.2, que removeu o
+  `esModuleInterop` (sempre ligado), então a opção saiu do `tsconfig.json`.
 - **`allowScripts`:** `"@swc/core": false`. O `postinstall` dele só instala o fallback wasm, e o
   binário nativo chega por `optionalDependencies`.
 - **CSS legado:** `App.css` e `Settings.css` ficam inteiros dentro de `@layer legacy { … }`.
@@ -69,12 +73,24 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   - `cmd/ui/main.go` monta `application.New` com o `App` como único serviço e uma janela frameless
     1024×768 de fundo `#0a0f1c`. O `App.ServiceStartup` guarda o `ctx` dos turnos, e o `emit` dos
     eventos `agent:token`/`agent:done` vai pelo `Event.Emit` do app.
-  - `src/wails.ts` é a única ponte. `goApp()` devolve um proxy que chama `main.App.<Método>` por
-    `Call.ByName`, ou `undefined` fora do app (sem `window._wails.environment`). Ele também
-    reexporta `Events`, `Window`, `Application` e `Clipboard`. Importá-lo liga o arrasto da
-    titlebar (`--wails-draggable`). O evento chega com o dado em `e.data`.
-  - Não há bindings geradas nem `wails3` no build: os tipos são os de `types.ts`. O erro de uma
-    chamada é um `RuntimeError` cuja `message` é o erro do Go, e `errorText(e)` tira dele o texto.
+  - **Bindings:** `frontend/bindings/` é gerada pelo `wails3 generate bindings` em TypeScript
+    (`-ts`, a única edição no Taskfile gerado: o TS 7 não lê o `@enum` do JSDoc das bindings em JS)
+    e é **versionada**, para que `npm run build` e `npm test` passem sem a CLI. O `wails3 dev` e o
+    `wails3 build` a regeneram. Os métodos do `App` vêm de
+    `bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui` (`App.<Método>`; no `App.tsx`,
+    `GoApp`, porque o componente já se chama `App`). `Events`, `Window`, `Application` e `Clipboard`
+    vêm direto do `@wailsio/runtime`, que as bindings importam, e isso liga o arrasto da titlebar.
+    O evento chega com o dado em `e.data`.
+  - **Tipos:** os modelos Go das bindings são os tipos do front onde há equivalente. O `types.ts`
+    os reexporta (`AgentError`, `ToolCall`, `TokenUsage`, `MermaidFailure`, `MermaidReplacement`,
+    `MermaidRepairStart`, `ContextWindow`, `Conversation`, e `AppConfig`/`ProviderConfig`/`ModelConfig`
+    a partir de `types.Config`/`Provider`/`Model`). Ficam à mão os da tela: `Message` (o
+    `toUiMessages` a projeta da mensagem do Go, convertendo os enums `Role`/`Status` em literais),
+    `MermaidRepair` (o estado `repairing`) e `Connection` (o Go devolve `state` como `string`).
+  - **Fora do app** (browser puro, testes): `inWails()` (`types.ts`) olha o
+    `window._wails.environment`, que só existe quando o Go injeta o script, e nenhuma chamada ao Go é
+    feita sem ele. O erro de uma chamada é um `RuntimeError` cuja `message` é o erro do Go, e
+    `errorText(e)` tira dele o texto.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
 - **Bundle (Vite 8):** sem nenhum componente S2 importado, o tree-shaking deixa o S2 de fora (JS
@@ -118,10 +134,15 @@ Wails v3 eles são conferidos pela pesquisa _Wails v3 no app_ (ver [Stack e buil
 - **Grade:** a titlebar (48 px) em cima e a barra de status embaixo, as duas na largura toda. No
   meio ficam três colunas: sidebar ou faixa, conteúdo (barra de abas + Aba) e gaveta de Logs.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal, marca,
-  "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da janela. A barra toda
-  arrasta (`--wails-draggable: drag`), e cada controle leva `no-drag`. Só a titlebar arrasta; a
-  barra de abas, não. O duplo clique na área de arrasto maximiza ou restaura a janela: no Windows o
-  runtime do v3 não faz isso sozinho, então um `onDoubleClick` chama `Window.ToggleMaximise()`.
+  "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da janela. A janela liga o
+  `Windows.WebView2CompositionHosting` do v3, e a titlebar marca regiões `--wails-non-client-region`.
+  O texto "Network Agent" e o espaçador do meio são `caption`: arrastam, e o duplo clique e o botão
+  direito (menu de sistema) ficam com o Windows. Os vãos entre controles vizinhos não arrastam, e
+  um controle nunca fica dentro de uma `caption`, porque lá ele não recebe clique. Só a titlebar
+  arrasta; a barra de abas, não. Não há `--wails-draggable` nem `onDoubleClick`.
+  **Plano B:** se a conferência ao vivo quebrar algo (popover do S2, foco, cursor, o hover dos
+  botões), o corte desliga a opção, volta ao `--wails-draggable: drag` com `no-drag` nos controles
+  e ao `onDoubleClick` → `Window.ToggleMaximise()`, e registra no `WAILS_V3.md` o que quebrou.
 - **Chip do Workspace:** mostra o nome da pasta do Workspace em uso, com o caminho no `title`. O
   menu lista até 5 **Workspaces recentes** (`menuitemradio`: nome e, embaixo, o caminho), por uso
   mais recente, com o atual marcado, e depois um separador e "Abrir outra pasta…" (o
@@ -138,8 +159,9 @@ Wails v3 eles são conferidos pela pesquisa _Wails v3 no app_ (ver [Stack e buil
   configurado, o texto é "Nenhum modelo configurado".
 - **Botões da janela** (`WindowControls.tsx`): minimizar, maximizar/restaurar e fechar. O glifo do
   maximizar acompanha o estado real da janela (snap, `Win+setas`, duplo clique). O hover do fechar é
-  vermelho. Se o Snap Layouts aparece no hover do maximizar, num modo opcional do v3, é o ticket
-  _Snap Layouts no maximizar_ que decide.
+  vermelho. Os três são regiões `minimize`, `maximize` e `close`, e o Snap Layouts aparece no hover
+  do maximizar. O Wails repassa o mouse dessas regiões à página, então o `onClick` e o `:hover`
+  continuam sendo do React.
 - **Sidebar ↔ faixa recolhida:** um estado só. Expandida, a sidebar tem 244 px; recolhida, vira a
   faixa de 56 px com o "Nova conversa". O botão de recolher painel, na titlebar, alterna as duas.
   O app sempre abre com a sidebar expandida, e a escolha não persiste. Não há atalho de teclado. A
@@ -322,12 +344,14 @@ O `Link` da gaveta de Logs fica sempre com o rótulo "Copiar o caminho do arquiv
 - `gofmt -l .`, `go vet ./...` e `go build ./...` verdes na raiz.
 - Ao vivo no dev: Início, Conversa com diagrama e bloco de código, Logs e Configurações, conferidas
   contra o protótipo **nos dois temas**.
-- **Dev e build** (_Decidido, a implementar_): o projeto segue o modelo do Wails v3, com a CLI
-  `wails3` 3.1.0, e os comandos rodam de dentro de `cmd/ui`. O dev é o `wails3 dev`: ele sobe o Vite
-  na 9245, o front recarrega sozinho e o Go recompila ao salvar. O build é o `wails3 build`, e o
-  `.exe` sai em `cmd/ui/bin/`. Os dois seguem o `build/config.yml` e o `Taskfile.yml` gerados. As
-  bindings ficam em `frontend/bindings/`, versionadas. Até isso ser implementado, valem os dois
-  processos do [`cmd/ui/README.md`](../cmd/ui/README.md).
+- **Dev e build:** o projeto segue o modelo do Wails v3, com a CLI `wails3` 3.1.0, e os comandos
+  rodam de dentro de `cmd/ui` (ver [`cmd/ui/README.md`](../cmd/ui/README.md)). O dev é o
+  `wails3 dev`: ele sobe o Vite na 9245 (`WAILS_VITE_PORT`, `strictPort`), o front recarrega sozinho
+  e, a cada `.go` salvo, ele regenera as bindings, recompila e reabre a janela. Fechar a janela
+  encerra o `wails3 dev`. O build é o `wails3 build`, e o `.exe`, com o ícone, sai em
+  `cmd/ui/bin/net_agent.exe`. Os dois seguem o `build/config.yml` e os Taskfiles gerados
+  (`cmd/ui/Taskfile.yml` e `cmd/ui/build/`). O `build/go.mod` isola do `go build ./...` da raiz os
+  `.go` que o gerador cria para iOS e Android. O `go mod tidy` do Taskfile não muda o `go.mod`.
 - **Porta de depuração:** com `NETWORK_AGENT_CDP_PORT=9333` no ambiente do app, a janela abre o
   CDP em `localhost:9333` (`/json/list` dá o `webSocketDebuggerUrl` da página). O DevTools da
   janela também abre à mão, em build sem a tag `production`.

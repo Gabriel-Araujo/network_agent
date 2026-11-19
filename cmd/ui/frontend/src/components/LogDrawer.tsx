@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from '@phosphor-icons/react'
-import { Clipboard, goApp } from '../wails'
+import { Clipboard } from '@wailsio/runtime'
+import { App } from '../../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui'
+import { inWails } from '../types'
 
 // A gaveta de Logs: as MESMAS linhas que o CLI mostra no terminal, porque a
 // fonte é o sink de console — o Go escreve nos dois destinos no mesmo Handle
@@ -57,13 +59,12 @@ export default function LogDrawer({ open, onClose }: LogDrawerProps) {
 
   useEffect(() => {
     if (!open) return
-    const app = goApp()
-    if (!app?.GetLogLines) return
+    if (!inWails()) return
 
     let alive = true
     const tick = async () => {
       try {
-        const next: string[] = await app.GetLogLines()
+        const next: string[] = await App.GetLogLines()
         if (alive) setLines(next ?? [])
       } catch {
         /* ponte ausente (browser puro): a gaveta fica vazia, o app segue */
@@ -72,8 +73,7 @@ export default function LogDrawer({ open, onClose }: LogDrawerProps) {
     tick()
     const id = window.setInterval(tick, POLL_MS)
 
-    app
-      .GetLogPath?.()
+    App.GetLogPath()
       .then((p: string) => {
         if (alive) setPath(p ?? '')
       })
@@ -96,7 +96,7 @@ export default function LogDrawer({ open, onClose }: LogDrawerProps) {
   // O caminho vai para um grep ou para o anexo de um ticket; abrir no editor
   // seria "um local" que não é do app (ticket 06).
   const copyPath = () => {
-    if (!path || !goApp()) return
+    if (!path || !inWails()) return
     Clipboard.SetText(path)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)

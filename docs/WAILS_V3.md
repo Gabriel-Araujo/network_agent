@@ -37,8 +37,8 @@ fixada, e ela é do usuário.
    de maximizada tem evento.
 4. **Frontend:** o dev usa a porta 9245, a janela carrega `http://wails.localhost:9245` e o asset
    server repassa ao Vite. O template e o `@wailsio/runtime` já são do Vite 8, como o app. O
-   `optimizeDeps.exclude` continua. O build de dev roda `npm run build:dev`, que o app não tem, e um
-   `go mod tidy`. O CSP continua valendo. CDP: `Windows.AdditionalBrowserArgs` com
+   `optimizeDeps.exclude` continua. O build de dev roda `npm run build:dev` e um `go mod tidy`,
+   que não muda o `go.mod` do repo (medido). O CSP continua valendo. CDP: `Windows.AdditionalBrowserArgs` com
    `--remote-debugging-port` abre a porta na própria janela. O `localhost:34115` do v2 não existe
    mais. O download do diagrama fica com a interface do WebView2: o v3 não intercepta o
    `DownloadStarting`.
@@ -169,7 +169,7 @@ navegador do `wails dev` ([§4](#4-frontend)).
 | `BackgroundColour: &options.RGBA{…}` | `BackgroundColour: application.NewRGB(r, g, b)`, um valor `RGBA{Red, Green, Blue, Alpha}` e não um ponteiro. Ele pinta a janela e o WebView2. A doc diz "Default: White". O código não preenche padrão (o `NewWindow` só completa largura, altura, URL e nome), então o zero é `RGBA{0,0,0,0}`. Há `SetBackgroundColour` em Go e em JS. | `webview_window_options.go:125-126,256-276`, `webview_window_windows.go:455-463`, `webview_window.go:342-360`, [options](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/features/windows/options.md#L384-L415) |
 | Arrasto por `--wails-draggable: drag`, controles com `no-drag` | O mesmo nome. O runtime lê o valor **computado** (herdado): só `drag` arrasta, e qualquer outro valor bloqueia. O arrasto começa no primeiro `mousemove` depois do `mousedown`. O Go faz `PostMessage(WM_NCLBUTTONDOWN, HTCAPTION)`. | `…/src/drag.ts:99-109,236-245`, `webview_window_windows.go:360-367`, [frameless](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/features/windows/frameless.md#L124-L144) |
 | Duplo clique na área de arrasto maximiza (no v2, o JS só arrasta com `e.detail === 1`) | **No Windows, o runtime não maximiza.** O `dblclick` só vira `wails:drag:doubleclick` no macOS, e fora dele a preferência do Go é `"None"`. A guarda do `e.detail !== 1` só vale fora do Windows, então no Windows o `dblclick` chega ao DOM, e um `onDoubleClick` → `Window.ToggleMaximise()` o recebe. Com o modo de composição (abaixo), a área `caption` recebe `HTCAPTION` de verdade, e o duplo clique fica com o Windows. | `…/src/drag.ts:77-89,179-184`, `pkg/application/webview_window_titlebar_doubleclick_other.go:5-7`, `pkg/application/titlebar_doubleclick_action.go:11-19`, `pkg/application/webview_window_windows_nonclient.go:146-172` |
-| Snap Layouts no hover do maximizar: perdido no v2.15 | **Existe no v3, opcional.** São dois modos. O `Windows.NonClientRegionSupport` lê o CSS `app-region: drag` e só arrasta, sem Snap Layouts. O `Windows.WebView2CompositionHosting` + `--wails-non-client-region: caption \| minimize \| maximize \| close` dá `HTMAXBUTTON` ao maximizar, e com isso o Snap Layouts aparece no hover. Ligar a composição liga o rastreio dessas regiões. A doc avisa que esse modo "may have rendering, input, focus, or WebView2 Runtime compatibility issues". As regiões só têm quatro tipos e nenhum "client": um retângulo `caption` cobre tudo o que estiver dentro dele, e a região que vem depois vence. O botão direito na `caption` abre o menu de sistema. Há também `Window.SnapAssist()`, que simula `Win+Z`. | [frameless](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/features/windows/frameless.md#L211-L363), `webview_window_options.go:387-400`, `webview_window_windows_nonclient.go:126-172`, `webview_window_windows.go:1759-1767,2902-2906,3220-3230`, `…/src/appregion.ts:25-33,54-76,216-231`, `…/src/window.ts:687` |
+| Snap Layouts no hover do maximizar: perdido no v2.15 | **Existe no v3, opcional.** São dois modos. O `Windows.NonClientRegionSupport` lê o CSS `app-region: drag` e só arrasta, sem Snap Layouts. O `Windows.WebView2CompositionHosting` + `--wails-non-client-region: caption \| minimize \| maximize \| close` dá `HTMAXBUTTON` ao maximizar, e com isso o Snap Layouts aparece no hover. Ligar a composição liga o rastreio dessas regiões. A doc avisa que esse modo "may have rendering, input, focus, or WebView2 Runtime compatibility issues". As regiões só têm quatro tipos e nenhum "client": um retângulo `caption` cobre tudo o que estiver dentro dele, e a região que vem depois vence. O botão direito na `caption` abre o menu de sistema. Há também `Window.SnapAssist()`, que simula `Win+Z`. Nas regiões `minimize`/`maximize`/`close`, o movimento e o clique do mouse são repassados à página por `SendMouseInput`, então o `onClick` e o `:hover` do DOM continuam funcionando. Com a composição, a borda de cima não é estendida, para o flyout do Snap Layouts não cobrir o maximizar. | [frameless](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/features/windows/frameless.md#L211-L363), `webview_window_options.go:387-400`, `webview_window_windows_nonclient.go:115-172,268-308`, `webview_window_windows.go:469-482,1759-1767,2902-2906,3220-3230`, `…/src/appregion.ts:25-33,54-76,216-231`, `…/src/window.ts:687` |
 | Glifo do maximizar por polling de 400 ms (`WindowControls.tsx:27-46`) | Há evento. No Windows: `SIZE_MAXIMIZED` emite `WindowMaximise`, `SIZE_RESTORED` emite `WindowRestore` (inclusive ao arrastar a janela maximizada) e `UnMaximise()` emite `WindowUnMaximise`. Os três viram `Common.*`. Eventos de janela vão ao JS da própria janela como `common:WindowMaximise` etc., então `Events.On(Events.Types.Common.WindowMaximise, …)` e o mesmo para `WindowRestore` e `WindowUnMaximise`, com `Window.IsMaximised()` para ler o estado. | `webview_window_windows.go:1078-1081,1963,1994`, `pkg/events/defaults.go:5-24`, `webview_window.go:1028-1058,1648-1655`, `…/src/event_types.ts:260-293` |
 | Tema da janela | `Windows.Theme` (padrão `SystemDefault`) colore a barra e o menu nativos, que o frameless não tem. O v3 não define a `PreferredColorScheme` do WebView2 (não há chamada no código), então `prefers-color-scheme` fica com o padrão do WebView2. | `webview_window_options.go:366-368`; busca por `PreferredColorScheme` em `pkg/application` e `internal/webview2/pkg/edge`: nada |
 
@@ -184,13 +184,14 @@ navegador do `wails dev` ([§4](#4-frontend)).
   `internal/commands/build_assets/Taskfile.tmpl.yml:206-216`.
 - **O build de dev roda `npm run build:dev`.** O `build:frontend` gera as bindings e chama o script
   `build:dev` quando `DEV=true`. O template React define `"build:dev": "tsc && vite build --minify
-  false --mode development"`. O `package.json` do app só tem `dev`, `build`, `preview` e `test`.
+  false --mode development"`, e o `package.json` do app passou a ter o mesmo script (ticket _Projeto
+  no padrão do Wails v3_).
   Fontes: `Taskfile.tmpl.yml:72-100,191`, `internal/templates/react/frontend/package.json.tmpl:8-9`,
   `cmd/ui/frontend/package.json:6-11`.
 - **O Taskfile roda `go mod tidy`** antes de gerar as bindings (`go:mod:tidy`). O template supõe um
   `go.mod` próprio ao lado do `main.go`. Neste repo, `cmd/ui` é um pacote do módulo da raiz, então o
-  `tidy` mexeria no `go.mod` e no `go.sum` do repo inteiro. Isso é inferência do Taskfile: não foi
-  rodado.
+  `tidy` age sobre o `go.mod` e o `go.sum` do repo inteiro. **Medido no app** (2026-11-19): com o
+  módulo já tidy, o `go mod tidy` e o `wails3 build` não mudam nenhum dos dois.
   Fonte: `Taskfile.tmpl.yml:4-11,180`.
 - **De onde a janela carrega.** No Windows, a origem é `http://wails.localhost`. No dev, ela ganha a
   porta do Vite (`http://wails.localhost:9245/`). O asset server responde `/wails/runtime*` e repassa
@@ -201,8 +202,8 @@ navegador do `wails dev` ([§4](#4-frontend)).
   [asset server](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/contributing/asset-server.md#L43-L84),
   <https://github.com/vitejs/vite/blob/v8.3.8/docs/config/server-options.md> (`server.allowedHosts`).
 - **O `vite.config` do template** fixa `server.host: "127.0.0.1"`, a porta de `WAILS_VITE_PORT` e
-  `strictPort`, e põe o plugin `wails("./bindings")`. O `vite.config.ts` do app não tem bloco
-  `server` (o padrão do Vite 8.3.8 é `host: 'localhost'`). A CLI do Vite 8 aceita o `--port` e o
+  `strictPort`, e põe o plugin `wails("./bindings")`. O `vite.config.ts` do app adota esse bloco e o
+  plugin (o padrão do Vite 8.3.8 seria `host: 'localhost'`). A CLI do Vite 8 aceita o `--port` e o
   `--strictPort` que o Taskfile passa.
   Fontes: `internal/templates/react/frontend/vite.config.ts:6-12`,
   <https://github.com/vitejs/vite/blob/v8.3.8/docs/config/server-options.md> (`server.host`),
@@ -280,7 +281,7 @@ Windows.** As que tocam o app:
 
 ### 6. Medido no app (v3.1.0, WebView2 157.0.4341.60, Windows 11, 2026-11-19)
 
-Ticket _App no Wails v3_. O dev rodou sem a `wails3`: Vite em `--port 9245 --strictPort` e o binário
+Ticket _App no Wails v3_. Este primeiro bloco rodou sem a `wails3`: Vite em `--port 9245 --strictPort` e o binário
 com `FRONTEND_DEVSERVER_URL=http://localhost:9245` (o handler de dev do asset server lê essa
 variável em build sem a tag `production`, `internal/assetserver/build_dev.go:161`).
 
@@ -310,6 +311,36 @@ variável em build sem a tag `production`, `internal/assetserver/build_dev.go:16
 - **Primeira carga com o `@wailsio/runtime` novo:** o Vite otimiza a dependência e recarrega a
   página uma vez. Uma chamada feita antes do reload pode falhar. Na carga seguinte não acontece.
 
+#### `wails3 dev` e `wails3 build` (ticket _Projeto no padrão do Wails v3_, 2026-11-19)
+
+Com a `wails3` 3.1.0 e o projeto gerado em `cmd/ui` (`wails3 generate build-assets -dir build`).
+
+- **`generate build-assets` não cria o `Taskfile.yml` da raiz do projeto.** Ele gera só o conteúdo
+  de `build/` (o `build/Taskfile.yml` é o `common`). O da raiz, com `APP_NAME`, os `includes` e as
+  tasks `build`/`dev`/`run`, é o `internal/templates/_legacy/Taskfile.tmpl.yml`, que o `wails3 init`
+  extrai. Os valores de `-productname`, `-productcompany` etc. vão para o `windows/info.json`, mas não
+  para o `info` do `config.yml`, que sai com os placeholders ("My Company").
+- **O gerador cria `.go` de iOS e Android dentro de `build/`.** O `build/ios/app_options_default.go`
+  (`//go:build !ios`, `package main`, sem `func main`) quebra o `go build ./...` da raiz com
+  `function main is undeclared in the main package`. Um `go.mod` em `build/` tira a pasta do
+  módulo da raiz.
+- **Bindings em JS não passam no TypeScript 7.** Os enums do Go saem como `@enum` do JSDoc, que o
+  TS 7.0.2 não lê (`TS2749: 'Role' refers to a value, but is being used as a type`), e os arquivos
+  têm `// @ts-check`. Com `-ts`, as bindings saem em TS (`export enum`, campos opcionais com `?`) e
+  passam. Um `enum` de string do TS não se atribui a uma união de literais com os mesmos valores.
+- **Um ponteiro do Go vira `T | null` no modelo** (`usage?: TokenUsage | null`), e um tipo não
+  exportado (`connection`, `contextWindow`) também vira modelo, com o nome em minúscula.
+- **Os métodos são chamados por ID** (`Call.ByID(<hash>)`), não por nome, a não ser com `-names`.
+- **`wails3 build`:** roda o `go mod tidy`, as bindings, o `npm run build`, o `generate:icons` (que
+  refaz o `windows/icon.ico` a partir do `appicon.png`) e o `.syso` com o ícone e o `info.json`, e
+  gera o `bin/net_agent.exe`.
+- **`wails3 dev`:** a janela carrega `http://wails.localhost:9245/`. As bindings, o stream do turno
+  (`agent:token`/`agent:done`), os Logs, renomear, apagar e o `RuntimeError` com o JSON do Go
+  funcionam como pelo `Call.ByName`. Salvar uma mudança num `.go` (só o `touch` não basta) regenera
+  as bindings, recompila e reabre a janela. Fechar a janela encerra o `wails3 dev` inteiro
+  (`exit_policy: shutdown`). Com `NETWORK_AGENT_CDP_PORT` no ambiente do `wails3 dev`, a porta de
+  CDP abre, inclusive depois de uma recompilação.
+
 ## Não confirmado
 
 Os itens medidos saíram daqui e estão no §6.
@@ -323,6 +354,7 @@ Os itens medidos saíram daqui e estão no §6.
   WebView2 instalado, e se o Snap Layouts aparece no hover.
 - Se `--wails-draggable` (arrasto em JS) e `--wails-non-client-region: maximize` convivem na mesma
   titlebar.
-- O HMR do Vite 8 atrás do proxy em `wails.localhost:9245`. O app não usa o plugin Vite do Wails.
+- O HMR do Vite 8 atrás do proxy em `wails.localhost:9245` (a página carrega pelo Vite, mas a troca
+  a quente de um módulo não foi conferida).
 - Se o download do diagrama mostra a interface do WebView2 no v3 (o código diz que sim).
 - Se a Typekit continua barrada pelo CSP no v3 (o mesmo `<meta>`, não medido).

@@ -24,7 +24,9 @@ import {
   toUiMessages,
 } from './types'
 import { runMermaidRepair } from './mermaidRepair'
-import { Events, goApp } from './wails'
+import { Events } from '@wailsio/runtime'
+import { App as GoApp } from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui'
+import { inWails } from './types'
 
 /**
  * Por que o envio está bloqueado. O alerta era fixo em "Configuração
@@ -115,10 +117,9 @@ function App() {
   // nomeado no `why`. No primeiro uso o histórico está legitimamente vazio:
   // lista vazia não é erro.
   const loadConversations = useCallback(async () => {
-    const a = goApp()
-    if (!a?.ListConversations) return
+    if (!inWails()) return
     try {
-      const list: Conversation[] = await a.ListConversations()
+      const list: Conversation[] = await GoApp.ListConversations()
       setConversations(list ?? [])
       setSidebarError(null)
     } catch (e) {
@@ -132,10 +133,9 @@ function App() {
   // Ollama a janela é definida na carga. Sem sondagem (sem provedor ativo), o
   // medidor fica sem o número em vez de inventar um.
   const refreshContextWindow = useCallback(async () => {
-    const a = goApp()
-    if (!a?.GetContextWindow) return
+    if (!inWails()) return
     try {
-      const win: ContextWindow = await a.GetContextWindow()
+      const win: ContextWindow = await GoApp.GetContextWindow()
       setContextWindow(win && win.total > 0 ? win : null)
     } catch {
       setContextWindow(null)
@@ -147,11 +147,10 @@ function App() {
   // Wails com ctx nil derruba o app (medido no ticket 06). Repete a 500ms só
   // enquanto estiver carregando o modelo, e para sozinho em ready/failed.
   const pollConnection = useCallback(async () => {
-    const a = goApp()
-    if (!a?.GetConnection) return
+    if (!inWails()) return
     window.clearTimeout(connectionTimer.current)
     try {
-      const c: Connection = await a.GetConnection()
+      const c = (await GoApp.GetConnection()) as Connection
       setConnection(c)
       if (c.state === 'connecting') {
         connectionTimer.current = window.setTimeout(pollConnection, 500)
@@ -167,9 +166,8 @@ function App() {
   // Tentar de novo, explicitamente. Sem isto o único caminho de volta de uma
   // falha de conexão era salvar as Configurações outra vez.
   const reconnectNow = useCallback(async () => {
-    const a = goApp()
-    if (!a?.Reconnect) return
-    setConnection(await a.Reconnect())
+    if (!inWails()) return
+    setConnection((await GoApp.Reconnect()) as Connection)
     pollConnection()
   }, [pollConnection])
 
@@ -179,8 +177,8 @@ function App() {
     pollConnection()
     // Carrega a configuração no boot. Na primeira execução (sem provedor ou
     // sem modelo) abre a tela de Configurações e bloqueia o input.
-    if (goApp()?.GetConfig) {
-      goApp().GetConfig()
+    if (inWails()) {
+      GoApp.GetConfig()
         .then((c: AppConfig) => {
           setConfig(c)
           const ok = !!activeModel(c)
@@ -293,7 +291,7 @@ function App() {
   // só estes dois têm produtor no Go — o `agent:toolcall` escutado aqui nunca
   // teve produtor e saiu (tool calls da UI vêm do transcript do disco).
   useEffect(() => {
-    if (!goApp()) return
+    if (!inWails()) return
     const offToken = Events.On('agent:token', (e) => appendToken(e.data))
     const offDone = Events.On('agent:done', (e) => onAgentDone(e.data))
     return () => {
@@ -327,8 +325,7 @@ function App() {
     sendingRef.current = true
     setIsWorking(true)
 
-    const app = goApp()
-    if (!app?.AskAgent) {
+    if (!inWails()) {
       // Sem a ponte do Wails não existe turno real. O stream simulado que
       // morava aqui mostrava número que ninguém mediu e texto que ninguém
       // gravou; agora a ausência da ponte falha visível.
@@ -350,7 +347,7 @@ function App() {
         // Conversa preguiçosa: nasce no primeiro envio, com o título derivado
         // do primeiro prompt (o núcleo só armazena títulos — e a criação
         // silenciosa de conversa pelo Go foi descartada no ticket 05).
-        const created: Conversation = await app.CreateConversation(generateTitle(text))
+        const created: Conversation = await GoApp.CreateConversation(generateTitle(text))
         convId = created.id
         selectConversation(created.id)
         setChatTitle(created.title)
@@ -361,7 +358,7 @@ function App() {
 
       // O Go lê o transcript do disco, grava o turno e devolve a conversa
       // como ela ficou; o stream (agent:token/agent:done) chega no meio.
-      const conv: Conversation = await app.AskAgent(convId, text)
+      const conv: Conversation = await GoApp.AskAgent(convId, text)
       applyConversation(conv)
 
       // Reparo automático de diagrama (UMA tentativa): só para a resposta que
@@ -370,7 +367,7 @@ function App() {
       // usuário fictícia. Um falha do reparo NUNCA derruba o turno: a resposta
       // original e o fonte do bloco continuam na tela.
       const fresh = [...conv.messages].reverse().find((m) => m.role === 'agent')
-      if (fresh && app.StartMermaidRepair && app.FinishMermaidRepair) {
+      if (fresh && GoApp.StartMermaidRepair && GoApp.FinishMermaidRepair) {
         const messageID = fresh.id
         try {
           const updated = await runMermaidRepair(
@@ -378,11 +375,11 @@ function App() {
             messageID,
             fresh.content,
             {
-              startRepair: (mid, failures) => app.StartMermaidRepair(conv.id, mid, failures),
+              startRepair: (mid, failures) => GoApp.StartMermaidRepair(conv.id, mid, failures),
               retryRepair: (attemptID, failures) =>
-                app.RetryMermaidRepair(conv.id, attemptID, failures),
+                GoApp.RetryMermaidRepair(conv.id, attemptID, failures),
               finishRepair: (attemptID, accepted) =>
-                app.FinishMermaidRepair(conv.id, attemptID, accepted),
+                GoApp.FinishMermaidRepair(conv.id, attemptID, accepted),
             },
             (repair) => patchRepairState(conv.id, messageID, repair),
           )
@@ -443,10 +440,9 @@ function App() {
 
   const renameConversation = useCallback(
     async (id: string, title: string): Promise<boolean> => {
-      const a = goApp()
-      if (!a?.RenameConversation) return false
+      if (!inWails()) return false
       try {
-        const updated: Conversation = await a.RenameConversation(id, title)
+        const updated: Conversation = await GoApp.RenameConversation(id, title)
         // Renomear toca o updatedAt no Store: a lista reordena e a conversa sobe.
         setConversations((prev) =>
           sortByUpdatedDesc(prev.map((c) => (c.id === id ? updated : c))),
@@ -467,10 +463,9 @@ function App() {
     const target = pendingDelete
     setPendingDelete(null)
     if (!target) return
-    const a = goApp()
-    if (!a?.DeleteConversation) return
+    if (!inWails()) return
     try {
-      await a.DeleteConversation(target.id)
+      await GoApp.DeleteConversation(target.id)
       setConversations((prev) => prev.filter((c) => c.id !== target.id))
       setSidebarError(null)
       // Apagar a conversa aberta devolve a tela ao estado vazio.
