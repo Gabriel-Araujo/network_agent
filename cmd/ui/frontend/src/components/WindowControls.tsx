@@ -1,81 +1,99 @@
-import { useEffect, useState } from 'react'
-import { Application, Window } from '@wailsio/runtime'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { Application, Events, Window } from '@wailsio/runtime'
+import { iconStyle, style } from '@react-spectrum/s2/style' with { type: 'macro' }
+import MinimizarJanela from '../icons/MinimizarJanela'
+import MaximizarJanela from '../icons/MaximizarJanela'
+import Close from '@react-spectrum/s2/icons/Close'
+import RestaurarJanela from '../icons/RestaurarJanela'
 import { inWails } from '../types'
 
-// Controles de janela para o modo frameless.
-//
-// Os glifos seguem o padrão do sistema operacional em vez de uma família de
-// ícones genérica: no Windows são os caracteres da Segoe Fluent/MDL2 Assets
-// (mesmos usados pelo Explorer), então o botão "maximizar" alterna para o
-// glifo de "restaurar" quando a janela está maximizada, como o usuário espera.
-// A coloração vem dos tokens do tema; só o hover de fechar usa o vermelho
-// padrão do Windows.
+// Os botões da janela frameless (docs/FRONTEND.md, Shell e janela). Cada um é
+// uma região `--wails-non-client-region` do modo de composição do Wails v3: o
+// maximizar recebe `HTMAXBUTTON` e mostra o Snap Layouts no hover. O Wails
+// repassa o mouse dessas regiões à página, então o clique e o :hover seguem no DOM.
 
-// Segoe MDL2 Assets: E921 minimizar, E922 maximizar, E923 restaurar, E8BB fechar
-const GLYPH = {
-  min: '\uE921',
-  max: '\uE922',
-  restore: '\uE923',
-  close: '\uE8BB',
+const button = style({
+  display: 'grid',
+  placeItems: 'center',
+  width: 34,
+  height: 32,
+  borderRadius: 'lg',
+  borderStyle: 'none',
+  backgroundColor: {
+    default: 'transparent',
+    ':hover': 'gray-100',
+    isClose: { default: 'transparent', ':hover': 'negative' },
+  },
+  '--iconPrimary': {
+    type: 'color',
+    value: {
+      default: 'neutral-subdued',
+      ':hover': 'neutral',
+      isClose: { default: 'neutral-subdued', ':hover': 'white' },
+    },
+  },
+  transition: 'colors',
+})
+
+const region = (kind: string) => ({ '--wails-non-client-region': kind }) as CSSProperties
+
+function WinButton({
+  kind,
+  label,
+  onClick,
+  children,
+}: {
+  kind: 'minimize' | 'maximize' | 'close'
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      className={button({ isClose: kind === 'close' })}
+      style={region(kind)}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+    >
+      {children}
+    </button>
+  )
 }
 
 export default function WindowControls() {
   const [maximised, setMaximised] = useState(false)
 
-  // Mantém o glifo em sincronia com o estado real da janela (o usuário pode
-  // maximizar por duplo clique na barra, snap do Windows ou Win+setas).
+  // O glifo acompanha o estado real da janela (snap, Win+setas, duplo clique
+  // na caption): os eventos de janela do v3 avisam, e o IsMaximised confirma.
   useEffect(() => {
     if (!inWails()) return
-
-    let alive = true
-    const sync = async () => {
-      try {
-        const m = await Window.IsMaximised()
-        if (alive) setMaximised(m)
-      } catch {
-        /* runtime indisponível (browser puro) */
-      }
-    }
+    const sync = () => Window.IsMaximised().then(setMaximised).catch(() => {})
     sync()
-    const id = window.setInterval(sync, 400)
-    return () => {
-      alive = false
-      clearInterval(id)
-    }
+    const offs = [
+      Events.Types.Common.WindowMaximise,
+      Events.Types.Common.WindowRestore,
+      Events.Types.Common.WindowUnMaximise,
+    ].map((name) => Events.On(name, sync))
+    return () => offs.forEach((off) => off())
   }, [])
 
-  const minimise = () => Window.Minimise()
-  const toggleMax = () => Window.ToggleMaximise()
-  const close = () => Application.Quit()
-
+  const icon = iconStyle({ size: 'S' })
   return (
-    <div className="wincontrols">
-      <button
-        className="wincontrols__btn"
-        onClick={minimise}
-        aria-label="Minimizar"
-        title="Minimizar"
+    <div className={style({ display: 'flex', gap: 2 })}>
+      <WinButton kind="minimize" label="Minimizar" onClick={() => Window.Minimise()}>
+        <MinimizarJanela styles={icon} />
+      </WinButton>
+      <WinButton
+        kind="maximize"
+        label={maximised ? 'Restaurar' : 'Maximizar'}
+        onClick={() => Window.ToggleMaximise()}
       >
-        <span className="wincontrols__glyph" aria-hidden="true">{GLYPH.min}</span>
-      </button>
-      <button
-        className="wincontrols__btn"
-        onClick={toggleMax}
-        aria-label={maximised ? 'Restaurar' : 'Maximizar'}
-        title={maximised ? 'Restaurar' : 'Maximizar'}
-      >
-        <span className="wincontrols__glyph" aria-hidden="true">
-          {maximised ? GLYPH.restore : GLYPH.max}
-        </span>
-      </button>
-      <button
-        className="wincontrols__btn wincontrols__btn--close"
-        onClick={close}
-        aria-label="Fechar"
-        title="Fechar"
-      >
-        <span className="wincontrols__glyph" aria-hidden="true">{GLYPH.close}</span>
-      </button>
+        {maximised ? <RestaurarJanela styles={icon} /> : <MaximizarJanela styles={icon} />}
+      </WinButton>
+      <WinButton kind="close" label="Fechar" onClick={() => Application.Quit()}>
+        <Close styles={icon} />
+      </WinButton>
     </div>
   )
 }

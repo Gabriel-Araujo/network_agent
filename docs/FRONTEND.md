@@ -98,9 +98,10 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     `errorText(e)` tira dele o texto.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
-- **Bundle (Vite 8):** com `Provider` + `ToastContainer` e só o pt-BR, o JS tem 1.327 KB (gzip
-  446 KB) e o chunk `s2-styles` 44 KB (gzip 7,3 KB); sem o filtro de locales seriam 1.427 KB (gzip
-  469 KB). As três fontes somam 98 KB. Medição anterior em
+- **Bundle (Vite 8):** com o Shell (Titlebar, Sidebar, botões da janela) e só o pt-BR, o JS tem
+  1.521 KB (gzip 501 KB) e o chunk `s2-styles` 58 KB (gzip 10 KB). Só com `Provider` +
+  `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB (gzip 7,3 KB); sem o filtro de locales,
+  1.427 KB (gzip 469 KB). As três fontes somam 98 KB. Medição anterior em
   [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
 
 ## Tema
@@ -132,15 +133,18 @@ O `Provider` (`main.tsx`) não recebe `colorScheme`, então hoje o app está sem
 
 ## Shell e janela
 
-_Decidido, a implementar._ A janela é o app: o shell não desenha a moldura do protótipo (padding,
-gradiente, raio, sombra), e os brilhos do `app__bg` saem. Canto arredondado e sombra ficam com o
-Windows 11, que os dá à janela frameless. Os nomes das opções de janela abaixo são do Wails 2.15. No
-Wails v3 eles são conferidos pela pesquisa _Wails v3 no app_ (ver [Stack e build](#stack-e-build)).
+A janela é o app: o shell não desenha a moldura do protótipo (padding, gradiente, raio, sombra), e
+não há brilhos de fundo. Canto arredondado e sombra ficam com o Windows 11, que os dá à janela
+frameless. As opções de janela ficam no `cmd/ui/main.go`.
 
-- **Grade:** a titlebar (48 px) em cima e a barra de status embaixo, as duas na largura toda. No
-  meio ficam três colunas: sidebar ou faixa, conteúdo (barra de abas + Aba) e gaveta de Logs.
-- **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal, marca,
-  "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da janela. A janela liga o
+- **Grade** (`App.tsx`, macro `style`): a titlebar (48 px) em cima, na largura toda, e embaixo três
+  colunas: sidebar ou faixa, conteúdo e gaveta de Logs. O conteúdo ainda é o legado (`ChatArea` +
+  `InputDock` dentro do `.main`), pintado pelo vidro escuro do `App.css` nos dois temas; a titlebar
+  e a sidebar já seguem o tema. _Decidido, a implementar:_ a barra de abas no topo do conteúdo e a
+  barra de status embaixo, na largura toda (corte das Abas).
+- **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
+  Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
+  janela. A janela liga o
   `Windows.WebView2CompositionHosting` do v3, e a titlebar marca regiões `--wails-non-client-region`.
   O texto "Network Agent" e o espaçador do meio são `caption`: arrastam, e o duplo clique e o botão
   direito (menu de sistema) ficam com o Windows. Os vãos entre controles vizinhos não arrastam, e
@@ -149,8 +153,10 @@ Wails v3 eles são conferidos pela pesquisa _Wails v3 no app_ (ver [Stack e buil
   **Plano B:** se a conferência ao vivo quebrar algo (popover do S2, foco, cursor, o hover dos
   botões), o corte desliga a opção, volta ao `--wails-draggable: drag` com `no-drag` nos controles
   e ao `onDoubleClick` → `Window.ToggleMaximise()`, e registra no `WAILS_V3.md` o que quebrou.
-- **Chip do Workspace:** mostra o nome da pasta do Workspace em uso, com o caminho no `title`. O
-  menu lista até 5 **Workspaces recentes** (`menuitemradio`: nome e, embaixo, o caminho), por uso
+- **Chip do Workspace:** mostra o nome da pasta do Workspace em uso, com o caminho no `title` (sem
+  pasta: "Nenhuma pasta"). **Hoje** o menu tem um item só, "Abrir outra pasta…", que chama o mesmo
+  `PickWorkspace` das Configurações e já grava; cancelar o diálogo não muda nada, e uma falha cai no
+  card de erro da sidebar. _Decidido, a implementar_ (corte _Workspaces recentes_): o menu lista até 5 **Workspaces recentes** (`menuitemradio`: nome e, embaixo, o caminho), por uso
   mais recente, com o atual marcado, e depois um separador e "Abrir outra pasta…" (o
   `PickWorkspace`). A lista fica no `config.json` (`recentWorkspaces`, ao lado do `workspace`), e o Go
   a atualiza a cada escolha de Workspace, pelo chip ou pelas Configurações. Um recente cuja pasta
@@ -161,22 +167,38 @@ Wails v3 eles são conferidos pela pesquisa _Wails v3 no app_ (ver [Stack e buil
   como o renomear e o apagar.
 - **Modelo e conexão:** na titlebar, antes dos botões da janela, aparece o texto "provedor ·
   modelo". Enquanto o modelo carrega, um `ProgressCircle size="S"` fica ao lado dele. Quando a
-  conexão falha, aparece um `ActionButton` "Reconectar", com a causa no `title`. Sem modelo
+  conexão falha, aparece um `ActionButton` "Reconectar", com a causa no `title` de um `span` em volta
+  (o `ActionButton` não aceita `title`). Sem modelo
   configurado, o texto é "Nenhum modelo configurado".
-- **Botões da janela** (`WindowControls.tsx`): minimizar, maximizar/restaurar e fechar. O glifo do
-  maximizar acompanha o estado real da janela (snap, `Win+setas`, duplo clique). O hover do fechar é
-  vermelho. Os três são regiões `minimize`, `maximize` e `close`, e o Snap Layouts aparece no hover
+- **Botões da janela** (`WindowControls.tsx`): minimizar, maximizar/restaurar e fechar, com ícones
+  próprios (ver **Ícones**). O glifo do maximizar acompanha o estado real da janela (snap,
+  `Win+setas`, duplo clique) pelos eventos `common:WindowMaximise`, `WindowRestore` e
+  `WindowUnMaximise`, relendo o `Window.IsMaximised()`. O hover é `:hover` do macro, e o do fechar é
+  vermelho (`negative`). Os três são regiões `minimize`, `maximize` e `close`, e o Snap Layouts aparece no hover
   do maximizar. O Wails repassa o mouse dessas regiões à página, então o `onClick` e o `:hover`
   continuam sendo do React.
-- **Sidebar ↔ faixa recolhida:** um estado só. Expandida, a sidebar tem 244 px; recolhida, vira a
-  faixa de 56 px com o "Nova conversa". O botão de recolher painel, na titlebar, alterna as duas.
+- **Sidebar ↔ faixa recolhida** (`Sidebar.tsx`, prop `expanded`): um estado só. Expandida, a
+  sidebar tem 244 px; recolhida, vira a faixa de 56 px com o "Nova conversa". O botão de recolher
+  painel, na titlebar, alterna as duas.
   O app sempre abre com a sidebar expandida, e a escolha não persiste. Não há atalho de teclado. A
   coluna anima a largura em 0,3 s, com a mesma curva da gaveta de Logs, e o conteúdo troca na hora.
-  Não há modo sobreposto com scrim.
+  Não há modo sobreposto com scrim. Logs e Configurações saíram do rodapé da sidebar para o menu
+  principal.
+- **Lista de Conversas:** RAC `GridList` com uma `GridListSection` por grupo de data e
+  `keyboardNavigationBehavior="tab"`: as setas andam entre as linhas, e o Tab entra nas ações
+  (renomear, apagar), que aparecem no hover, no foco e na Conversa aberta. Clicar na linha abre a
+  Conversa. Renomear troca o título por um `input` na linha (Enter grava, Esc ou clicar fora
+  cancela; em falha o input fica aberto e o card de erro explica). O input para a propagação das
+  teclas e do clique, para a grade não os tratar como navegação. Apagar abre um `AlertDialog`
+  destrutivo, com o foco em Cancelar. Renomear e apagar ficam desabilitados durante um turno. O
+  card de erro é um `InlineAlert` negativo com Tentar de novo e Dispensar.
 - **Gaveta de Logs:** é a terceira coluna, sem scrim. Tem 360 px fixos, que caem para 300 px com a
-  janela abaixo de 1080 px de largura. Não tem divisor para redimensionar: as linhas quebram. Ela
-  anima a largura ao abrir e fechar.
-- **Tamanho:** a janela abre em 1024×768, com mínimo de 900×600 (`MinWidth`/`MinHeight`). O
+  janela abaixo de 1080 px de largura (a `--logs-w` da coluna, que a gaveta também lê para não
+  refluir). Não tem divisor para redimensionar: as linhas quebram. A coluna anima a largura em
+  0,3 s ao abrir e fechar; a gaveta fica montada e, fechada, é `inert`. O conteúdo dela ainda é o
+  legado.
+- **Tamanho:** a janela abre em 1024×768, com mínimo de 900×600 (`MinWidth`/`MinHeight`). As regras
+  do `App.css` para larguras até 768 px saíram. O
   breakpoint de 1080 px vale no shell. O que ele muda no modal de Configurações e nas sugestões é
   das seções dessas telas.
 
@@ -213,22 +235,23 @@ Cada elemento é um **controle S2** ou uma **superfície própria** (RAC ou HTML
 `style` com os tokens do S2). O único CSS global é o `src/global.css`, com os `@font-face`, a ordem
 das camadas e a regra de movimento reduzido.
 
-_Decidido, a implementar_ (a tabela abaixo e **Ícones**): `App.css` e `Settings.css` são apagados
+_Decidido, a implementar_ nas linhas da tabela abaixo cuja coluna **Hoje** ainda aponta o legado; as
+linhas com **pronto** já estão no código. `App.css` e `Settings.css` são apagados
 sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 `components` do `react-markdown`, com uma classe do macro por elemento.
 
 | Elemento | Origem | Hoje | Arquivo |
 |---|---|---|---|
-| Titlebar (marca, região de arrasto) | própria | topo da `Sidebar.tsx`, `App.tsx` | `components/Titlebar.tsx` |
-| Recolher painel | S2 `ActionButton isQuiet` + ícone próprio | `Sidebar.tsx` | `Titlebar.tsx` |
-| Menu principal (Logs, Configurações) | S2 `MenuTrigger` + `Menu` | itens da `Sidebar.tsx` | `Titlebar.tsx` |
-| Chip do Workspace | S2 `MenuTrigger` + `Menu` | — | `Titlebar.tsx` |
-| Modelo e conexão | própria (texto "provedor · modelo") + S2 `ProgressCircle size="S"` (carregando) + S2 `ActionButton` "Reconectar" (falha) | `model-pill` do `App.tsx` | `Titlebar.tsx` |
-| Botões da janela | própria (o hover vermelho do fechar não sai do S2) | `WindowControls.tsx` | `WindowControls.tsx` |
-| Faixa recolhida | `nav` própria + S2 `Button variant="accent"` só com ícone | modo `collapsed` da `Sidebar.tsx` | `Sidebar.tsx` |
-| Nova conversa | S2 `Button variant="accent"` | `Sidebar.tsx` | `Sidebar.tsx` |
-| Lista de Conversas | própria em RAC `GridList` + `GridListSection` (grupos por data); ações em S2 `ActionButton isQuiet`; renomear inline | `Sidebar.tsx` | `Sidebar.tsx` |
-| Card de erro da sidebar | S2 `InlineAlert variant="negative"` + `ActionButton` (Tentar de novo, Dispensar) | `Sidebar.tsx` | `Sidebar.tsx` |
+| Titlebar (marca, região de arrasto) | própria | **pronto** | `components/Titlebar.tsx` |
+| Recolher painel | S2 `ActionButton isQuiet` + ícone próprio | **pronto** | `Titlebar.tsx` |
+| Menu principal (Logs, Configurações) | S2 `MenuTrigger` + `Menu` | **pronto** | `Titlebar.tsx` |
+| Chip do Workspace | S2 `MenuTrigger` + `Menu` (gatilho: `ActionButton isQuiet`) | **pronto**, com um item só | `Titlebar.tsx` |
+| Modelo e conexão | própria (texto "provedor · modelo") + S2 `ProgressCircle size="S"` (carregando) + S2 `ActionButton` "Reconectar" (falha) | **pronto** | `Titlebar.tsx` |
+| Botões da janela | própria (o hover vermelho do fechar não sai do S2) | **pronto** | `WindowControls.tsx` |
+| Faixa recolhida | `nav` própria + S2 `Button variant="accent"` só com ícone | **pronto** | `Sidebar.tsx` |
+| Nova conversa | S2 `Button variant="accent"` | **pronto** | `Sidebar.tsx` |
+| Lista de Conversas | própria em RAC `GridList` + `GridListSection` (grupos por data); ações em S2 `ActionButton isQuiet`; renomear inline | **pronto** | `Sidebar.tsx` |
+| Card de erro da sidebar | S2 `InlineAlert variant="negative"` + `ActionButton` (Tentar de novo, Dispensar) | **pronto** | `Sidebar.tsx` |
 | Abas | própria em RAC `Tabs`/`TabList`/`Tab`: o "x" dentro da aba, fora da ordem de Tab, e fechar também por teclado; rola na horizontal quando não cabe | — | `components/TabBar.tsx` |
 | Início: título e subtítulo | própria | estado vazio do `ChatArea.tsx` | `components/Home.tsx` |
 | Sugestões | própria, cartão em RAC `Button` | chips do `ChatArea.tsx` | `Home.tsx` |
@@ -255,14 +278,22 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Modelos | S2 `ListView` + `ActionButtonGroup` (padrão, editar, apagar) + `Badge` "padrão" | `ModelsSection.tsx` | `ModelsSection.tsx` |
 | Aparência (tema) | S2 `SelectBoxGroup`, cartões com a prévia | — | `SettingsModal.tsx` |
 | Salvar / Excluir | S2 `Button variant="accent"` / `variant="negative"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
-| Envio bloqueado, apagar Conversa | S2 `AlertDialog` | os `.alert` do `App.tsx` | `App.tsx` |
+| Apagar Conversa | S2 `AlertDialog variant="destructive"` | **pronto** | `Sidebar.tsx` |
+| Envio bloqueado | S2 `AlertDialog` | o `.alert` do `App.tsx` | `App.tsx` |
 
 ### Ícones
 
-_Decidido, a implementar._ Os do S2 (`@react-spectrum/s2/icons/<Nome>`), em todo o app. Dois são próprios, desenhados a partir
-do SVG do protótipo e convertidos pelo `@react-spectrum/s2-icon-builder`: **painel lateral** (recolher)
-e **restaurar janela**. Ícone de ação do tool call sem equivalente no S2 segue o mesmo caminho. O
-`@phosphor-icons/react` sai do `package.json`.
+Os do S2 (`@react-spectrum/s2/icons/<Nome>`), em todo o app. Quatro são próprios, em `src/icons/`,
+desenhados a partir do SVG do protótipo: **painel lateral** (`PainelLateral`, recolher painel) e os
+três da janela, **minimizar**, **maximizar** e **restaurar** (`MinimizarJanela`, `MaximizarJanela`,
+`RestaurarJanela`): o `Minimize`/`Maximize` do S2 são setas de encolher e expandir, não os glifos de
+janela. O SVG fonte (20×20, fill `var(--iconPrimary, #222)`) fica em `src/icons/svg/`, e o `.tsx` sai
+do `@react-spectrum/s2-icon-builder` 1.1.2, rodado fora do projeto, sem virar dependência:
+`npx transform-icons -i <svg> -o <pasta>` (o cabeçalho do arquivo diz de onde veio). Ícone de ação
+do tool call sem equivalente no S2 segue o mesmo caminho.
+
+_Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar e
+os botões da janela já não o usam; as outras telas ainda usam.
 
 ### Fonte
 

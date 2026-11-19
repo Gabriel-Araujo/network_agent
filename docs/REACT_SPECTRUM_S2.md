@@ -275,7 +275,7 @@ Fontes: <https://react-aria.adobe.com/llms.txt>, <https://react-aria.adobe.com/G
 
 | Elemento do protótipo ([`FRONTEND_PROTOTIPO.html`](FRONTEND_PROTOTIPO.html)) | Equivalente S2 | Lacuna / nota |
 |---|---|---|
-| Botões da janela (min/max/fechar) | ActionButton `isQuiet` + ícones `Minimize`, `Maximize`, `Close` | Não há componente de chrome de janela nem ícone de "restaurar". |
+| Botões da janela (min/max/fechar) | ActionButton `isQuiet` + ícone `Close` | Não há componente de chrome de janela nem glifos de janela: `Minimize` e `Maximize` são setas de encolher e expandir (medido no app, 1.8.2, 2026-11-19), e não há "restaurar". |
 | Recolher painel (titlebar) | ActionButton | Não há ícone de sidebar/painel na lista. O SideNavPanel (alpha) traz o próprio toggle, no rodapé do painel. |
 | Menu principal / chip de Workspace (`menuitemradio`) | MenuTrigger + Menu + MenuItem/MenuSection, `selectionMode="single"` | Coberto. |
 | Faixa vertical de ícones (`stripe`) | Sem Toolbar no S2. Opções: RAC `Toolbar` (sem estilo) ou o trilho recolhido do SideNavPanel (alpha) | Lacuna. |
@@ -386,6 +386,19 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   escape-hatch `css()` ("should be used sparingly"), que injeta CSS cru dentro de uma `@layer`.
   Fontes: <https://react-spectrum.adobe.com/styling.md>, <https://react-spectrum.adobe.com/style-macro.md>.
 
+- **Medido no macro (1.8.2, 2026-11-19):** chaves de condição que começam com `:` viram
+  pseudo-classe e as que começam com `@` viram at-rule (`':hover'`, `'@media (max-width: 1079px)'`),
+  além das condições de runtime (`isX`). Custom property é `'--nome': {type: '<propriedade>', value}`;
+  com `type: 'fill'` os tokens de texto (`neutral`) não passam no tipo, com `type: 'color'` passam.
+  `transition: '[width]'` + `transitionDuration: 300` animam a largura, como faz o `SideNavPanel`.
+  O `outlineColor` aceita `focus-ring`, o `borderColor` não. Fonte: `style/style-macro.ts`
+  (`compileCondition`) e `src/SideNavPanel.tsx` do pacote.
+- **RAC `GridList` com um `input` na linha (react-aria-components 1.22.1, medido no app):** um `ref`
+  + `useEffect` que chama `focus()` não foca o input da tela, porque a coleção também monta os itens
+  numa cópia fora do DOM; `autoFocus` foca. Com `keyboardNavigationBehavior="tab"` as setas não são
+  capturadas pela linha, e um `stopPropagation` no `onKeyDown` e no `onPointerDown` do input tira as
+  teclas (setas, espaço, typeahead) e o clique da grade.
+
 ### 6. Fonte
 
 - **Quem carrega:** o `Provider` renderiza sempre o `<Fonts />`, que importa `font-faces.css`.
@@ -473,6 +486,13 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   `var(--iconPrimary, #222)`, convertidos com o CLI `@react-spectrum/s2-icon-builder` (fora do
   Parcel).
   Fonte: <https://react-spectrum.adobe.com/icons.md>.
+- **Medido no app (2026-11-19, `@react-spectrum/s2-icon-builder` 1.1.2):** o binário é
+  `transform-icons` (`npx transform-icons -i <svg> -o <pasta>`, `-i` repetível). Ele roda o Parcel
+  e gera um `.tsx` por SVG, com `createIcon` do `@react-spectrum/s2`; o fill
+  `var(--iconPrimary, #222)` sai como `var(--iconPrimary, light-dark(rgb(41, 41, 41), rgb(219, 219, 219)))`.
+  O componente aceita `styles={iconStyle(…)}` como os do S2. Fonte: `index.js` do pacote.
+- **`ActionButton` com dois ícones** (ícone + `Text` + `ChevronDown`, 1.8.2): só o primeiro aparece
+  (medido no app, 2026-11-19). Um chevron de "abre menu" não cabe no slot de ícone.
 
 ### 8. Movimento
 

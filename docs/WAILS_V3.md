@@ -311,6 +311,16 @@ variável em build sem a tag `production`, `internal/assetserver/build_dev.go:16
 - **Primeira carga com o `@wailsio/runtime` novo:** o Vite otimiza a dependência e recarrega a
   página uma vez. Uma chamada feita antes do reload pode falhar. Na carga seguinte não acontece.
 
+#### Modo de composição na titlebar (ticket _Shell_, 2026-11-19)
+
+Com `Windows: application.WindowsWindow{WebView2CompositionHosting: true}` na janela, o app abre, e
+o runtime acha as cinco regiões da titlebar pelo valor computado de `--wails-non-client-region`:
+duas `caption` (o texto "Network Agent" e o espaçador do meio), `minimize`, `maximize` e `close`. Pelo
+CDP, os menus do S2 (popover), o `AlertDialog`, o hover dos botões e o foco funcionam. O CDP manda o
+mouse direto à página, então isso não prova o caminho nativo: o arrasto, o duplo clique, o menu de
+sistema, o Snap Layouts no hover do maximizar e o hover repassado por `SendMouseInput` ficam para a
+conferência à mão.
+
 #### `wails3 dev` e `wails3 build` (ticket _Projeto no padrão do Wails v3_, 2026-11-19)
 
 Com a `wails3` 3.1.0 e o projeto gerado em `cmd/ui` (`wails3 generate build-assets -dir build`).

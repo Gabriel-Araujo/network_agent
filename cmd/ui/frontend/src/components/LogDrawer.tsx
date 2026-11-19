@@ -91,8 +91,6 @@ export default function LogDrawer({ open, onClose }: LogDrawerProps) {
     box.scrollTop = box.scrollHeight
   }, [lines])
 
-  if (!open) return null
-
   // O caminho vai para um grep ou para o anexo de um ticket; abrir no editor
   // seria "um local" que não é do app (ticket 06).
   const copyPath = () => {

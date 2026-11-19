@@ -53,15 +53,21 @@ func main() {
 	})
 
 	window := wails.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "net_agent",
-		Width:  1024,
-		Height: 768,
-		// Frameless: remove a barra de título branca do Windows. A barra é
-		// redesenhada no frontend (topbar), com a cor do tema e os controles
-		// de minimizar/maximizar/fechar próprios. O arrasto é por CSS
-		// (--wails-draggable), e o menu de sistema (Alt+Space, snap com
-		// Win+setas) continua.
+		Title:     "net_agent",
+		Width:     1024,
+		Height:    768,
+		MinWidth:  900,
+		MinHeight: 600,
+		// Frameless: remove a barra de título branca do Windows. A titlebar é
+		// redesenhada no frontend (Titlebar.tsx), com os botões da janela
+		// próprios. O canto e a sombra continuam com o Windows 11.
 		Frameless: true,
+		// Modo de composição: a titlebar marca regiões
+		// --wails-non-client-region (caption, minimize, maximize, close), o
+		// maximizar ganha HTMAXBUTTON e o Snap Layouts aparece no hover dele.
+		// Na caption, o arrasto, o duplo clique e o menu de sistema são do
+		// Windows (docs/FRONTEND.md, Shell e janela).
+		Windows: application.WindowsWindow{WebView2CompositionHosting: true},
 		// Nasce escondida e só aparece com a página carregada, já com o fundo
 		// do tema pintado pelo script inline do index.html: sem flash.
 		Hidden: true,

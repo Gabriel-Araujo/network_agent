@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-// O diálogo de confirmação (apagar conversa) usa o visual `.alert`, que mora aqui.
+// O alerta de envio bloqueado usa o visual `.alert`, que mora aqui.
 import './Settings.css'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import InputDock from './components/InputDock'
 import SettingsModal from './components/SettingsModal'
 import LogDrawer from './components/LogDrawer'
-import WindowControls from './components/WindowControls'
+import Titlebar from './components/Titlebar'
 import {
   AppConfig,
   BridgeError,
@@ -28,6 +28,7 @@ import { Events } from '@wailsio/runtime'
 import { App as GoApp } from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui'
 import { inWails } from './types'
 import { ToastContainer } from '@react-spectrum/s2'
+import { style } from '@react-spectrum/s2/style' with { type: 'macro' }
 
 /**
  * Por que o envio está bloqueado. O alerta era fixo em "Configuração
@@ -67,10 +68,9 @@ function App() {
   // Conversa aberta no chat (o React é dono do id ativo, ticket 05).
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarError, setSidebarError] = useState<BridgeError | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null)
   const [isWorking, setIsWorking] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // Sidebar expandida ou faixa recolhida: sempre abre expandida e não persiste.
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // A gaveta de Logs ocupa uma terceira coluna do grid, sem scrim: a conversa
   // fica usável ao lado, que é o ponto de ser ao vivo (ticket 06).
@@ -459,11 +459,8 @@ function App() {
     [activeId],
   )
 
-  // Apagar passa pela confirmação (pendingDelete) antes de tocar no disco.
-  const confirmDelete = async () => {
-    const target = pendingDelete
-    setPendingDelete(null)
-    if (!target) return
+  // A confirmação é o AlertDialog da Sidebar: aqui o disco já pode ser tocado.
+  const deleteConversation = async (target: Conversation) => {
     if (!inWails()) return
     try {
       await GoApp.DeleteConversation(target.id)
@@ -476,15 +473,17 @@ function App() {
     }
   }
 
-  // Esc fecha a confirmação — mesmo comportamento do modal de configuração.
-  useEffect(() => {
-    if (!pendingDelete) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPendingDelete(null)
+  // O chip do Workspace: o mesmo PickWorkspace das Configurações, que já grava.
+  // Cancelar devolve a configuração como está. A falha cai no card da sidebar,
+  // o único lugar de erro fora de um dialog.
+  const pickWorkspace = async () => {
+    if (!inWails()) return
+    try {
+      setConfig(await GoApp.PickWorkspace())
+    } catch (e) {
+      setSidebarError(parseBridgeError(e))
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [pendingDelete])
+  }
 
   // Identidades estáveis para o modal de configurações. Props inline geravam um
   // `load` novo a cada render do App, o que reexecutava o efeito de foco do modal
@@ -566,35 +565,51 @@ function App() {
   }, [messages, contextWindow])
 
   return (
-    <div
-      className={`app ${sidebarCollapsed ? 'app--sidebar-collapsed' : ''} ${
-        logsOpen ? 'app--logs-open' : ''
-      }`}
-    >
-      <div className="app__bg" aria-hidden="true">
-        <span className="app__glow app__glow--a" />
-        <span className="app__glow app__glow--b" />
-        <span className="app__glow app__glow--c" />
-      </div>
-
-      <Sidebar
-        open={sidebarOpen}
-        collapsed={sidebarCollapsed}
-        conversations={conversations}
-        activeId={activeId}
-        busy={isWorking}
-        error={sidebarError}
-        onClose={() => setSidebarOpen(false)}
-        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-        onNewChat={newChat}
-        onOpenSettings={() => setSettingsOpen(true)}
+    <div className={shell}>
+      <Titlebar
+        sidebarExpanded={sidebarExpanded}
+        onToggleSidebar={() => setSidebarExpanded((v) => !v)}
         onOpenLogs={() => setLogsOpen((v) => !v)}
-        onOpen={openConversation}
-        onRename={renameConversation}
-        onDelete={setPendingDelete}
-        onReload={loadConversations}
-        onDismissError={() => setSidebarError(null)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        workspace={config?.workspace ?? ''}
+        onPickWorkspace={pickWorkspace}
+        active={active ? { provider: active.provider.name, model: active.model.name } : null}
+        connection={connection}
+        onReconnect={reconnectNow}
       />
+
+      <div className={columns}>
+        <Sidebar
+          expanded={sidebarExpanded}
+          conversations={conversations}
+          activeId={activeId}
+          busy={isWorking}
+          error={sidebarError}
+          onNewChat={newChat}
+          onOpen={openConversation}
+          onRename={renameConversation}
+          onDelete={deleteConversation}
+          onReload={loadConversations}
+          onDismissError={() => setSidebarError(null)}
+        />
+
+        {/* O conteúdo da coluna do meio ainda é o legado (ChatArea, InputDock). */}
+        <main className="main">
+          <ChatArea messages={messages} onSuggestion={(t) => send(t)} onNewChat={newChat} isWorking={isWorking} />
+          <InputDock
+            onSend={send}
+            isWorking={isWorking}
+            usageSummary={usageSummary}
+            configReady={configReady !== false}
+            onBlocked={() => setBlocked(sendBlock)}
+          />
+        </main>
+
+        {/* A gaveta fica montada para animar a largura ao abrir e ao fechar; fechada, é inerte. */}
+        <div className={logsColumn({ isOpen: logsOpen })} inert={!logsOpen}>
+          <LogDrawer open={logsOpen} onClose={() => setLogsOpen(false)} />
+        </div>
+      </div>
 
       <SettingsModal
         open={settingsOpen}
@@ -643,104 +658,38 @@ function App() {
         </div>
       )}
 
-      {/* Confirmação de apagar conversa: mesmo visual do alerta de configuração. */}
-      {pendingDelete && (
-        <div className="alert-scrim" role="presentation" onMouseDown={() => setPendingDelete(null)}>
-          <div
-            className="alert"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Apagar conversa"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <h3 className="alert__title">Apagar conversa</h3>
-            <p className="alert__text">
-              Apagar <strong>{pendingDelete.title}</strong> e o transcript dela do disco? Não dá
-              para desfazer.
-            </p>
-            <div className="alert__actions">
-              <button className="btn-ghost" autoFocus onClick={() => setPendingDelete(null)}>
-                Cancelar
-              </button>
-              <button className="btn-danger" onClick={confirmDelete}>
-                Apagar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <main className="main">
-        <header className="topbar" style={{ "--wails-draggable": "drag" } as any}>
-          <button className="icon-btn topbar__menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu" style={{ '--wails-draggable': 'no-drag' } as any}>
-            <svg width="18" height="18" viewBox="0 0 256 256" fill="none" aria-hidden="true">
-              <path d="M40 64h176M40 128h176M40 192h176" stroke="currentColor" strokeWidth="20" strokeLinecap="round" />
-            </svg>
-          </button>
-          {chatTitle && (
-            <div className="topbar__title">
-              <span className="topbar__dot" aria-hidden="true" />
-              <span className="topbar__title-text">{chatTitle}</span>
-            </div>
-          )}
-          <div className="topbar__spacer" />
-          {/* O Workspace ativo, fora de Configurações: o texto do modelo é
-              onde o usuário descobre que a escrita foi recusada, e a tela é
-              onde ele resolve (ticket 05, §3). Clicar abre a tela que grava. */}
-          <button
-            className="model-pill model-pill--action"
-            style={{ '--wails-draggable': 'no-drag' } as any}
-            onClick={() => setSettingsOpen(true)}
-            title={config?.workspace || 'Nenhuma pasta escolhida — o agente não grava arquivos.'}
-          >
-            <span className="model-pill__provider">Workspace</span>
-            <span className="model-pill__sep" aria-hidden="true">·</span>
-            <span className="model-pill__model">{config?.workspace || 'nenhum'}</span>
-          </button>
-          <span className="model-pill" style={{ '--wails-draggable': 'no-drag' } as any}>
-            {active ? (
-              <>
-                <span className="model-pill__provider">{active.provider.name}</span>
-                <span className="model-pill__sep" aria-hidden="true">·</span>
-                <span className="model-pill__model">{active.model.name}</span>
-                {/* O estado da conexão fica onde o modelo já está: é dele que
-                    se está falando, e é aqui que o usuário olha para saber se
-                    pode conversar. */}
-                {connection?.state === 'connecting' && (
-                  <span className="model-pill__state">carregando modelo…</span>
-                )}
-                {connection?.state === 'failed' && (
-                  <button
-                    className="model-pill__state model-pill__state--failed"
-                    onClick={reconnectNow}
-                    title={connection.cause}
-                  >
-                    sem conexão · Reconectar
-                  </button>
-                )}
-              </>
-            ) : (
-              'Nenhum modelo configurado'
-            )}
-          </span>
-          <WindowControls />
-        </header>
-
-        <ChatArea messages={messages} onSuggestion={(t) => send(t)} onNewChat={newChat} isWorking={isWorking} />
-        <InputDock
-          onSend={send}
-          isWorking={isWorking}
-          usageSummary={usageSummary}
-          configReady={configReady !== false}
-          onBlocked={() => setBlocked(sendBlock)}
-        />
-      </main>
-
-      <LogDrawer open={logsOpen} onClose={() => setLogsOpen(false)} />
       {/* Só as cópias e as falhas delas disparam toast (docs/FRONTEND.md, Início, barra de status e toast). */}
       <ToastContainer placement="bottom end" />
     </div>
   )
 }
+
+// A grade do shell (docs/FRONTEND.md, Shell e janela): a titlebar em cima e as
+// três colunas embaixo. A linha da barra de status entra com as Abas.
+const shell = style({
+  display: 'grid',
+  gridTemplateRows: [48, 'minmax(0, 1fr)'],
+  height: 'screen',
+  overflow: 'hidden',
+})
+
+const columns = style({
+  display: 'grid',
+  gridTemplateColumns: ['auto', 'minmax(0, 1fr)', 'auto'],
+  minHeight: 0,
+})
+
+// 360 px, que caem para 300 px abaixo de 1080 px; anima como o SideNavPanel. A
+// gaveta lê a mesma `--logs-w`, para não refluir enquanto a coluna anima.
+const logsColumn = style({
+  '--logs-w': { type: 'width', value: { default: 360, '@media (max-width: 1079px)': 300 } },
+  width: { default: 0, isOpen: '[var(--logs-w)]' },
+  transition: '[width]',
+  transitionDuration: 300,
+  transitionTimingFunction: 'default',
+  overflow: 'hidden',
+  display: 'grid',
+  minHeight: 0,
+})
 
 export default App
