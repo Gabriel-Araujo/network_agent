@@ -615,6 +615,7 @@ function App() {
           onSelectionChange={(k) => setTabState((s) => ({ ...s, focused: String(k) }))}
         >
           <TabBar
+            selected={focused}
             tabs={tabState.tabs.map((t) => ({ id: t.id, title: titleOf(t.id), busy: t.id === turnConvId }))}
             onClose={(id) => setTabState((s) => closeTab(s, id))}
           />

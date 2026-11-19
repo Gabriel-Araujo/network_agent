@@ -99,7 +99,7 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell e as Abas (Titlebar, Sidebar, TabBar, StatusBar, botões da
-  janela) e só o pt-BR, o JS tem 1.536 KB (gzip 505 KB) e o chunk `s2-styles` 59 KB (gzip 10 KB).
+  janela) e só o pt-BR, o JS tem 1.535 KB (gzip 505 KB) e o chunk `s2-styles` 59 KB (gzip 10 KB).
   Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB (gzip 7,3 KB); sem o
   filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB. Medição anterior em
   [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
@@ -207,7 +207,10 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
 
 Uma **Aba** é a **Início** ou uma **Conversa** aberta (ver `CONTEXT.md`). A barra mora em
 `components/TabBar.tsx`, dentro do `Tabs` do `App.tsx`, que é dono da seleção e dos painéis. A
-barra tem 46 px e o indicador de 2 px desliza entre as abas (ver **Movimento**).
+barra tem 46 px e o indicador de 2 px desliza entre as abas (ver **Movimento**). Ele é um `span`
+só, posicionado pela aba selecionada (`data-tab`) e não pelo `SelectionIndicator` do RAC: ele não
+acompanhava uma aba criada e selecionada no mesmo commit, porque a aba só entra no DOM da coleção
+depois do render. Um `MutationObserver` no `TabList` reposiciona o indicador quando ela entra.
 
 - **Início:** é sempre a primeira aba e não tem "x". O primeiro envio por ela cria a Conversa e a
   abre numa aba nova, focada. A Início volta vazia. **Nova conversa**, na sidebar e na faixa
@@ -318,7 +321,7 @@ O da Adobe. Os controles S2 animam com as próprias transições. A superfície 
 componente S2 mais próximo, com os tokens de transição do macro (`transition`, easings `in`, `out`,
 `default`):
 
-- o indicador da aba desliza como o do S2 `Tabs` (`translate`/`width`, 0,2 s);
+- o indicador da aba desliza com `translate`/`width` (0,2 s), como o do S2 `Tabs`;
 - a troca de aba não anima o conteúdo, porque o `TabPanel` do S2 não anima;
 - a gaveta de Logs anima a largura como o `SideNavPanel` (0,3 s);
 - o clique em sugestão, item da lista e aba comprime como os botões S2.

@@ -407,6 +407,11 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   propagação) e fora da ordem de Tab.
   Fontes: `@react-spectrum/s2/src/Tabs.tsx` e
   `react-aria-components/dist/private/SelectionIndicator.js` (1.22.1).
+  **Medido no app (2026-11-19):** o `SelectionIndicator` ficou na aba anterior quando uma aba foi
+  criada e selecionada no mesmo commit; a aba nova só entra no DOM da coleção depois do render, e o
+  `SharedElementTransition` não recebe o novo elemento a tempo. O `TabBar` usa um `span` único,
+  posicionado pela aba selecionada (`data-tab`) e reposicionado por um `MutationObserver` no
+  `TabList` quando a aba entra.
 - **O macro aceita `gridArea` no tipo, mas não emite a regra** (a classe sai vazia; dois painéis
   num grid auto-posicionado ganham uma linha cada). O que funciona para empilhar na mesma caixa é
   `position: 'relative'` no pai e `position: 'absolute'` + `inset: 0` no filho; os dois compilam.
