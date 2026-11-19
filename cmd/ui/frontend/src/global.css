@@ -1,0 +1,43 @@
+/* O único CSS global do app (docs/FRONTEND.md, Componentes → Fonte e Movimento). */
+
+/* Ordem das camadas: o legado abaixo da `_` do S2, e o movimento reduzido acima dela. */
+@layer legacy, _, reduced-motion;
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./assets/fonts/source-sans-3-latin-wght-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('./assets/fonts/source-sans-3-latin-wght-italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('./assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
+
+/* A família dos controles S2 e das superfícies com `fontFamily: 'sans'` (variável não documentada). */
+:root {
+  --s2-font-family-sans: 'Source Sans 3';
+}
+
+/* Acima da `_`, então vence o S2 sem `!important`; cobre Modal, Popover, Menu e Tooltip. */
+@layer reduced-motion {
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition: none;
+      animation: none;
+    }
+  }
+}
