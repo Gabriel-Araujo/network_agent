@@ -398,6 +398,19 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   numa cópia fora do DOM; `autoFocus` foca. Com `keyboardNavigationBehavior="tab"` as setas não são
   capturadas pela linha, e um `stopPropagation` no `onKeyDown` e no `onPointerDown` do input tira as
   teclas (setas, espaço, typeahead) e o clique da grade.
+- **RAC `Tabs` com os painéis montados (react-aria-components 1.22.1, medido no app):** `TabPanel`
+  aceita `shouldForceMount`; o painel fora de foco recebe `inert`, e o `className` recebe `isInert`.
+  O slide do indicador do S2 não é uma classe por aba: o `Tab` põe um `SelectionIndicator` (um
+  `SharedElementTransition` chamado `SelectionIndicator`) dentro de cada aba, animando
+  `translate`/`width`/`height` em 0,2 s com easing `out`. O `Tab` segue sem prop de fechar; o "x"
+  do app fica dentro da aba, mas fora do `usePress` dela (o `pointerdown`/`click` param a
+  propagação) e fora da ordem de Tab.
+  Fontes: `@react-spectrum/s2/src/Tabs.tsx` e
+  `react-aria-components/dist/private/SelectionIndicator.js` (1.22.1).
+- **O macro aceita `gridArea` no tipo, mas não emite a regra** (a classe sai vazia; dois painéis
+  num grid auto-posicionado ganham uma linha cada). O que funciona para empilhar na mesma caixa é
+  `position: 'relative'` no pai e `position: 'absolute'` + `inset: 0` no filho; os dois compilam.
+  Fonte: medido no app, 2026-11-19 (`npm run build`, CSS gerado).
 
 ### 6. Fonte
 

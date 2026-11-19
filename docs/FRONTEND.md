@@ -98,10 +98,10 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     `errorText(e)` tira dele o texto.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
-- **Bundle (Vite 8):** com o Shell (Titlebar, Sidebar, botões da janela) e só o pt-BR, o JS tem
-  1.521 KB (gzip 501 KB) e o chunk `s2-styles` 58 KB (gzip 10 KB). Só com `Provider` +
-  `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB (gzip 7,3 KB); sem o filtro de locales,
-  1.427 KB (gzip 469 KB). As três fontes somam 98 KB. Medição anterior em
+- **Bundle (Vite 8):** com o Shell e as Abas (Titlebar, Sidebar, TabBar, StatusBar, botões da
+  janela) e só o pt-BR, o JS tem 1.536 KB (gzip 505 KB) e o chunk `s2-styles` 59 KB (gzip 10 KB).
+  Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB (gzip 7,3 KB); sem o
+  filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB. Medição anterior em
   [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
 
 ## Tema
@@ -137,11 +137,12 @@ A janela é o app: o shell não desenha a moldura do protótipo (padding, gradie
 não há brilhos de fundo. Canto arredondado e sombra ficam com o Windows 11, que os dá à janela
 frameless. As opções de janela ficam no `cmd/ui/main.go`.
 
-- **Grade** (`App.tsx`, macro `style`): a titlebar (48 px) em cima, na largura toda, e embaixo três
-  colunas: sidebar ou faixa, conteúdo e gaveta de Logs. O conteúdo ainda é o legado (`ChatArea` +
-  `InputDock` dentro do `.main`), pintado pelo vidro escuro do `App.css` nos dois temas; a titlebar
-  e a sidebar já seguem o tema. _Decidido, a implementar:_ a barra de abas no topo do conteúdo e a
-  barra de status embaixo, na largura toda (corte das Abas).
+- **Grade** (`App.tsx`, macro `style`): a titlebar (48 px) em cima, na largura toda, as três colunas
+  no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
+  toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
+  O conteúdo das abas ainda é o legado (`ChatArea` + `InputDock`), pintado pelo vidro escuro do
+  `App.css` nos dois temas; a titlebar, a sidebar, a barra de abas e a barra de status já seguem o
+  tema.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
   Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
   janela. A janela liga o
@@ -204,8 +205,9 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
 
 ## Abas e Conversas
 
-_Decidido, a implementar._ Uma **Aba** é a **Início** ou uma **Conversa** aberta (ver `CONTEXT.md`).
-A barra mora em `components/TabBar.tsx`.
+Uma **Aba** é a **Início** ou uma **Conversa** aberta (ver `CONTEXT.md`). A barra mora em
+`components/TabBar.tsx`, dentro do `Tabs` do `App.tsx`, que é dono da seleção e dos painéis. A
+barra tem 46 px e o indicador de 2 px desliza entre as abas (ver **Movimento**).
 
 - **Início:** é sempre a primeira aba e não tem "x". O primeiro envio por ela cria a Conversa e a
   abre numa aba nova, focada. A Início volta vazia. **Nova conversa**, na sidebar e na faixa
@@ -215,12 +217,15 @@ A barra mora em `components/TabBar.tsx`.
   da Conversa e acompanha quando ela é renomeada. A Conversa da aba focada fica destacada na
   sidebar.
 - **Sem limite de abas:** a barra rola na horizontal quando elas não cabem.
-- **Fechar:** pelo "x" ou por `Ctrl+W`, que fecha a aba focada e não faz nada na Início. O foco vai
-  para a vizinha da direita, ou para a da esquerda se não houver uma à direita. A Início é o piso.
-  Fechar uma aba não apaga a Conversa. Apagar uma Conversa fecha a aba dela, com a mesma regra de
-  foco. Alternar abas pelo teclado usa as setas do `TabList`.
+- **Fechar:** pelo "x" ou por `Ctrl+W`, que fecha a aba focada e não faz nada na Início. O "x" é um
+  `span` dentro da aba, `aria-hidden` e fora da ordem de Tab; pelo teclado, quem fecha é o `Ctrl+W`.
+  O foco vai para a vizinha da direita, ou para a da esquerda se não houver uma à direita. A Início
+  é o piso. Fechar uma aba não apaga a Conversa. Apagar uma Conversa fecha a aba dela, com a mesma
+  regra de foco. Alternar abas pelo teclado usa as setas do `TabList`.
 - **Estado da aba:** enquanto a aba está aberta, ela guarda o rascunho do composer e a posição de
-  rolagem. Fechar a aba descarta os dois.
+  rolagem. Fechar a aba descarta os dois. Todos os painéis ficam montados (`shouldForceMount`) e se
+  sobrepõem na mesma caixa; o de fora de foco é `inert` e fica `visibility: hidden`, que, ao
+  contrário de `display: none`, guarda a rolagem.
 - **Um turno por vez no app inteiro** (o `busyMux` do Go). A aba da Conversa que está no turno
   mostra o `dot` só enquanto o turno roda. Nas outras abas e na Início, dá para digitar, mas o envio
   fica bloqueado, com a linha "Newton está respondendo em _‹título›_". O resultado do turno, a falha
@@ -252,7 +257,7 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Nova conversa | S2 `Button variant="accent"` | **pronto** | `Sidebar.tsx` |
 | Lista de Conversas | própria em RAC `GridList` + `GridListSection` (grupos por data); ações em S2 `ActionButton isQuiet`; renomear inline | **pronto** | `Sidebar.tsx` |
 | Card de erro da sidebar | S2 `InlineAlert variant="negative"` + `ActionButton` (Tentar de novo, Dispensar) | **pronto** | `Sidebar.tsx` |
-| Abas | própria em RAC `Tabs`/`TabList`/`Tab`: o "x" dentro da aba, fora da ordem de Tab, e fechar também por teclado; rola na horizontal quando não cabe | — | `components/TabBar.tsx` |
+| Abas | própria em RAC `Tabs`/`TabList`/`Tab`: o "x" dentro da aba, fora da ordem de Tab, e fechar também por teclado; rola na horizontal quando não cabe | **pronto** | `components/TabBar.tsx` |
 | Início: título e subtítulo | própria | estado vazio do `ChatArea.tsx` | `components/Home.tsx` |
 | Sugestões | própria, cartão em RAC `Button` | chips do `ChatArea.tsx` | `Home.tsx` |
 | Composer (Início e Conversa) | própria: RAC `TextArea` + botão de enviar próprio | `InputDock.tsx` | `InputDock.tsx` |
@@ -270,7 +275,7 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Trilho de Perguntas | própria | `QuestionNav.tsx` | `QuestionNav.tsx` |
 | Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | o `ToastContainer` já está no `App.tsx`, sem nada que o dispare | `App.tsx` |
 | Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | `LogDrawer.tsx` | `LogDrawer.tsx` |
-| Barra de status | própria | rodapé do `InputDock.tsx` | `components/StatusBar.tsx` |
+| Barra de status | própria | **pronto** | `components/StatusBar.tsx` |
 | Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
 | Configurações: navegação | S2 `Tabs orientation="vertical"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
 | Campos (Workspace, provedor) | S2 `TextField` (`type="password"` na chave) + `Button` | `SettingsModal.tsx` | `SettingsModal.tsx` |
@@ -292,8 +297,8 @@ do `@react-spectrum/s2-icon-builder` 1.1.2, rodado fora do projeto, sem virar de
 `npx transform-icons -i <svg> -o <pasta>` (o cabeçalho do arquivo diz de onde veio). Ícone de ação
 do tool call sem equivalente no S2 segue o mesmo caminho.
 
-_Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar e
-os botões da janela já não o usam; as outras telas ainda usam.
+_Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar,
+as Abas, a barra de status e os botões da janela já não o usam; as outras telas ainda usam.
 
 ### Fonte
 
@@ -333,12 +338,10 @@ medido).
 
 ## Início, barra de status e toast
 
-_Decidido, a implementar._
-
-**Início** (`components/Home.tsx`): o título "O que vamos fazer hoje?", o subtítulo "Descreva a
-tarefa. O Newton monta, ajusta, desenha ou explica configurações FRR.", o composer e quatro
-sugestões. As sugestões são uma lista fixa no próprio `Home.tsx`, uma por capacidade do Newton,
-nesta ordem:
+**Início** (_Decidido, a implementar_, `components/Home.tsx`): o título "O que vamos fazer hoje?",
+o subtítulo "Descreva a tarefa. O Newton monta, ajusta, desenha ou explica configurações FRR.", o
+composer e quatro sugestões. As sugestões são uma lista fixa no próprio `Home.tsx`, uma por
+capacidade do Newton, nesta ordem:
 
 1. "Montar um eBGP entre o AS 65001 e o AS 65002"
 2. "Adicionar BFD ao BGP do frr.conf"
@@ -348,22 +351,25 @@ nesta ordem:
 Clicar numa sugestão põe o texto dela no composer da Início, no lugar do rascunho, e foca o campo
 com o cursor no fim. Ela não envia, porque um envio do Builder pode substituir o `frr.conf` do
 Workspace. As sugestões nunca ficam desabilitadas. Quando o envio está bloqueado (turno em outra
-aba, nenhum provedor), quem avisa é o composer. A Início não tem "Limpar conversa".
+aba, nenhum provedor), quem avisa é o composer. A Início não tem "Limpar conversa". Enquanto este
+corte não entra, a Início mostra o estado vazio legado do `ChatArea`.
 
 **Barra de status** (`components/StatusBar.tsx`): uma linha de 30 px no pé da janela, na largura
 toda, que mostra a Aba focada, não a do turno em voo.
 
 - **À esquerda:** a hora da última resposta do Newton na Conversa, no formato da meta da mensagem e
   com o tooltip "Último turno". Antes da primeira resposta, ela não aparece.
-- **À direita:** os itens que hoje estão no rodapé do `InputDock.tsx`: tokens de entrada, de saída,
-  o total e o contexto utilizado/janela com a origem (`contextOrigin`). Sem janela sondada nem
-  medida, o item de contexto não aparece.
+- **À direita:** os itens que estavam no rodapé do `InputDock.tsx`: tokens de entrada, de saída, o
+  total e o contexto utilizado/janela com a origem (`contextOrigin`). Os totais somam o `usage` das
+  mensagens da Conversa; a janela vem da sondagem do modelo ativo, quando existe, senão da última
+  medida no disco. Sem janela sondada nem medida, o item de contexto não aparece.
 - **Durante um turno:** o horário e os totais continuam os do turno anterior até ele terminar.
 - **Na Início:** a mesma barra, com os totais zerados, o contexto em 0 sobre a janela do modelo
   ativo e sem horário.
 
-**Toast**: o `ToastQueue` do S2, no `ToastContainer` do `App.tsx`. Ele só confirma uma ação que não
-deixa rastro visível ou avisa que ela falhou:
+**Toast** (_Decidido, a implementar_): o `ToastQueue` do S2, no `ToastContainer` do `App.tsx`. Hoje
+o container está montado e nada o dispara. Ele só confirma uma ação que não deixa rastro visível ou
+avisa que ela falhou:
 
 | Ação | Variante | Frase |
 |---|---|---|

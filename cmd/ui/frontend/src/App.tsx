@@ -708,12 +708,15 @@ const content = style({ display: 'flex', flexDirection: 'column', minWidth: 0, m
 
 // Os painéis empilham na mesma célula. O de aba fora de foco é `inert` (RAC) e
 // some com `visibility`, que, ao contrário de `display: none`, guarda a rolagem.
+// O macro não emite `gridArea`; `position: absolute` + `inset: 0` põe todos os
+// painéis na mesma caixa e deixa o painel com a altura da coluna.
 // ponytail: toda aba aberta fica montada e com layout; virtualizar se muitas
 // abas pesarem.
-const panels = style({ display: 'grid', flexGrow: 1, minHeight: 0 })
+const panels = style({ position: 'relative', flexGrow: 1, minHeight: 0 })
 
 const tabPanel = style({
-  gridArea: '1 / 1',
+  position: 'absolute',
+  inset: 0,
   display: 'grid',
   gridTemplateRows: ['minmax(0, 1fr)', 'auto'],
   minWidth: 0,
