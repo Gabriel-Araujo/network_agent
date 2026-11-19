@@ -1,19 +1,22 @@
-# README
+# UI desktop (Wails v3)
 
-## About
+O app desktop do network_agent, em Wails v3.1.0. O frontend é descrito em
+[`docs/FRONTEND.md`](../../docs/FRONTEND.md), e os fatos do Wails ficam em
+[`docs/WAILS_V3.md`](../../docs/WAILS_V3.md).
 
-This is the official Wails React-TS template.
+## Dev
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+```sh
+cd cmd/ui/frontend && npm run dev -- --port 9245 --strictPort
+# em outro terminal, na raiz do repo:
+FRONTEND_DEVSERVER_URL=http://localhost:9245 go run ./cmd/ui
+```
 
-## Live Development
+Com `NETWORK_AGENT_CDP_PORT=9333`, a janela abre a porta de CDP.
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+## Build
 
-## Building
-
-To build a redistributable, production mode package, use `wails build`.
+```sh
+cd cmd/ui/frontend && npm run build
+go build -tags production -ldflags="-H windowsgui" ./cmd/ui
+```

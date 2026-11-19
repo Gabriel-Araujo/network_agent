@@ -1,7 +1,7 @@
 # Wails v3 no app
 
 Fatos sobre o Wails v3 que pesam na migração de `cmd/ui` (Go + WebView2 no Windows, frontend React 19
-+ Vite 7). Coletado em 2026-11-19, cada fato com a fonte. Só fatos. O que o app **decidiu e
++ Vite 8). Coletado em 2026-11-19, cada fato com a fonte. Só fatos. O que o app **decidiu e
 implementou** fica em [`FRONTEND.md`](FRONTEND.md). A única escolha registrada aqui é a versão
 fixada, e ela é do usuário.
 
@@ -36,10 +36,12 @@ fixada, e ela é do usuário.
    existir em modo opcional (`WebView2CompositionHosting` + `--wails-non-client-region`). O estado
    de maximizada tem evento.
 4. **Frontend:** o dev usa a porta 9245, a janela carrega `http://wails.localhost:9245` e o asset
-   server repassa ao Vite. O `optimizeDeps.exclude` continua. O build de dev roda
-   `npm run build:dev`, que o app não tem, e um `go mod tidy`. O CSP continua valendo. CDP:
-   `Windows.AdditionalBrowserArgs` com `--remote-debugging-port` abre a porta na própria janela. O
-   `localhost:34115` do v2 não existe mais.
+   server repassa ao Vite. O template e o `@wailsio/runtime` já são do Vite 8, como o app. O
+   `optimizeDeps.exclude` continua. O build de dev roda `npm run build:dev`, que o app não tem, e um
+   `go mod tidy`. O CSP continua valendo. CDP: `Windows.AdditionalBrowserArgs` com
+   `--remote-debugging-port` abre a porta na própria janela. O `localhost:34115` do v2 não existe
+   mais. O download do diagrama fica com a interface do WebView2: o v3 não intercepta o
+   `DownloadStarting`.
 5. **Risco:** em 2026-11-19 não há issue aberta sobre frameless, arrasto, janela escondida ou
    bindings no Windows. Tocam o app: #6219 (primeira pintura 1–2 s atrasada no Windows), #6592
    (fatal no arranque se um monitor falha, 3.1.0), #6368 (`OnShutdown` não roda ao fechar a última
@@ -51,11 +53,13 @@ fixada, e ela é do usuário.
 commit `4b454e4`) e v3.0.0 (2026-10-26, commit `7b11001`). Não há 3.1.x. Depois da 3.1.0 só saíram
 `v3.2.0-nightly.20261101` a `…20261103`. No npm, `@wailsio/runtime` **3.1.0** (`latest`,
 2026-11-01) e 3.0.0 (2026-10-26). O tag `nightly` está em `3.2.0-nightly.20261103`. O app está em
-`github.com/wailsapp/wails/v2 v2.15.0` e `go 1.27.1` (`go.mod:3,9`). O toolchain local é o go1.27.1,
-e o Vite instalado é o 7.3.6.
+`github.com/wailsapp/wails/v2 v2.15.0` e `go 1.27.1` (`go.mod:3,9`). O toolchain local é o go1.27.1.
+O frontend está no Vite **8.3.8** (`package.json` `^8.3.8`, instalado; ticket _Base do S2 no Vite 8_,
+commit `a2d5f53`), que é o `latest` do npm (2026-11-11).
 Fontes: <https://proxy.golang.org/github.com/wailsapp/wails/v3/@v/v3.1.0.info>,
 <https://proxy.golang.org/github.com/wailsapp/wails/v3/@v/v3.0.0.info>, `go list -m -versions
-github.com/wailsapp/wails/v3`, <https://registry.npmjs.org/@wailsio/runtime>.
+github.com/wailsapp/wails/v3`, <https://registry.npmjs.org/@wailsio/runtime>,
+<https://registry.npmjs.org/vite>.
 
 **Método.** Os módulos v3.0.0 e v3.1.0 foram baixados com `go mod download` fora do repo. O
 `go.mod` do app não mudou. Os caminhos de código abaixo são relativos a
@@ -63,7 +67,7 @@ github.com/wailsapp/wails/v3`, <https://registry.npmjs.org/@wailsio/runtime>.
 do repo. O site `wails.io` (o domínio atual do v3, conforme o `llms.txt` dele) e o `v3.wails.io`
 respondem 403 a cliente sem navegador. Por isso as páginas da documentação foram lidas do fonte
 Markdown do site no repo, no tag v3.1.0 (`docs/mpress/content/`), e são citadas pelo URL desse
-fonte. As issues vieram da API de busca do GitHub em 2026-11-19. **Nada foi executado:** a `wails3`
+fonte. As issues vieram da API de busca do GitHub em 2026-11-19. **Na pesquisa, nada foi executado** (o que foi medido depois está no §6): a `wails3`
 não está instalada (só a `wails` v2 em `~/go/bin`), e nenhum binário v3 foi construído.
 
 ---
@@ -190,25 +194,29 @@ navegador do `wails dev` ([§4](#4-frontend)).
   Fonte: `Taskfile.tmpl.yml:4-11,180`.
 - **De onde a janela carrega.** No Windows, a origem é `http://wails.localhost`. No dev, ela ganha a
   porta do Vite (`http://wails.localhost:9245/`). O asset server responde `/wails/runtime*` e repassa
-  o resto ao `FRONTEND_DEVSERVER_URL`, inclusive o WebSocket do HMR. O Vite 7 aceita `*.localhost`
+  o resto ao `FRONTEND_DEVSERVER_URL`, inclusive o WebSocket do HMR. O Vite 8.3.8 aceita `*.localhost`
   por padrão ("`localhost` and domains under `.localhost` and all IP addresses are allowed by
   default").
   Fontes: `internal/assetserver/assetserver_windows.go:5-8`, `internal/assetserver/assetserver.go:167-193`,
   [asset server](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/contributing/asset-server.md#L43-L84),
-  <https://github.com/vitejs/vite/blob/v7.3.6/docs/config/server-options.md> (`server.allowedHosts`).
+  <https://github.com/vitejs/vite/blob/v8.3.8/docs/config/server-options.md> (`server.allowedHosts`).
 - **O `vite.config` do template** fixa `server.host: "127.0.0.1"`, a porta de `WAILS_VITE_PORT` e
   `strictPort`, e põe o plugin `wails("./bindings")`. O `vite.config.ts` do app não tem bloco
-  `server` (o padrão do Vite 7 é `host: 'localhost'`).
+  `server` (o padrão do Vite 8.3.8 é `host: 'localhost'`). A CLI do Vite 8 aceita o `--port` e o
+  `--strictPort` que o Taskfile passa.
   Fontes: `internal/templates/react/frontend/vite.config.ts:6-12`,
-  <https://github.com/vitejs/vite/blob/v7.3.6/docs/config/server-options.md> (`server.host`).
+  <https://github.com/vitejs/vite/blob/v8.3.8/docs/config/server-options.md> (`server.host`),
+  <https://github.com/vitejs/vite/blob/v8.3.8/docs/guide/cli.md> (`--port`, `--strictPort`).
 - **`optimizeDeps.exclude` do macro do S2:** é configuração do Vite, e o Wails não toca no
-  `vite.config`. A CLI só passa `--port` e `--strictPort`. Então continua.
-  Fonte: `Taskfile.tmpl.yml:214-216`.
+  `vite.config`. A CLI só passa `--port` e `--strictPort`. Então continua. **Medido no app** (Vite
+  8.3.8, 2026-11-19, ticket _Base do S2 no Vite 8_): sem ele, o scan do Rolldown falha e a página
+  recarrega na primeira carga.
+  Fontes: `Taskfile.tmpl.yml:214-216`, [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md) §2.
 - **Plugin Vite do Wails (`@wailsio/runtime/plugins/vite`):** é opcional e só serve para eventos
   tipados. Com ele, o build falha se as bindings não tiverem sido geradas. Ele usa só
   `buildStart`, `resolveId` e `load`. O `@wailsio/runtime` 3.1.0 não declara `peerDependencies` nem
   `dependencies`. Ele é desenvolvido contra o `vite ^8.2.4`, e o template React usa o
-  `vite ^8.2.4` com React 18.
+  `vite ^8.2.4` com React 18. É o mesmo major do app (8.3.8).
   Fontes: `internal/runtime/desktop/@wailsio/runtime/src/plugins/vite.ts`,
   `internal/runtime/desktop/@wailsio/runtime/package.json`, <https://registry.npmjs.org/@wailsio/runtime>,
   `internal/templates/react/frontend/package.json.tmpl`.
@@ -237,9 +245,17 @@ navegador do `wails dev` ([§4](#4-frontend)).
   [options](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/features/windows/options.md#L1151-L1162),
   `pkg/application/webview_window_windows_devtools.go:1`,
   [MCP](https://github.com/wailsapp/wails/blob/v3.1.0/docs/mpress/content/guides/mcp-service.md#L26-L31).
-- **Download do diagrama:** o v3 no Windows não assina o `DownloadStarting` do WebView2 (busca em
-  `webview_window_windows.go` e `internal/webview2/pkg/edge/chromium.go`: nada). Então o download
-  fica com a interface padrão do WebView2. Isso é inferência do código, não medida.
+- **Download do diagrama (`<a download>` com blob):** o v3.1.0 no Windows **não intercepta**.
+  - A janela não assina o `DownloadStarting` do WebView2, e nada mexe no diálogo de download (busca
+    por `DownloadStarting` e `DownloadDialog` em `pkg/application` e `internal/webview2/pkg/edge`:
+    nada). Os tipos COM existem, mas ninguém os liga.
+  - O `navigationStarting` só limpa as regiões de non-client e não cancela nada.
+  - Então o download fica com a interface padrão do WebView2, como no v2.
+  - Nenhuma issue aberta sobre download no WebView2 do v3 (busca de 2026-11-19).
+
+  Isso é inferência do código, não medida.
+  Fontes: `internal/webview2/pkg/webview2/ICoreWebView2DownloadStartingEventArgs.go`,
+  `pkg/application/webview_window_windows.go:2878-2880`.
 
 ### 5. Risco: issues abertas (busca de 2026-11-19)
 
@@ -262,12 +278,42 @@ Windows.** As que tocam o app:
 
 ---
 
+### 6. Medido no app (v3.1.0, WebView2 157.0.4341.60, Windows 11, 2026-11-19)
+
+Ticket _App no Wails v3_. O dev rodou sem a `wails3`: Vite em `--port 9245 --strictPort` e o binário
+com `FRONTEND_DEVSERVER_URL=http://localhost:9245` (o handler de dev do asset server lê essa
+variável em build sem a tag `production`, `internal/assetserver/build_dev.go:161`).
+
+- **O proxy do dev disca só IPv4.** Com o `vite.config.ts` sem `server.host`, a página não carrega,
+  e o log mostra `[ExternalAssetHandler] Proxy error error=dial tcp4 127.0.0.1:9245: connectex: …
+  recusou`. O Vite no Windows escuta `localhost` em `::1`. Com `server.host: '127.0.0.1'` (o mesmo
+  do template), a página carrega.
+- **`Call.ByName('main.App.<Método>')` funciona** para o pacote `main` de `cmd/ui`: listagem,
+  criação, renomear, apagar, `AskAgent`, `GetConfig`, `PickWorkspace`. Não foi preciso gerar
+  bindings.
+- **O stream chega:** um turno de ~80 palavras deu 82 eventos `agent:token` e um `agent:done` em
+  `Events.On`, com o dado em `e.data`.
+- **Cancelar o seletor de pasta** devolve o erro `"cancelled by user"`. O `PickWorkspace` o trata
+  como cancelar, e a promessa resolve com o Workspace anterior, sem erro. O título do diálogo é o
+  do `SetTitle`.
+- **`Window.Minimise/ToggleMaximise/IsMaximised/IsMinimised` e `Application.Quit`** funcionam pelo
+  `@wailsio/runtime`. O `Quit` encerra o processo com código 0.
+- **`Clipboard.SetText`** grava na área de transferência do Windows.
+- **CDP:** `AdditionalBrowserArgs: ["--remote-debugging-port=9333"]` abre a porta na janela do app.
+  A página aparece em `/json/list` como `http://wails.localhost:9245/`.
+- **`window._wails.environment`** (`{"OS":"windows","Arch":"amd64","Debug":true}`) existe na página
+  do app. O app o usa para saber se a ponte existe, porque o `@wailsio/runtime` cria o
+  `window._wails` sozinho, até no browser puro.
+- **Primeira carga com o `@wailsio/runtime` novo:** o Vite otimiza a dependência e recarrega a
+  página uma vez. Uma chamada feita antes do reload pode falhar. Na carga seguinte não acontece.
+
 ## Não confirmado
 
-Nada aqui foi medido: a `wails3` não está instalada, e nenhum binário v3 foi construído.
+Os itens medidos saíram daqui e estão no §6.
 
-- Onde as bindings do pacote `main` de `cmd/ui` caem. O esperado é
-  `frontend/bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui/`, mas o gerador não rodou.
+- Se o arrasto pela topbar funciona e se o duplo clique não começa um arrasto. Não foi conferido
+  por script, porque pede o mouse real.
+- Se escolher uma pasta no seletor grava o Workspace (o cancelar foi medido).
 - Se `Hidden` + `Show()` no `WebViewNavigationCompleted` abre sem WebView2 em branco, e se o plano B
   do Tema continua necessário. Também não se sabe se o #6219 aparece no bundle do app.
 - O efeito visual do `BackgroundColour` zero (`RGBA{0,0,0,0}`) com a janela escondida.
@@ -277,6 +323,6 @@ Nada aqui foi medido: a `wails3` não está instalada, e nenhum binário v3 foi 
   WebView2 instalado, e se o Snap Layouts aparece no hover.
 - Se `--wails-draggable` (arrasto em JS) e `--wails-non-client-region: maximize` convivem na mesma
   titlebar.
-- O HMR do Vite 7 atrás do proxy em `wails.localhost:9245`, e o plugin Vite do Wails no Vite 7.
+- O HMR do Vite 8 atrás do proxy em `wails.localhost:9245`. O app não usa o plugin Vite do Wails.
+- Se o download do diagrama mostra a interface do WebView2 no v3 (o código diz que sim).
 - Se a Typekit continua barrada pelo CSP no v3 (o mesmo `<meta>`, não medido).
-- Se o `--remote-debugging-port` em `AdditionalBrowserArgs` abre a porta no WebView2 instalado.

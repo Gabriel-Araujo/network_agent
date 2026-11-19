@@ -3,6 +3,7 @@ import { Plus, Trash, X, CaretRight } from '@phosphor-icons/react'
 import '../Settings.css'
 import { AppConfig, EMPTY_PROVIDER, ProviderConfig } from '../types'
 import ModelsSection from './ModelsSection'
+import { errorText, goApp } from '../wails'
 
 interface SettingsModalProps {
   open: boolean
@@ -12,8 +13,6 @@ interface SettingsModalProps {
   /** false = configuração obrigatória pendente: não pode fechar. */
   dismissible?: boolean
 }
-
-const api = () => (window as any).go?.main?.App
 
 export default function SettingsModal({
   open,
@@ -39,7 +38,7 @@ export default function SettingsModal({
   }, [onConfigChanged])
 
   const load = useCallback(async () => {
-    const a = api()
+    const a = goApp()
     if (!a?.GetConfig) return
     try {
       const c: AppConfig = await a.GetConfig()
@@ -50,7 +49,7 @@ export default function SettingsModal({
         setDraft((cur) => cur ?? { ...c.providers[0] })
       }
     } catch (e) {
-      setError(String(e))
+      setError(errorText(e))
     }
   }, [])
 
@@ -117,7 +116,7 @@ export default function SettingsModal({
 
   const saveProvider = async () => {
     if (!draft) return
-    const a = api()
+    const a = goApp()
     if (!a) return setError('Bindings do Go indisponíveis.')
     setSaving(true)
     try {
@@ -132,14 +131,14 @@ export default function SettingsModal({
         setDraft({ ...c.providers[idx] })
       }
     } catch (e) {
-      setError(String(e))
+      setError(errorText(e))
     } finally {
       setSaving(false)
     }
   }
 
   const removeProvider = async (idx: number) => {
-    const a = api()
+    const a = goApp()
     if (!a) return
     try {
       const c: AppConfig = await a.DeleteProvider(idx)
@@ -152,29 +151,29 @@ export default function SettingsModal({
         setDraft(null)
       }
     } catch (e) {
-      setError(String(e))
+      setError(errorText(e))
     }
   }
 
   // O diálogo é nativo e mora no Go; cancelar devolve a configuração como
   // está, então não há caso de "cancelei e perdi a pasta".
   const pickWorkspace = async () => {
-    const a = api()
+    const a = goApp()
     if (!a?.PickWorkspace) return setError('Bindings do Go indisponíveis.')
     try {
       apply(await a.PickWorkspace())
     } catch (e) {
-      setError(String(e))
+      setError(errorText(e))
     }
   }
 
   const useProvider = async (idx: number) => {
-    const a = api()
+    const a = goApp()
     if (!a) return
     try {
       apply(await a.SelectProvider(idx))
     } catch (e) {
-      setError(String(e))
+      setError(errorText(e))
     }
   }
 

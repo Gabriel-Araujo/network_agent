@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Application, Window, goApp } from '../wails'
 
 // Controles de janela para o modo frameless.
 //
@@ -8,8 +9,6 @@ import { useEffect, useState } from 'react'
 // glifo de "restaurar" quando a janela está maximizada, como o usuário espera.
 // A coloração vem dos tokens do tema; só o hover de fechar usa o vermelho
 // padrão do Windows.
-
-const rt = () => (window as any).runtime
 
 // Segoe MDL2 Assets: E921 minimizar, E922 maximizar, E923 restaurar, E8BB fechar
 const GLYPH = {
@@ -25,13 +24,12 @@ export default function WindowControls() {
   // Mantém o glifo em sincronia com o estado real da janela (o usuário pode
   // maximizar por duplo clique na barra, snap do Windows ou Win+setas).
   useEffect(() => {
-    const r = rt()
-    if (!r?.WindowIsMaximised) return
+    if (!goApp()) return
 
     let alive = true
     const sync = async () => {
       try {
-        const m = await r.WindowIsMaximised()
+        const m = await Window.IsMaximised()
         if (alive) setMaximised(m)
       } catch {
         /* runtime indisponível (browser puro) */
@@ -45,9 +43,9 @@ export default function WindowControls() {
     }
   }, [])
 
-  const minimise = () => rt()?.WindowMinimise?.()
-  const toggleMax = () => rt()?.WindowToggleMaximise?.()
-  const close = () => rt()?.Quit?.()
+  const minimise = () => Window.Minimise()
+  const toggleMax = () => Window.ToggleMaximise()
+  const close = () => Application.Quit()
 
   return (
     <div className="wincontrols">

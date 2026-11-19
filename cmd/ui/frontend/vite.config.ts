@@ -9,6 +9,9 @@ export default defineConfig({
   // O `./style` do S2 só exporta a condição `node` (roda no build, via macro); sem isto o
   // scan de dependências do `vite dev` falha ao resolvê-lo e recarrega a página na 1ª vez.
   optimizeDeps: {exclude: ['@react-spectrum/s2/style']},
+  // O proxy do Wails v3 disca o dev server só em IPv4 (`tcp4 127.0.0.1`), e no Windows o `localhost`
+  // padrão do Vite escuta em `::1`: sem isto a janela do dev fica sem página.
+  server: {host: '127.0.0.1'},
   build: {
     target: ['es2022'],
     cssMinify: 'lightningcss',

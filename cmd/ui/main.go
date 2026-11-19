@@ -2,14 +2,12 @@ package main
 
 import (
 	"embed"
+	"os"
 	"path/filepath"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 //go:embed all:frontend/dist
@@ -40,35 +38,41 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
-	// Create application with options
-	err := wails.Run(&options.App{
+	wails := application.New(application.Options{
+		Name:     "net_agent",
+		Services: []application.Service{application.NewService(app)},
+		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Windows:  application.WindowsOptions{AdditionalBrowserArgs: debugArgs()},
+	})
+
+	wails.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  "net_agent",
 		Width:  1024,
 		Height: 768,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
-		},
 		// Frameless: remove a barra de título branca do Windows. A barra é
 		// redesenhada no frontend (topbar), com a cor do tema e os controles
-		// de minimizar/maximizar/fechar próprios.
+		// de minimizar/maximizar/fechar próprios. O arrasto é por CSS
+		// (--wails-draggable), e o menu de sistema (Alt+Space, snap com
+		// Win+setas) continua.
 		Frameless: true,
 		// Mesma cor de fundo do tema (--bg-base: #0a0f1c), para não haver
 		// flash branco entre a criação da janela e o carregamento do webview.
-		BackgroundColour: &options.RGBA{R: 0x0a, G: 0x0f, B: 0x1c, A: 1},
-		OnStartup:        app.startup,
-		Windows: &windows.Options{
-			// Mantém o arrasto por área definida via CSS (--wails-draggable)
-			// e o menu de sistema (Alt+Space, snap com Win+setas).
-			DisableWindowIcon:    true,
-			WebviewIsTransparent: false,
-			WindowIsTranslucent:  false,
-		},
-		Bind: []interface{}{
-			app,
-		},
+		BackgroundColour: application.NewRGB(0x0a, 0x0f, 0x1c),
 	})
 
-	if err != nil {
+	if err := wails.Run(); err != nil {
 		log.Error("o wails encerrou com erro", "err", err)
 	}
+}
+
+// debugArgs abre a porta de CDP do WebView2 quando NETWORK_AGENT_CDP_PORT está
+// definida. O Wails zera o WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, então a
+// variável do próprio WebView2 não tem efeito: é por aqui que a verificação por
+// script chega à janela do app.
+func debugArgs() []string {
+	port := os.Getenv("NETWORK_AGENT_CDP_PORT")
+	if port == "" {
+		return nil
+	}
+	return []string{"--remote-debugging-port=" + port}
 }

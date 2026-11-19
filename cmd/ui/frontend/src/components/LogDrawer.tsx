@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from '@phosphor-icons/react'
+import { Clipboard, goApp } from '../wails'
 
 // A gaveta de Logs: as MESMAS linhas que o CLI mostra no terminal, porque a
 // fonte é o sink de console — o Go escreve nos dois destinos no mesmo Handle
@@ -56,7 +57,7 @@ export default function LogDrawer({ open, onClose }: LogDrawerProps) {
 
   useEffect(() => {
     if (!open) return
-    const app = (window as any).go?.main?.App
+    const app = goApp()
     if (!app?.GetLogLines) return
 
     let alive = true
@@ -95,9 +96,8 @@ export default function LogDrawer({ open, onClose }: LogDrawerProps) {
   // O caminho vai para um grep ou para o anexo de um ticket; abrir no editor
   // seria "um local" que não é do app (ticket 06).
   const copyPath = () => {
-    const rt = (window as any).runtime
-    if (!path || !rt?.ClipboardSetText) return
-    rt.ClipboardSetText(path)
+    if (!path || !goApp()) return
+    Clipboard.SetText(path)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
   }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 var configMux sync.Mutex
@@ -63,20 +63,23 @@ func (a *App) PickWorkspace() (types.Config, error) {
 		return cfg, err
 	}
 
-	// O runtime do Wails com ctx nil chama log.Fatalf (medido no ticket 06):
-	// sem a janela no ar o diálogo derrubaria o app em vez de falhar.
-	if a.ctx == nil {
-		return cfg, fmt.Errorf("a janela ainda não está no ar")
-	}
-
-	opts := runtime.OpenDialogOptions{Title: "Escolha a pasta de trabalho do agente"}
-	// DefaultDirectory inexistente é erro do próprio runtime — e "o Workspace
+	dialog := application.Get().Dialog.OpenFile().
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		SetTitle("Escolha a pasta de trabalho do agente")
+	// Diretório inicial inexistente é erro do próprio diálogo — e "o Workspace
 	// sumiu" é justamente um dos casos que trazem o usuário até aqui.
 	if info, err := os.Stat(cfg.Workspace); err == nil && info.IsDir() {
-		opts.DefaultDirectory = cfg.Workspace
+		dialog.SetDirectory(cfg.Workspace)
 	}
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, opts)
+	dir, err := dialog.PromptForSingleSelection()
+	// No Windows o v3 devolve o cancelar como erro (cfd.ErrorCancelled, de um
+	// pacote internal, então só a mensagem dá para comparar). Cancelar não é
+	// falha: é o "" do v2.
+	if err != nil && err.Error() == "cancelled by user" {
+		dir, err = "", nil
+	}
 	if err != nil {
 		log.Error("falha ao abrir o diálogo de pasta", "err", err)
 		return cfg, fmt.Errorf("falha ao abrir o diálogo de pasta: %w", err)

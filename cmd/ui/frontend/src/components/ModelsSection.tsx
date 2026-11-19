@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash, PencilSimple, Star } from '@phosphor-icons/react'
 import { AppConfig, EMPTY_MODEL, ModelConfig, ProviderConfig } from '../types'
+import { errorText, goApp } from '../wails'
 
 interface ModelsSectionProps {
   provider: ProviderConfig
@@ -8,8 +9,6 @@ interface ModelsSectionProps {
   onChanged: (c: AppConfig) => void
   onError: (msg: string) => void
 }
-
-const api = () => (window as any).go?.main?.App
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
 
@@ -44,7 +43,7 @@ export default function ModelsSection({
 
   const save = async () => {
     if (!draft) return
-    const a = api()
+    const a = goApp()
     if (!a) return onError('Bindings do Go indisponíveis.')
     setSaving(true)
     try {
@@ -54,30 +53,30 @@ export default function ModelsSection({
       onChanged(c)
       cancel()
     } catch (e) {
-      onError(String(e))
+      onError(errorText(e))
     } finally {
       setSaving(false)
     }
   }
 
   const remove = async (i: number) => {
-    const a = api()
+    const a = goApp()
     if (!a) return
     try {
       onChanged(await a.DeleteModel(providerIndex, i))
       if (editIdx === i) cancel()
     } catch (e) {
-      onError(String(e))
+      onError(errorText(e))
     }
   }
 
   const setDefault = async (i: number) => {
-    const a = api()
+    const a = goApp()
     if (!a) return
     try {
       onChanged(await a.SetDefaultModel(providerIndex, i))
     } catch (e) {
-      onError(String(e))
+      onError(errorText(e))
     }
   }
 

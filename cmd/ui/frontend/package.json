@@ -12,6 +12,7 @@
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
     "@react-spectrum/s2": "^1.8.2",
+    "@wailsio/runtime": "3.1.0",
     "pele": "^1.13.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

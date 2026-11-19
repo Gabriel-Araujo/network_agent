@@ -24,6 +24,7 @@ import {
   toUiMessages,
 } from './types'
 import { runMermaidRepair } from './mermaidRepair'
+import { Events, goApp } from './wails'
 
 /**
  * Por que o envio está bloqueado. O alerta era fixo em "Configuração
@@ -114,7 +115,7 @@ function App() {
   // nomeado no `why`. No primeiro uso o histórico está legitimamente vazio:
   // lista vazia não é erro.
   const loadConversations = useCallback(async () => {
-    const a = (window as any).go?.main?.App
+    const a = goApp()
     if (!a?.ListConversations) return
     try {
       const list: Conversation[] = await a.ListConversations()
@@ -131,7 +132,7 @@ function App() {
   // Ollama a janela é definida na carga. Sem sondagem (sem provedor ativo), o
   // medidor fica sem o número em vez de inventar um.
   const refreshContextWindow = useCallback(async () => {
-    const a = (window as any).go?.main?.App
+    const a = goApp()
     if (!a?.GetContextWindow) return
     try {
       const win: ContextWindow = await a.GetContextWindow()
@@ -146,7 +147,7 @@ function App() {
   // Wails com ctx nil derruba o app (medido no ticket 06). Repete a 500ms só
   // enquanto estiver carregando o modelo, e para sozinho em ready/failed.
   const pollConnection = useCallback(async () => {
-    const a = (window as any).go?.main?.App
+    const a = goApp()
     if (!a?.GetConnection) return
     window.clearTimeout(connectionTimer.current)
     try {
@@ -166,7 +167,7 @@ function App() {
   // Tentar de novo, explicitamente. Sem isto o único caminho de volta de uma
   // falha de conexão era salvar as Configurações outra vez.
   const reconnectNow = useCallback(async () => {
-    const a = (window as any).go?.main?.App
+    const a = goApp()
     if (!a?.Reconnect) return
     setConnection(await a.Reconnect())
     pollConnection()
@@ -176,11 +177,10 @@ function App() {
     loadConversations()
     refreshContextWindow()
     pollConnection()
-    const w = window as any
     // Carrega a configuração no boot. Na primeira execução (sem provedor ou
     // sem modelo) abre a tela de Configurações e bloqueia o input.
-    if (w.go?.main?.App?.GetConfig) {
-      w.go.main.App.GetConfig()
+    if (goApp()?.GetConfig) {
+      goApp().GetConfig()
         .then((c: AppConfig) => {
           setConfig(c)
           const ok = !!activeModel(c)
@@ -293,12 +293,12 @@ function App() {
   // só estes dois têm produtor no Go — o `agent:toolcall` escutado aqui nunca
   // teve produtor e saiu (tool calls da UI vêm do transcript do disco).
   useEffect(() => {
-    const w = window as any
-    if (!w.runtime?.EventsOn) return
-    w.runtime.EventsOn('agent:token', (d: any) => appendToken(d))
-    w.runtime.EventsOn('agent:done', (d: any) => onAgentDone(d))
+    if (!goApp()) return
+    const offToken = Events.On('agent:token', (e) => appendToken(e.data))
+    const offDone = Events.On('agent:done', (e) => onAgentDone(e.data))
     return () => {
-      w.runtime.EventsOff('agent:token', 'agent:done')
+      offToken()
+      offDone()
     }
   }, [appendToken, onAgentDone])
 
@@ -327,7 +327,7 @@ function App() {
     sendingRef.current = true
     setIsWorking(true)
 
-    const app = (window as any).go?.main?.App
+    const app = goApp()
     if (!app?.AskAgent) {
       // Sem a ponte do Wails não existe turno real. O stream simulado que
       // morava aqui mostrava número que ninguém mediu e texto que ninguém
@@ -335,8 +335,8 @@ function App() {
       failTurn({
         code: '',
         what: 'Sem conexão com o aplicativo',
-        why: 'esta página não está rodando dentro do app do Wails (window.go ausente)',
-        next: 'Abra o app pela janela do Wails (wails dev) em vez de um navegador.',
+        why: 'esta página não está rodando dentro do app do Wails (a ponte do Wails está ausente)',
+        next: 'Abra o app pela janela do Wails (wails3 dev) em vez de um navegador.',
       })
       streamingId.current = null
       setIsWorking(false)
@@ -443,7 +443,7 @@ function App() {
 
   const renameConversation = useCallback(
     async (id: string, title: string): Promise<boolean> => {
-      const a = (window as any).go?.main?.App
+      const a = goApp()
       if (!a?.RenameConversation) return false
       try {
         const updated: Conversation = await a.RenameConversation(id, title)
@@ -467,7 +467,7 @@ function App() {
     const target = pendingDelete
     setPendingDelete(null)
     if (!target) return
-    const a = (window as any).go?.main?.App
+    const a = goApp()
     if (!a?.DeleteConversation) return
     try {
       await a.DeleteConversation(target.id)
