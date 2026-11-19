@@ -295,14 +295,17 @@ func TestAgentForTurnPicksTheSubagenteByValue(t *testing.T) {
 	if bytes.Contains(body, []byte(`"sub_agent"`)) {
 		t.Error("the dispatched Subagente carries the subagent tool (nested routing)")
 	}
-	// read_skill_file and the file tools, and no use_skill: ticket 31 cut
-	// the skill catalog from the dispatched Subagente's toolset whole
-	// (.agent/roteamento/issues/31-skills-do-pipeline-fora-do-catalogo-despachado.md).
+	// read_skill_file and the file tools, and no pipeline skill: ticket 31 cut
+	// the full skill catalog from the dispatched Subagente's toolset
+	// (.agent/roteamento/issues/31-skills-do-pipeline-fora-do-catalogo-despachado.md);
+	// the Modifier's use_skill is narrowed to frr-file-builder.
 	if !bytes.Contains(body, []byte(`"read_skill_file"`)) || !bytes.Contains(body, []byte(`"ReadFile"`)) {
 		t.Error("the dispatched Subagente is missing file/skills tools")
 	}
-	if bytes.Contains(body, []byte(`"use_skill"`)) {
-		t.Error("the dispatched Subagente carries the skill catalog (use_skill), cut by ticket 31")
+	for _, pipeline := range []string{"frr-intent-analyzer", "frr-rag-retriever"} {
+		if bytes.Contains(body, []byte(pipeline)) {
+			t.Errorf("the dispatched Subagente carries the skill catalog (%s), cut by ticket 31", pipeline)
+		}
 	}
 }
 

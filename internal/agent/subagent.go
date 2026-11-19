@@ -29,14 +29,17 @@ var deniedTools = map[string][]string{
 
 // subagentSkills is the table of Skills a named Subagente *activates* through
 // use_skill, next to deniedTools and in the same form: the skills its AGENT.md
-// names and orders activated before drawing. The activation tool is narrowed
-// to exactly these names (tools.GetFileAndSkillTools), so no other description
-// can order a different activation — the 12 of 30 wasted calls the ticket 28
-// batch measured. Nothing is mounted in the prompt: the use_skill call is the
-// only path the body travels (owner decision, ticket 35). A name absent from
-// the registry is an explicit error. The Builder gets none: it does not draw.
+// names and orders activated — before drawing, or, for the Builder and the
+// Modifier, before writing or editing an FRR file. The activation tool is narrowed to exactly these names
+// (tools.GetFileAndSkillTools), so no other description can order a different
+// activation — the 12 of 30 wasted calls the ticket 28 batch measured. Nothing
+// is mounted in the prompt: the use_skill call is the only path the body
+// travels (owner decision, ticket 35). A name absent from the registry is an
+// explicit error.
 var subagentSkills = map[string][]string{
+	"builder":     {"frr-file-builder"},
 	"illustrator": {"mermaid"},
+	"modifier":    {"frr-file-builder"},
 	"teacher":     {"mermaid"},
 }
 

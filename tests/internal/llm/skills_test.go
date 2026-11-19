@@ -153,7 +153,7 @@ var pipelineSkills = []string{"frr-file-builder", "frr-intent-analyzer", "frr-ra
 // (ticket 35): a dispatched Subagente carries use_skill narrowed to the skills
 // its own prompt names — the catalog the model reads can only order the
 // activation of those — plus read_skill_file and the file tools. A name with
-// no skills (the Builder) carries no activation tool at all, and an unknown
+// no skills carries no activation tool at all, and an unknown
 // name is an explicit error. What must NOT return is the full catalog: the
 // three pipeline skills' descriptions ordered activation on any FRR question —
 // 12 of 30 calls in the ticket 28 batch, and t11 never reached mermaid — so

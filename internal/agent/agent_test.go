@@ -326,47 +326,54 @@ func TestCallToolRefusesSubAgentToADispatchedSubagente(t *testing.T) {
 	}
 }
 
-// TestSubagentSkillActivationNarrowedToThePrompt: the Illustrator's syntax
+// TestSubagentSkillActivationNarrowedToThePrompt: each Subagente's skill
 // reaches the model through the use_skill call, not through the prompt — the
-// body is gone from the system prompt and the activation tool is narrowed to
+// body is absent from the system prompt and the activation tool is narrowed to
 // exactly the skill its AGENT.md names. The owner chose the call as the only
 // path (ticket 35); the narrowing keeps other descriptions from ordering other
-// activations — the 12 of 30 wasted calls of the ticket 28 batch. The control
-// is the table: with the illustrator entry gone the toolset loses use_skill
-// and this test fails.
+// activations — the 12 of 30 wasted calls of the ticket 28 batch. The expected
+// catalogs are spelled out here rather than read from subagentSkills, so a
+// row added, dropped or widened fails this test instead of agreeing with it.
 func TestSubagentSkillActivationNarrowedToThePrompt(t *testing.T) {
+	want := map[string][]string{
+		"builder":     {"frr-file-builder"},
+		"illustrator": {"mermaid"},
+		"teacher":     {"mermaid"},
+		"modifier":    {"frr-file-builder"},
+	}
 	root := t.TempDir()
-	agentMD := "You are the Illustrator."
-	dir := filepath.Join(root, "illustrator")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("creating the illustrator folder: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte(agentMD), 0o644); err != nil {
-		t.Fatalf("writing illustrator/AGENT.md: %v", err)
-	}
-
-	sub, err := (&Agent{}).forSubagentAt(root, "illustrator")
-	if err != nil {
-		t.Fatalf("forSubagentAt(illustrator): %v", err)
-	}
-
-	if sub.systemPrompt != agentMD {
-		t.Errorf("systemPrompt = %q, want the AGENT.md and nothing else — the body travels by use_skill now", sub.systemPrompt)
-	}
-	var activation *responses.FunctionToolParam
-	for _, tool := range sub.availableTools {
-		if fn := tool.OfFunction; fn != nil && fn.Name == skills.ToolUseSkill {
-			activation = fn
+	for name, wantEnum := range want {
+		agentMD := "You are the " + name + "."
+		dir := filepath.Join(root, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("creating the %s folder: %v", name, err)
 		}
-	}
-	if activation == nil {
-		t.Fatalf("illustrator toolset has no %s: %v", skills.ToolUseSkill, toolNames(sub.availableTools))
-	}
-	props, _ := activation.Parameters["properties"].(map[string]any)
-	skill, _ := props["skill_name"].(map[string]any)
-	enum, _ := skill["enum"].([]string)
-	if !slices.Equal(enum, []string{"mermaid"}) {
-		t.Errorf("use_skill enum = %v, want exactly [mermaid] — only what the prompt names", enum)
+		if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte(agentMD), 0o644); err != nil {
+			t.Fatalf("writing %s/AGENT.md: %v", name, err)
+		}
+
+		sub, err := (&Agent{}).forSubagentAt(root, name)
+		if err != nil {
+			t.Fatalf("forSubagentAt(%s): %v", name, err)
+		}
+		if sub.systemPrompt != agentMD {
+			t.Errorf("%s systemPrompt = %q, want the AGENT.md and nothing else — the body travels by use_skill", name, sub.systemPrompt)
+		}
+
+		var enum []string
+		for _, tool := range sub.availableTools {
+			if fn := tool.OfFunction; fn != nil && fn.Name == skills.ToolUseSkill {
+				props, _ := fn.Parameters["properties"].(map[string]any)
+				skill, _ := props["skill_name"].(map[string]any)
+				enum, _ = skill["enum"].([]string)
+				if enum == nil {
+					t.Errorf("%s offers %s with no enum", name, skills.ToolUseSkill)
+				}
+			}
+		}
+		if !slices.Equal(enum, wantEnum) {
+			t.Errorf("%s use_skill enum = %v, want exactly %v — only what the prompt names", name, enum, wantEnum)
+		}
 	}
 }
 
@@ -397,54 +404,207 @@ func TestSubagentSkillsUnknownNameIsAnExplicitError(t *testing.T) {
 	}
 }
 
-// TestSubagentSkillsLeaveTheBuilderAlone: the Builder does not draw, so it
-// gets no skill at all — no body in the prompt and no use_skill in the
-// toolset. Mounting or offering everywhere would be the easy mistake; the
-// table says who draws.
-func TestSubagentSkillsLeaveTheBuilderAlone(t *testing.T) {
-	root := t.TempDir()
-	agentMD := "You are the Builder."
-	dir := filepath.Join(root, "builder")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("creating the builder folder: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte(agentMD), 0o644); err != nil {
-		t.Fatalf("writing builder/AGENT.md: %v", err)
-	}
-
-	sub, err := (&Agent{}).forSubagentAt(root, "builder")
-	if err != nil {
-		t.Fatalf("forSubagentAt(builder): %v", err)
-	}
-	if sub.systemPrompt != agentMD {
-		t.Errorf("systemPrompt = %q, want the AGENT.md untouched", sub.systemPrompt)
-	}
-	for _, tool := range sub.availableTools {
-		if fn := tool.OfFunction; fn != nil && fn.Name == skills.ToolUseSkill {
-			t.Errorf("builder toolset offers %s: it names no skill", skills.ToolUseSkill)
+// TestActivationSentenceInThePrompts: every AGENT.md orders the activation its
+// toolset offers, by the tool and by each skill name. The sentence died with
+// the mounting (ticket 22) because the body was already in the prompt; with
+// the call as the only path (ticket 35) the sentence is what makes it happen.
+func TestActivationSentenceInThePrompts(t *testing.T) {
+	for name, names := range subagentSkills {
+		body := repoAgentMD(t, name)
+		if !strings.Contains(body, skills.ToolUseSkill) {
+			t.Errorf("%s/AGENT.md does not name %s: the body travels by activation and nothing orders it", name, skills.ToolUseSkill)
+		}
+		for _, skill := range names {
+			if !strings.Contains(body, "`"+skill+"`") {
+				t.Errorf("%s/AGENT.md does not name the skill %s its toolset activates", name, skill)
+			}
 		}
 	}
 }
 
-// TestActivationSentenceInTheDrawingPrompts: the two AGENT.md files order the
-// activation their toolset offers. The sentence died with the mounting
-// (ticket 22) because the body was already in the prompt; with the call as the
-// only path (ticket 35) the sentence is what makes it happen — and the tool it
-// names exists for exactly these two names.
-func TestActivationSentenceInTheDrawingPrompts(t *testing.T) {
-	for _, name := range []string{"illustrator", "teacher"} {
-		path, err := paths.RepoFile(filepath.Join("resources/agents", name, "AGENT.md"))
-		if err != nil {
-			t.Fatalf("locating %s/AGENT.md: %v", name, err)
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("reading %s/AGENT.md: %v", name, err)
-		}
-		if !strings.Contains(string(body), skills.ToolUseSkill) {
-			t.Errorf("%s/AGENT.md does not name %s: the body travels by activation and nothing orders it", name, skills.ToolUseSkill)
+// TestBuilderPromptKeepsOnlyTheFlow pins the split of the frr-file-builder
+// contract: the Builder's AGENT.md keeps the flow (activate, write, report)
+// and no technical rule, which lives in the skill and its pack. The two
+// WriteFile openings it tells the model to read are the tool's own constants,
+// so a reworded notice cannot leave the "replaced only when" rule reading a
+// line that never comes.
+func TestBuilderPromptKeepsOnlyTheFlow(t *testing.T) {
+	body := repoAgentMD(t, "builder")
+	for _, quoted := range []string{filetools.WRITE_CREATED_NOTICE, filetools.WRITE_REPLACED_NOTICE, "! WARNING:"} {
+		if !strings.Contains(body, strings.TrimSpace(quoted)) {
+			t.Errorf("builder/AGENT.md does not quote %q", strings.TrimSpace(quoted))
 		}
 	}
+	for _, rule := range []string{"router bgp", "neighbor", "prefix-list", "address-family", "frr defaults", "frr version", "remote-as", "ebgp-requires-policy"} {
+		if strings.Contains(body, rule) {
+			t.Errorf("builder/AGENT.md still carries the technical rule %q: it belongs to the frr-file-builder skill", rule)
+		}
+	}
+}
+
+// TestSubagentFlowsConsumeTheSkillBody drives the real Builder and Modifier —
+// AGENT.md and toolset from the mirror — through the flows of the
+// frr-file-builder contract, with a provider that scripts the model's calls.
+// What is real is everything the model reads back: the body use_skill delivers
+// before the WriteFile or EditFile call is decided, the pack read_skill_file
+// reaches, the tool openings the reply has to copy, the refusals, and the disk.
+func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
+	sk, ok := skills.LoadSkills().Get("frr-file-builder")
+	if !ok {
+		t.Fatal("skill frr-file-builder not loaded")
+	}
+	const (
+		written  = "router bgp 65001\n ! WARNING: no maximum-prefix on 203.0.113.2\n"
+		write    = `{"filePath":"frr.conf","content":"router bgp 65001\n ! WARNING: no maximum-prefix on 203.0.113.2\n"}`
+		existing = "router bgp 65001\n neighbor 203.0.113.2 remote-as 65010\n"
+		edited   = existing + " ! WARNING: no password on 203.0.113.6\n neighbor 203.0.113.6 remote-as 65020\n"
+		edit     = `{"filePath":"frr.conf","oldText":" neighbor 203.0.113.2 remote-as 65010\n","newText":" neighbor 203.0.113.2 remote-as 65010\n ! WARNING: no password on 203.0.113.6\n neighbor 203.0.113.6 remote-as 65020\n"}`
+	)
+	activate := callsOneTool(skills.ToolUseSkill, `{"skill_name":"frr-file-builder"}`)
+	read := callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`)
+	readTECH := callsOneTool(skills.ToolReadSkillFile, `{"skill_name":"frr-file-builder","relative_path":"references/bgp/TECH.md"}`)
+	failActivation := callsOneTool(skills.ToolUseSkill, `{"skill_name":"no-such-skill"}`)
+
+	cases := []struct {
+		agent, name  string
+		before       string // frr.conf before the turn; "" is no file
+		script       []string
+		wantOutputs  []string // prefix of each tool output, in call order
+		wantActive   []string
+		wantFailures int
+		after        string // frr.conf after the turn; "" is no file
+	}{
+		{
+			agent: "builder", name: "arquivo novo",
+			script:      []string{activate, callsOneTool(filetools.WRITE_TOOL_NAME, write), answers("gravado")},
+			wantOutputs: []string{sk.Body, filetools.WRITE_CREATED_NOTICE},
+			wantActive:  []string{"frr-file-builder"},
+			after:       written,
+		},
+		{
+			agent: "builder", name: "arquivo substituído",
+			before:      "hostname old\n",
+			script:      []string{activate, callsOneTool(filetools.WRITE_TOOL_NAME, write), answers("gravado")},
+			wantOutputs: []string{sk.Body, filetools.WRITE_REPLACED_NOTICE},
+			wantActive:  []string{"frr-file-builder"},
+			after:       written,
+		},
+		{
+			agent: "builder", name: "pedido incompleto",
+			script:      []string{activate, readTECH, answers("qual é o AS local?")},
+			wantOutputs: []string{sk.Body, "# BGP"},
+			wantActive:  []string{"frr-file-builder"},
+		},
+		{
+			agent: "builder", name: "falha de ativação",
+			script:       []string{failActivation, answers("a skill falhou")},
+			wantOutputs:  []string{"erro:"},
+			wantFailures: 1,
+		},
+		{
+			agent: "builder", name: "escrita recusada",
+			script: []string{activate,
+				callsOneTool(filetools.WRITE_TOOL_NAME, `{"filePath":"resources/frr.conf","content":"router bgp 65001\n"}`),
+				answers("a escrita falhou")},
+			wantOutputs:  []string{sk.Body, filetools.READ_ONLY_ROOT_NOTICE},
+			wantActive:   []string{"frr-file-builder"},
+			wantFailures: 1,
+		},
+		{
+			agent: "modifier", name: "arquivo existe",
+			before:      existing,
+			script:      []string{read, activate, callsOneTool(filetools.EDIT_TOOL_NAME, edit), read, answers("editado")},
+			wantOutputs: []string{existing, sk.Body, "Success: File edited", edited},
+			wantActive:  []string{"frr-file-builder"},
+			after:       edited,
+		},
+		{
+			agent: "modifier", name: "arquivo inexistente",
+			script:       []string{read, answers("o arquivo não existe")},
+			wantOutputs:  []string{filetools.READ_NOT_FOUND_NOTICE},
+			wantFailures: 1,
+		},
+		{
+			agent: "modifier", name: "falha de ativação",
+			before:       existing,
+			script:       []string{read, failActivation, answers("a skill falhou")},
+			wantOutputs:  []string{existing, "erro:"},
+			wantFailures: 1,
+			after:        existing,
+		},
+		{
+			agent: "modifier", name: "pedido incompleto",
+			before:      existing,
+			script:      []string{read, activate, readTECH, answers("qual é o AS do peer?")},
+			wantOutputs: []string{existing, sk.Body, "# BGP"},
+			wantActive:  []string{"frr-file-builder"},
+			after:       existing,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.agent+"/"+tc.name, func(t *testing.T) {
+			workspace := t.TempDir()
+			conf := filepath.Join(workspace, "frr.conf")
+			if tc.before != "" {
+				if err := os.WriteFile(conf, []byte(tc.before), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			client, requests := scriptedProvider(t, tc.script...)
+			sub, err := (&Agent{Client: *client, ModelName: "modelo", workspace: workspace}).ForSubagent(tc.agent)
+			if err != nil {
+				t.Fatalf("ForSubagent(%s): %v", tc.agent, err)
+			}
+
+			_, failures, activated, err := sub.Chat(context.Background(), nil, "frr.conf")
+			if err != nil {
+				t.Fatalf("Chat devolveu erro: %v", err)
+			}
+
+			// Request i+1 is the first to carry tool output i, so the body is
+			// in the input of the request whose answer is the WriteFile or
+			// EditFile call; the last request carries them all.
+			if len(*requests) != len(tc.script) {
+				t.Fatalf("%d requisições, esperava %d", len(*requests), len(tc.script))
+			}
+			outputs := toolOutputs(t, (*requests)[len(*requests)-1])
+			if len(outputs) != len(tc.wantOutputs) {
+				t.Fatalf("saídas de tool %q, esperava %d", outputs, len(tc.wantOutputs))
+			}
+			for i, want := range tc.wantOutputs {
+				if !strings.HasPrefix(outputs[i], want) {
+					t.Errorf("saída %d = %.80q, esperava começar com %.80q", i, outputs[i], want)
+				}
+			}
+			if !slices.Equal(activated, tc.wantActive) {
+				t.Errorf("skills ativadas = %v, esperava %v", activated, tc.wantActive)
+			}
+			if len(failures) != tc.wantFailures {
+				t.Errorf("falhas = %+v, esperava %d", failures, tc.wantFailures)
+			}
+			got, err := os.ReadFile(conf)
+			if err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			if string(got) != tc.after {
+				t.Errorf("frr.conf = %q, esperava %q", got, tc.after)
+			}
+		})
+	}
+}
+
+// repoAgentMD reads a Subagente's AGENT.md from the source tree.
+func repoAgentMD(t *testing.T, name string) string {
+	t.Helper()
+	path, err := paths.RepoFile(filepath.Join("resources/agents", name, "AGENT.md"))
+	if err != nil {
+		t.Fatalf("locating %s/AGENT.md: %v", name, err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s/AGENT.md: %v", name, err)
+	}
+	return string(body)
 }
 
 // TestChatCarriesTheToolFailureOutOfTheTurn is ticket 18's proof of arrival: a

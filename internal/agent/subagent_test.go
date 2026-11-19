@@ -18,8 +18,8 @@ import (
 // TestForSubagentMountsTheConfiguration pins the minimal loader: the Subagente
 // answers with its folder's AGENT.md mounted whole as the system prompt and
 // nothing else, the same connection and model as the generic agent, and the
-// file tools plus read_skill_file — without the subagent tool (no nesting) and
-// without use_skill, since the modifier fixture names no skill.
+// file tools plus read_skill_file — without the subagent tool (no nesting).
+// The use_skill each name gets is TestSubagentSkillActivationNarrowedToThePrompt's.
 func TestForSubagentMountsTheConfiguration(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "modifier")
@@ -52,9 +52,6 @@ func TestForSubagentMountsTheConfiguration(t *testing.T) {
 	}
 	if !strings.Contains(string(tools), `"read_skill_file"`) || !strings.Contains(string(tools), `"ReadFile"`) {
 		t.Errorf("subagent tools are missing file/skills tools: %s", tools)
-	}
-	if strings.Contains(string(tools), `"use_skill"`) {
-		t.Errorf("subagent inherited the use_skill catalog: %s", tools)
 	}
 	if strings.Contains(string(tools), `"sub_agent"`) {
 		t.Errorf("subagent inherited the subagent tool (nested routing): %s", tools)

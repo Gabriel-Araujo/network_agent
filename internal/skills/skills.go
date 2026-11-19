@@ -23,11 +23,10 @@ const (
 	// que nenhum código impõe. Mesma forma do EDIT_MULTIPLE_MATCHES_NOTICE: a
 	// constante é a frase que o modelo lê.
 	//
-	// A frase não nomeia o use_skill de propósito: builder e modifier não
-	// recebem essa tool (só quem tem skill nomeada no prompt recebe, estreita),
-	// e citar tool que não se tem é o defeito que o modifier/AGENT.md corrigiu
-	// no ticket 20. O sentido é o mesmo para quem tem ativação e para quem não
-	// tem: a leitura não depende dela.
+	// A frase não nomeia o use_skill de propósito: só quem tem skill nomeada no
+	// prompt recebe essa tool (estreita), e citar tool que não se tem é o
+	// defeito que o modifier/AGENT.md corrigiu no ticket 20. O sentido é o mesmo
+	// para quem tem ativação e para quem não tem: a leitura não depende dela.
 	ReadSkillFileNoActivation = "Não exige ativação prévia da skill: o arquivo é lido pelo nome dela."
 )
 

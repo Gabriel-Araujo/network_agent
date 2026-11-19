@@ -66,8 +66,23 @@ The reference material for one technology, named by a slug. The
 `frr-file-builder` **Skill** keeps a folder of files per slug in its
 `references/`, and a request loads every pack it touches; the Teacher keeps a
 single `<slug>.md` in its `tech-packs/`. In a Run, the slug picked at the start
-binds `{{TECH}}` for the whole Run.
+binds `{{TECH}}` for the whole Run. Each line of a configuration belongs to the
+pack of the protocol it configures, whichever `.rst` documents it.
 _Avoid_: module, plugin, technology folder, guide
+
+**Binding line**:
+A line a protocol writes in its own context to use a service another **Tech
+pack** configures, such as `ip ospf bfd` or `neighbor X bfd profile P`. It
+belongs to the client's pack; the service's pack owns only the service's block.
+_Avoid_: hook, glue line, attachment
+
+**Shared object**:
+A named object of a configuration that configures no protocol and that lines of several
+**Tech packs** reference, such as a prefix-list, an access-list, a route-map or a key chain. It
+belongs to the body of the `frr-file-builder` **Skill**; each pack that references it says only
+when to use it. An object only one protocol uses, such as a BGP community-list, belongs to that
+protocol's pack.
+_Avoid_: policy object, transversal object, common object
 
 **Checkpoint**:
 A row of a Contract's `## Checkpoints` table: a point where the Agent presents
