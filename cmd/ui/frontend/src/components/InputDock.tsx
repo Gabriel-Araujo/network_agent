@@ -1,11 +1,13 @@
-import { FormEvent, useRef, useState } from 'react'
+import { FormEvent, Ref, useRef, useState } from 'react'
 import { ArrowUp, Paperclip } from '@phosphor-icons/react'
-import { TokenUsage, contextOrigin } from '../types'
 
 interface InputDockProps {
   onSend: (text: string) => void
   isWorking: boolean
-  usageSummary: TokenUsage
+  /** O turno roda em outra Aba: o título dela, para a linha do envio bloqueado. */
+  busyIn?: string
+  /** O campo, para a Nova conversa pôr o cursor no composer da Início. */
+  inputRef?: Ref<HTMLTextAreaElement>
   /** false = sem provedor/modelo configurado: entrada bloqueada. */
   configReady?: boolean
   /** chamado quando o usuário tenta enviar com a config incompleta */
@@ -14,22 +16,16 @@ interface InputDockProps {
 
 const PLACEHOLDERS = ['Pergunte ou descreva uma tarefa...', 'Ex.: verifique se há updates pendentes', 'Ex.: escreva um resumo da reunião']
 
-const fmtNum = (n: number): string => n.toLocaleString('pt-BR')
-
 export default function InputDock({
   onSend,
   isWorking,
-  usageSummary,
+  busyIn,
+  inputRef,
   configReady = true,
   onBlocked,
 }: InputDockProps) {
   const [value, setValue] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
-
-  // A janela do medidor é a do modelo ativo AGORA e a origem vem junto: sem
-  // total sondado nem medido, o item de contexto não aparece (nada de um teto
-  // inventado), e "declarado" nunca se passa por "provedor".
-  const origin = usageSummary.contextTotal > 0 ? contextOrigin(usageSummary.contextSource) : null
 
   const resize = () => {
     const ta = taRef.current
@@ -62,7 +58,11 @@ export default function InputDock({
           <Paperclip size={18} weight="regular" aria-hidden="true" />
         </button>
         <textarea
-          ref={taRef}
+          ref={(el) => {
+            taRef.current = el
+            if (typeof inputRef === 'function') inputRef(el)
+            else if (inputRef) inputRef.current = el
+          }}
           className="dock__input"
           rows={1}
           placeholder={configReady ? PLACEHOLDERS[0] : 'Configure um provedor e um modelo para começar'}
@@ -94,31 +94,11 @@ export default function InputDock({
           Nenhum provedor/modelo configurado. Abra Configurações para cadastrar.
         </p>
       )}
-      <p className="dock__hint">
-        <span>
-          Total de tokens de entrada: <strong>{fmtNum(usageSummary.input)}</strong>
-        </span>
-        <span className="dock__hint-sep" aria-hidden="true">·</span>
-        <span>
-          Total de tokens de saída: <strong>{fmtNum(usageSummary.output)}</strong>
-        </span>
-        <span className="dock__hint-sep" aria-hidden="true">·</span>
-        <span>
-          Total de tokens: <strong>{fmtNum(usageSummary.total)}</strong>
-        </span>
-        {origin && (
-          <>
-            <span className="dock__hint-sep" aria-hidden="true">·</span>
-            <span>
-              Contexto utilizado: <strong>{fmtNum(usageSummary.contextUsed)}</strong>/
-              <strong>{fmtNum(usageSummary.contextTotal)}</strong>
-              <span className="dock__origin" title={origin.title}>
-                ({origin.label})
-              </span>
-            </span>
-          </>
-        )}
-      </p>
+      {configReady && busyIn !== undefined && (
+        <p className="dock__blocked" role="status">
+          Newton está respondendo em <em>{busyIn}</em>
+        </p>
+      )}
     </footer>
   )
 }

@@ -8,6 +8,9 @@ import InputDock from './components/InputDock'
 import SettingsModal from './components/SettingsModal'
 import LogDrawer from './components/LogDrawer'
 import Titlebar from './components/Titlebar'
+import TabBar from './components/TabBar'
+import { HOME, closeTab } from './tabs'
+import StatusBar from './components/StatusBar'
 import {
   AppConfig,
   BridgeError,
@@ -16,7 +19,6 @@ import {
   Conversation,
   MermaidRepair,
   Message,
-  TokenUsage,
   activeModel,
   formatTs,
   parseBridgeError,
@@ -28,6 +30,7 @@ import { Events } from '@wailsio/runtime'
 import { App as GoApp } from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui'
 import { inWails } from './types'
 import { ToastContainer } from '@react-spectrum/s2'
+import { TabPanel, Tabs } from 'react-aria-components'
 import { style } from '@react-spectrum/s2/style' with { type: 'macro' }
 
 /**
@@ -60,13 +63,30 @@ function generateTitle(prompt: string): string {
   return out.charAt(0).toUpperCase() + out.slice(1)
 }
 
+/** Uma Aba de Conversa aberta: o transcript na tela (o rascunho e a rolagem moram no painel montado). */
+interface OpenTab {
+  id: string
+  messages: Message[]
+}
+
+/** As Abas abertas e a focada (`HOME` ou o id da Conversa), num estado só para fechar com a regra de foco. */
+interface TabState {
+  tabs: OpenTab[]
+  focused: string
+}
+
+/** A bolha do turno ao vivo: o id da tela começa com `live-` (ver `send` e `openConversation`). */
+const isLive = (m: Message | undefined) => !!m && m.role === 'agent' && m.id.startsWith('live-')
+
 function App() {
-  const [messages, setMessages] = useState<Message[]>([])
   // Histórico real, lido do disco. Sem mock ao lado: a lista vazia é a verdade
   // da primeira execução e a falha de leitura vira o card de erro do sidebar.
   const [conversations, setConversations] = useState<Conversation[]>([])
-  // Conversa aberta no chat (o React é dono do id ativo, ticket 05).
-  const [activeId, setActiveId] = useState<string | null>(null)
+  // As Abas: a Início fixa (fora da lista) e uma por Conversa aberta. Nada persiste.
+  const [tabState, setTabState] = useState<TabState>({ tabs: [], focused: HOME })
+  // Conversa dona do turno em voo (um por vez no app): o `dot` da aba e o envio
+  // bloqueado nas outras. Null também enquanto a Conversa nasce pela Início.
+  const [turnConvId, setTurnConvId] = useState<string | null>(null)
   const [sidebarError, setSidebarError] = useState<BridgeError | null>(null)
   const [isWorking, setIsWorking] = useState(false)
   // Sidebar expandida ou faixa recolhida: sempre abre expandida e não persiste.
@@ -84,20 +104,13 @@ function App() {
   // vez de ser bloqueado por um estado que ninguém mediu.
   const [connection, setConnection] = useState<Connection | null>(null)
   const [blocked, setBlocked] = useState<Blocked | null>(null)
-  const [chatTitle, setChatTitle] = useState('')
   // Janela de contexto do modelo ativo, sondada pelo Go (provedor quando ele a
   // expõe, senão o declarado — sempre com a origem). O medidor precisa dela
   // mesmo em conversa vazia: o `usage` do disco só existe depois do turno.
   const [contextWindow, setContextWindow] = useState<ContextWindow | null>(null)
 
-  // id ativo em ref: os handlers de evento do Wails decidem na hora do
-  // disparo, e um state chegaria um render atrasado.
-  const activeIdRef = useRef<string | null>(null)
-  // balão que está recebendo tokens na tela (some ao trocar de conversa).
-  const streamingId = useRef<string | null>(null)
-  // conversa dona do turno em voo: é o que descarta token de conversa fechada
-  // e religa o stream quando a conversa do turno é reaberta.
-  const streamingConvId = useRef<string | null>(null)
+  // O campo do composer da Início, para a Nova conversa pôr o cursor nele.
+  const homeInput = useRef<HTMLTextAreaElement>(null)
   // timer do pull do estado da conexão (só existe enquanto carregando).
   const connectionTimer = useRef<number | undefined>(undefined)
   // ref síncrono de "enviando": bloqueia double-submit no mesmo tick.
@@ -105,12 +118,22 @@ function App() {
   // mesmo render; este ref garante que cada input vá UMA única vez.
   const sendingRef = useRef(false)
 
-  // Troca a conversa ativa. Ref e state andam juntos, por um ponto único —
-  // os handlers de evento leem o ref, nunca o state.
-  const selectConversation = useCallback((id: string | null) => {
-    activeIdRef.current = id
-    setActiveId(id)
+  // Troca as mensagens da aba da Conversa `id`, se ela estiver aberta. Conversa
+  // sem aba descarta: o turno segue no Go e é gravado no disco, e reabrir mostra
+  // o texto inteiro, vindo de lá.
+  const patchTab = useCallback((id: string, fn: (msgs: Message[]) => Message[]) => {
+    setTabState((s) => ({
+      ...s,
+      tabs: s.tabs.map((t) => (t.id === id ? { ...t, messages: fn(t.messages) } : t)),
+    }))
   }, [])
+
+  // Aplica `fn` à bolha do turno ao vivo da Conversa, a última da aba.
+  const patchTurn = useCallback(
+    (id: string, fn: (m: Message) => Message) =>
+      patchTab(id, (msgs) => (isLive(msgs.at(-1)) ? [...msgs.slice(0, -1), fn(msgs.at(-1)!)] : msgs)),
+    [patchTab],
+  )
 
   // A lista é gorda (transcript junto) e vem do Store ordenada por updatedAt
   // desc. Falha de leitura — arquivo corrompido derruba a listagem inteira, por
@@ -199,44 +222,41 @@ function App() {
     return () => window.clearTimeout(connectionTimer.current)
   }, [loadConversations, refreshContextWindow, pollConnection])
 
-  // Token do turno em voo. Evento de conversa que não está mais na tela é
-  // descartado: o turno segue no Go e é gravado no disco dela — reabrir a
-  // conversa mostra o texto inteiro, vindo do disco.
-  const appendToken = useCallback((payload: any) => {
-    if (payload?.conversationId !== activeIdRef.current) return
-    const msgId = streamingId.current
-    if (!msgId) return
-    const token = payload?.token ?? ''
-    if (!token) return
-    setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, content: m.content + token } : m)),
-    )
-  }, [])
+  // Token do turno em voo, na aba da Conversa dele, focada ou não.
+  const appendToken = useCallback(
+    (payload: any) => {
+      const token = payload?.token ?? ''
+      if (!token || !payload?.conversationId) return
+      patchTurn(payload.conversationId, (m) =>
+        m.status === 'streaming' ? { ...m, content: m.content + token } : m,
+      )
+    },
+    [patchTurn],
+  )
 
   // Fim do stream. O texto autoritativo chega em seguida, na conversa que o
   // AskAgent devolve (a mesma que está no disco); aqui só o balão sai de
   // "streaming" — nenhuma medida é calculada no front.
-  const onAgentDone = useCallback((payload: any) => {
-    if (payload?.conversationId !== activeIdRef.current) return
-    const msgId = streamingId.current
-    if (!msgId) return
-    setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, status: 'done' } : m)),
-    )
-  }, [])
+  const onAgentDone = useCallback(
+    (payload: any) => {
+      if (!payload?.conversationId) return
+      patchTurn(payload.conversationId, (m) => (m.status === 'streaming' ? { ...m, status: 'done' } : m))
+    },
+    [patchTurn],
+  )
 
   // Aplica a conversa como ela ficou no disco — a MESMA projeção que reabre
   // uma conversa antiga, então o turno ao vivo e a conversa reaberta são
   // indistinguíveis. A entrada da lista só é trocada se ainda existir: uma
   // conversa apagada durante o turno não ressuscita na lista.
-  const applyConversation = useCallback((conv: Conversation) => {
-    setConversations((prev) => {
-      if (!prev.some((c) => c.id === conv.id)) return prev
-      return sortByUpdatedDesc(prev.map((c) => (c.id === conv.id ? conv : c)))
-    })
-    if (activeIdRef.current === conv.id) {
-      const disk = toUiMessages(conv.messages)
-      setMessages((prev) => {
+  const applyConversation = useCallback(
+    (conv: Conversation) => {
+      setConversations((prev) => {
+        if (!prev.some((c) => c.id === conv.id)) return prev
+        return sortByUpdatedDesc(prev.map((c) => (c.id === conv.id ? conv : c)))
+      })
+      patchTab(conv.id, (prev) => {
+        const disk = toUiMessages(conv.messages)
         // Balão do turno ao vivo mantém o id que já está na tela quando
         // role+conteúdo batem: trocar a chave remontaria o balão e a animação
         // de entrada rodaria de novo sobre texto que já estava visível. O id
@@ -249,44 +269,40 @@ function App() {
         }
         return disk
       })
-      setChatTitle(conv.title)
-    }
-  }, [])
+    },
+    [patchTab],
+  )
 
-  // O turno não pôde existir (disco, conversa sumida, sem agente, ocupado):
-  // o erro estruturado do Go vira o balão do turno — ou o card do sidebar,
-  // se a conversa do turno não é mais a que está na tela.
-  const failTurn = useCallback((be: BridgeError) => {
-    const msgId = streamingId.current
-    if (!msgId) {
-      setSidebarError(be)
-      return
-    }
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId
-          ? {
-              ...m,
-              status: 'error',
-              error: { what: be.what, why: be.why, next: be.next },
-            }
-          : m,
-      ),
-    )
-  }, [])
+  // O turno não pôde existir (disco, conversa sumida, sem agente, ocupado): o
+  // erro estruturado do Go vira a bolha do turno, na aba dele. Sem Conversa (a
+  // criação pela Início falhou), não há bolha: o erro é da lista, e cai no card
+  // da sidebar.
+  const failTurn = useCallback(
+    (convId: string | null, be: BridgeError) => {
+      if (!convId) {
+        setSidebarError(be)
+        return
+      }
+      patchTurn(convId, (m) => ({
+        ...m,
+        status: 'error',
+        error: { what: be.what, why: be.why, next: be.next },
+      }))
+    },
+    [patchTurn],
+  )
 
   // Estado do reparo de diagrama na mensagem dona da resposta. O alvo é o id
   // persistido (o id da tela é chave de render e muda no turno ao vivo); o
   // estado só existe na conversa aberta — a verdade persistida vem depois, na
   // conversa que a operação de conclusão devolve.
-  const patchRepairState = useCallback((convID: string, messageID: string, repair: MermaidRepair) => {
-    if (activeIdRef.current !== convID) return
-    setMessages((prev) =>
-      prev.map((m) =>
-        (m.persistentId ?? m.id) === messageID ? { ...m, mermaidRepair: repair } : m,
+  const patchRepairState = useCallback(
+    (convID: string, messageID: string, repair: MermaidRepair) =>
+      patchTab(convID, (msgs) =>
+        msgs.map((m) => ((m.persistentId ?? m.id) === messageID ? { ...m, mermaidRepair: repair } : m)),
       ),
-    )
-  }, [])
+    [patchTab],
+  )
 
   // Streaming do agente (Go -> UI). Os eventos levam a conversa e a mensagem;
   // só estes dois têm produtor no Go — o `agent:toolcall` escutado aqui nunca
@@ -301,7 +317,9 @@ function App() {
     }
   }, [appendToken, onAgentDone])
 
-  const send = async (raw: string) => {
+  // Envia pela aba `key` (a Início ou uma Conversa). Um turno por vez no app:
+  // enquanto ele roda, o envio fica bloqueado em todas as abas.
+  const send = async (key: string, raw: string) => {
     const text = raw.trim()
     if (!text || isWorking || sendingRef.current) return
     // Sem agente não há para onde enviar: bloqueia e explica QUAL das causas
@@ -317,45 +335,43 @@ function App() {
     // medido chegam do Go quando o turno volta, na conversa do disco.
     const turnId = 'live-' + Date.now()
     const now = formatTs(new Date().toISOString())
-    setMessages((prev) => [
-      ...prev,
+    const bubbles: Message[] = [
       { id: 'u-' + turnId, role: 'user', content: text, status: 'done', time: now },
       { id: turnId, role: 'agent', content: '', status: 'streaming', time: now },
-    ])
-    streamingId.current = turnId
+    ]
     sendingRef.current = true
     setIsWorking(true)
 
     if (!inWails()) {
-      // Sem a ponte do Wails não existe turno real. O stream simulado que
-      // morava aqui mostrava número que ninguém mediu e texto que ninguém
-      // gravou; agora a ausência da ponte falha visível.
-      failTurn({
+      // Sem a ponte do Wails não existe turno real nem Conversa: a ausência da
+      // ponte falha visível, no card da sidebar.
+      failTurn(null, {
         code: '',
         what: 'Sem conexão com o aplicativo',
         why: 'esta página não está rodando dentro do app do Wails (a ponte do Wails está ausente)',
         next: 'Abra o app pela janela do Wails (wails3 dev) em vez de um navegador.',
       })
-      streamingId.current = null
       setIsWorking(false)
       sendingRef.current = false
       return
     }
 
+    let convId: string | null = key === HOME ? null : key
     try {
-      let convId = activeIdRef.current
       if (!convId) {
-        // Conversa preguiçosa: nasce no primeiro envio, com o título derivado
-        // do primeiro prompt (o núcleo só armazena títulos — e a criação
-        // silenciosa de conversa pelo Go foi descartada no ticket 05).
+        // Conversa preguiçosa: nasce no primeiro envio pela Início, com o título
+        // derivado do primeiro prompt (o núcleo só armazena títulos), e abre numa
+        // aba nova, focada. A Início volta vazia.
         const created: Conversation = await GoApp.CreateConversation(generateTitle(text))
         convId = created.id
-        selectConversation(created.id)
-        setChatTitle(created.title)
         setConversations((prev) => sortByUpdatedDesc([created, ...prev]))
         setSidebarError(null)
+        setTabState((s) => ({ tabs: [...s.tabs, { id: created.id, messages: bubbles }], focused: created.id }))
+      } else {
+        const id = convId
+        patchTab(id, (msgs) => [...msgs, ...bubbles])
       }
-      streamingConvId.current = convId
+      setTurnConvId(convId)
 
       // O Go lê o transcript do disco, grava o turno e devolve a conversa
       // como ela ficou; o stream (agent:token/agent:done) chega no meio.
@@ -399,10 +415,9 @@ function App() {
       // A conversa sumiu do disco no meio do turno: além do erro, atualiza a
       // lista — ela pode ter sido apagada em outro lugar.
       if (be.code === 'not_found') loadConversations()
-      failTurn(be)
+      failTurn(convId, be)
     } finally {
-      streamingId.current = null
-      streamingConvId.current = null
+      setTurnConvId(null)
       setIsWorking(false)
       sendingRef.current = false
       // O turno acaba de sondar o modelo ativo (e pode tê-lo recarregado no
@@ -411,33 +426,38 @@ function App() {
     }
   }
 
+  // Nova conversa: foca a Início e põe o cursor no composer dela, sem apagar o
+  // rascunho. O campo só fica focável depois que o painel aparece.
   const newChat = () => {
-    setMessages([])
-    selectConversation(null)
-    streamingId.current = null
-    // `streamingConvId` fica de pé: um turno em voo segue no Go e é gravado na
-    // conversa dele — reabri-la religa o stream na tela. `isWorking` também
-    // fica: um turno por vez, enquanto ele não terminar.
-    setChatTitle('')
+    setTabState((s) => ({ ...s, focused: HOME }))
+    requestAnimationFrame(() => homeInput.current?.focus())
   }
 
-  // Abrir uma conversa é ler o que a lista gorda já entregou (ticket 05): sem
-  // Get separado e sem ida extra ao disco. O transcript na tela é o do disco, e
-  // o tempo de cada mensagem passa pelo mesmo formatador da mensagem ao vivo.
-  // Se esta é a conversa dona do turno em voo, um balão de streaming volta à
-  // tela para os tokens que ainda chegarem — o disco é a fonte no fim.
+  // Abrir uma Conversa foca a aba dela, ou abre uma no fim da barra, focada. A
+  // aba nova lê o que a lista gorda já entregou: sem Get separado e sem ida
+  // extra ao disco. Se esta é a Conversa do turno em voo, um balão de streaming
+  // volta à tela para os tokens que ainda chegarem — o disco é a fonte no fim.
   const openConversation = (c: Conversation) => {
-    selectConversation(c.id)
-    const ui = toUiMessages(c.messages)
-    streamingId.current = null
-    if (streamingConvId.current === c.id) {
-      const liveId = 'live-' + c.id
-      ui.push({ id: liveId, role: 'agent', content: '', status: 'streaming' })
-      streamingId.current = liveId
-    }
-    setMessages(ui)
-    setChatTitle(c.title)
+    setTabState((s) => {
+      if (s.tabs.some((t) => t.id === c.id)) return { ...s, focused: c.id }
+      const ui = toUiMessages(c.messages)
+      if (turnConvId === c.id) {
+        ui.push({ id: 'live-' + c.id, role: 'agent', content: '', status: 'streaming' })
+      }
+      return { tabs: [...s.tabs, { id: c.id, messages: ui }], focused: c.id }
+    })
   }
+
+  // Ctrl+W fecha a aba focada; na Início, não faz nada.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'w') return
+      e.preventDefault()
+      setTabState((s) => (s.focused === HOME ? s : closeTab(s, s.focused)))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const renameConversation = useCallback(
     async (id: string, title: string): Promise<boolean> => {
@@ -449,14 +469,13 @@ function App() {
           sortByUpdatedDesc(prev.map((c) => (c.id === id ? updated : c))),
         )
         setSidebarError(null)
-        if (activeId === id) setChatTitle(updated.title)
         return true
       } catch (e) {
         setSidebarError(parseBridgeError(e))
         return false
       }
     },
-    [activeId],
+    [],
   )
 
   // A confirmação é o AlertDialog da Sidebar: aqui o disco já pode ser tocado.
@@ -466,8 +485,8 @@ function App() {
       await GoApp.DeleteConversation(target.id)
       setConversations((prev) => prev.filter((c) => c.id !== target.id))
       setSidebarError(null)
-      // Apagar a conversa aberta devolve a tela ao estado vazio.
-      if (activeId === target.id) newChat()
+      // Apagar fecha a aba, com a mesma regra de foco de fechar.
+      setTabState((s) => closeTab(s, target.id))
     } catch (e) {
       setSidebarError(parseBridgeError(e))
     }
@@ -538,31 +557,26 @@ function App() {
     return null
   }, [config, configReady, connection])
 
-  // Resumo agregado de tokens de toda a conversa, exibido no rodapé do input.
-  // A janela do medidor é a de AGORA — a sondagem do modelo ativo —, não a do
-  // último turno: é com ela que o próximo turno vai comparar, e é o único total
-  // que existe enquanto a conversa está vazia. Sem janela sondada, fica a do
-  // último turno medido no disco.
-  const usageSummary = useMemo<TokenUsage>(() => {
-    let input = 0
-    let output = 0
-    let contextUsed = 0
-    let contextTotal = 0
-    let contextSource: string | undefined
-    for (const m of messages) {
-      if (!m.usage) continue
-      input += m.usage.input
-      output += m.usage.output
-      contextUsed = m.usage.contextUsed
-      contextTotal = m.usage.contextTotal
-      contextSource = m.usage.contextSource
-    }
-    if (contextWindow) {
-      contextTotal = contextWindow.total
-      contextSource = contextWindow.source
-    }
-    return { input, output, total: input + output, contextUsed, contextTotal, contextSource }
-  }, [messages, contextWindow])
+  const titleOf = (id: string) => conversations.find((c) => c.id === id)?.title ?? ''
+  const focused = tabState.focused
+  // O título da aba do turno, para a linha "Newton está respondendo em …" nas outras abas.
+  const busyIn = (key: string) => (turnConvId && key !== turnConvId ? titleOf(turnConvId) : undefined)
+
+  // O conteúdo de uma aba: o transcript (vazio na Início, que até o corte da
+  // Início mostra o estado vazio legado do ChatArea) e o composer dela.
+  const panel = (key: string, messages: Message[]) => (
+    <TabPanel key={key} id={key} shouldForceMount className={({ isInert }) => tabPanel({ isInert })}>
+      <ChatArea messages={messages} onSuggestion={(t) => send(key, t)} onNewChat={newChat} isWorking={isWorking} />
+      <InputDock
+        onSend={(t) => send(key, t)}
+        isWorking={isWorking}
+        busyIn={busyIn(key)}
+        inputRef={key === HOME ? homeInput : undefined}
+        configReady={configReady !== false}
+        onBlocked={() => setBlocked(sendBlock)}
+      />
+    </TabPanel>
+  )
 
   return (
     <div className={shell}>
@@ -582,7 +596,7 @@ function App() {
         <Sidebar
           expanded={sidebarExpanded}
           conversations={conversations}
-          activeId={activeId}
+          activeId={focused === HOME ? null : focused}
           busy={isWorking}
           error={sidebarError}
           onNewChat={newChat}
@@ -593,23 +607,33 @@ function App() {
           onDismissError={() => setSidebarError(null)}
         />
 
-        {/* O conteúdo da coluna do meio ainda é o legado (ChatArea, InputDock). */}
-        <main className="main">
-          <ChatArea messages={messages} onSuggestion={(t) => send(t)} onNewChat={newChat} isWorking={isWorking} />
-          <InputDock
-            onSend={send}
-            isWorking={isWorking}
-            usageSummary={usageSummary}
-            configReady={configReady !== false}
-            onBlocked={() => setBlocked(sendBlock)}
+        {/* As Abas: a barra no topo do conteúdo e um painel por aba, todos montados
+            (o rascunho e a rolagem ficam neles); só o da aba focada aparece. */}
+        <Tabs
+          className={content}
+          selectedKey={focused}
+          onSelectionChange={(k) => setTabState((s) => ({ ...s, focused: String(k) }))}
+        >
+          <TabBar
+            tabs={tabState.tabs.map((t) => ({ id: t.id, title: titleOf(t.id), busy: t.id === turnConvId }))}
+            onClose={(id) => setTabState((s) => closeTab(s, id))}
           />
-        </main>
+          <div className={panels}>
+            {panel(HOME, [])}
+            {tabState.tabs.map((t) => panel(t.id, t.messages))}
+          </div>
+        </Tabs>
 
         {/* A gaveta fica montada para animar a largura ao abrir e ao fechar; fechada, é inerte. */}
         <div className={logsColumn({ isOpen: logsOpen })} inert={!logsOpen}>
           <LogDrawer open={logsOpen} onClose={() => setLogsOpen(false)} />
         </div>
       </div>
+
+      <StatusBar
+        conversation={conversations.find((c) => c.id === focused) ?? null}
+        contextWindow={contextWindow}
+      />
 
       <SettingsModal
         open={settingsOpen}
@@ -664,11 +688,11 @@ function App() {
   )
 }
 
-// A grade do shell (docs/FRONTEND.md, Shell e janela): a titlebar em cima e as
-// três colunas embaixo. A linha da barra de status entra com as Abas.
+// A grade do shell (docs/FRONTEND.md, Shell e janela): a titlebar em cima, as
+// três colunas no meio e a barra de status embaixo, na largura toda.
 const shell = style({
   display: 'grid',
-  gridTemplateRows: [48, 'minmax(0, 1fr)'],
+  gridTemplateRows: [48, 'minmax(0, 1fr)', 30],
   height: 'screen',
   overflow: 'hidden',
 })
@@ -677,6 +701,26 @@ const columns = style({
   display: 'grid',
   gridTemplateColumns: ['auto', 'minmax(0, 1fr)', 'auto'],
   minHeight: 0,
+})
+
+// A coluna do meio: a barra de abas em cima e os painéis embaixo.
+const content = style({ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 })
+
+// Os painéis empilham na mesma célula. O de aba fora de foco é `inert` (RAC) e
+// some com `visibility`, que, ao contrário de `display: none`, guarda a rolagem.
+// ponytail: toda aba aberta fica montada e com layout; virtualizar se muitas
+// abas pesarem.
+const panels = style({ display: 'grid', flexGrow: 1, minHeight: 0 })
+
+const tabPanel = style({
+  gridArea: '1 / 1',
+  display: 'grid',
+  gridTemplateRows: ['minmax(0, 1fr)', 'auto'],
+  minWidth: 0,
+  minHeight: 0,
+  overflow: 'hidden',
+  outlineStyle: 'none',
+  visibility: { default: 'visible', isInert: 'hidden' },
 })
 
 // 360 px, que caem para 300 px abaixo de 1080 px; anima como o SideNavPanel. A
