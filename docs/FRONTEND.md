@@ -96,6 +96,10 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     `window._wails.environment`, que só existe quando o Go injeta o script, e nenhuma chamada ao Go é
     feita sem ele. O erro de uma chamada é um `RuntimeError` cuja `message` é o erro do Go, e
     `errorText(e)` tira dele o texto.
+  - **A ponte chega depois do primeiro render:** o Go injeta o `environment` depois que a página
+    carregou, então o `App` tem um estado `bridge` (`pending`/`ready`/`absent`) que espera até 3 s
+    pela ponte antes de carregar config/histórico/conexão e de assinar `agent:token`/`agent:done`.
+    Sem ela, abre como browser puro: sem histórico, e o envio falha visível.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell e as Abas (Titlebar, Sidebar, TabBar, StatusBar, botões da

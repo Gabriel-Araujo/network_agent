@@ -46,6 +46,14 @@ interface Blocked {
   cta?: 'settings' | 'reconnect'
 }
 
+/**
+ * A ponte do Wails não existe no primeiro render: o Go injeta
+ * `window._wails.environment` depois que a página carregou. O boot espera por
+ * ela; `absent` é o browser puro (testes e dev sem Wails), onde o app abre sem
+ * histórico e o envio falha visível.
+ */
+type Bridge = 'pending' | 'ready' | 'absent'
+
 // Título da conversa derivado do primeiro prompt, gravado na criação
 // preguiçosa (CreateConversation). O núcleo só armazena títulos; a geração
 // fica no front-end.
@@ -108,6 +116,9 @@ function App() {
   // expõe, senão o declarado — sempre com a origem). O medidor precisa dela
   // mesmo em conversa vazia: o `usage` do disco só existe depois do turno.
   const [contextWindow, setContextWindow] = useState<ContextWindow | null>(null)
+  // O `inWails()` pode ser falso no primeiro render (o Go injeta o environment
+  // depois); o boot espera a ponte em vez de abrir sem config/histórico.
+  const [bridge, setBridge] = useState<Bridge>(() => (inWails() ? 'ready' : 'pending'))
 
   // O campo do composer da Início, para a Nova conversa pôr o cursor nele.
   const homeInput = useRef<HTMLTextAreaElement>(null)
@@ -195,13 +206,36 @@ function App() {
     pollConnection()
   }, [pollConnection])
 
+  // Espera a ponte do Wails. O Go injeta o environment depois da navegação, e
+  // o efeito de boot do React pode rodar antes; sem esta espera a tela abria
+  // sem config nem histórico (e sem os eventos do stream).
   useEffect(() => {
+    if (bridge !== 'pending') return
+    const start = Date.now()
+    let timer: number | undefined
+    const tick = () => {
+      if (inWails()) {
+        setBridge('ready')
+        return
+      }
+      if (Date.now() - start > 3000) {
+        setBridge('absent')
+        return
+      }
+      timer = window.setTimeout(tick, 50)
+    }
+    tick()
+    return () => window.clearTimeout(timer)
+  }, [bridge])
+
+  useEffect(() => {
+    if (bridge === 'pending') return
     loadConversations()
     refreshContextWindow()
     pollConnection()
     // Carrega a configuração no boot. Na primeira execução (sem provedor ou
     // sem modelo) abre a tela de Configurações e bloqueia o input.
-    if (inWails()) {
+    if (bridge === 'ready') {
       GoApp.GetConfig()
         .then((c: AppConfig) => {
           setConfig(c)
@@ -220,7 +254,7 @@ function App() {
       setConfigReady(true)
     }
     return () => window.clearTimeout(connectionTimer.current)
-  }, [loadConversations, refreshContextWindow, pollConnection])
+  }, [bridge, loadConversations, refreshContextWindow, pollConnection])
 
   // Token do turno em voo, na aba da Conversa dele, focada ou não.
   const appendToken = useCallback(
@@ -308,14 +342,14 @@ function App() {
   // só estes dois têm produtor no Go — o `agent:toolcall` escutado aqui nunca
   // teve produtor e saiu (tool calls da UI vêm do transcript do disco).
   useEffect(() => {
-    if (!inWails()) return
+    if (bridge !== 'ready') return
     const offToken = Events.On('agent:token', (e) => appendToken(e.data))
     const offDone = Events.On('agent:done', (e) => onAgentDone(e.data))
     return () => {
       offToken()
       offDone()
     }
-  }, [appendToken, onAgentDone])
+  }, [bridge, appendToken, onAgentDone])
 
   // Envia pela aba `key` (a Início ou uma Conversa). Um turno por vez no app:
   // enquanto ele roda, o envio fica bloqueado em todas as abas.
