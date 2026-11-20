@@ -292,7 +292,8 @@ Fontes: <https://react-aria.adobe.com/llms.txt>, <https://react-aria.adobe.com/G
 | Gaveta de Logs | Sem Drawer/Sheet no S2. RAC tem `Sheet` | Superfície própria. |
 | Barra de status | Sem equivalente | `div` + macro. |
 | Modal de Configurações | DialogTrigger/DialogContainer + Dialog (`size` S/M/L/XL, `isDismissible`) | Coberto. |
-| Navegação interna (Workspace/Provedores/Aparência) | Tabs `orientation="vertical"` ou ListView | Escolha do de-para. |
+| Navegação interna (Workspace/Provedores/Aparência) | Tabs `orientation="vertical"` ou ListView | Escolha do de-para. **Exceção (usuário, 2026-11-20): o protótipo vence.** O app usa o `Tabs` do RAC com o visual do menu `.cfg-nav` do protótipo (ver `FRONTEND.md`, **Configurações**), porque o `Tabs` vertical do S2 não tem o fundo de seleção no acento nem a linha de separação do protótipo. |
+| Borrado sob o modal | Sem equivalente: o véu do `Modal` é `transparent-black-500`, sem `backdrop-filter` | Superfície própria: `css()` com `body > :has(&)`, ver §5. |
 | Campos de texto e senha | TextField (`type="password"`) | Coberto. |
 | Tema com cartões de prévia (Claro/Escuro/Sistema) | RadioGroup/Radio, SelectBoxGroup (cartões, estável) ou SegmentedControl | Coberto, com formas diferentes. |
 | Lista de provedores / linhas de modelo com ações | ListView + ActionButtonGroup | Coberto. |
@@ -484,6 +485,23 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
     - No macro, `insetStart` (lógica) e um `css('left: auto')` (física) não se anulam: duas metades
       absolutas, uma com `insetStart: 0` e outra com `left: auto; right: 0`, ficaram as duas à
       esquerda. Declare `insetStart` numa e `insetEnd` na outra.
+  - **Véu e borrado do `Modal`, medido** (S2 1.8.2, 2026-11-20, código-fonte de `Modal.tsx` e ao vivo no
+    `wails3 dev`):
+    - O overlay do `Modal` (e então do `Dialog`/`DialogContainer`) é um `ModalOverlay` do RAC com
+      `className` fixado pelo S2 (a prop é omitida do tipo) e `backgroundColor: transparent-black-500`,
+      sem `backdrop-filter`. Ele é filho direto do `body`, fora do `#root` e do `Provider`.
+    - Para borrar sem trocar de `Dialog`: um `css()` do macro com `body > :has(&) { backdrop-filter:
+      blur(4px); }`, numa classe posta num elemento do corpo do modal. O `css()` aceita aninhamento
+      (vira `body>:has(.x){backdrop-filter:blur(4px)}` no CSS final) e o overlay carrega o estilo
+      (`getComputedStyle` deu `blur(4px)`). O borrado acompanha o `opacity` de entrada e saída do véu,
+      e some com o overlay ao fechar. O foco preso (6 Tabs ficaram dentro do dialog), o Esc e o `aria-label`
+      continuam do S2.
+    - O `Dialog` renderiza os filhos quatro vezes (cabeçalho, conteúdo, rodapé...), com os contextos
+      escondendo as partes que não são daquele lugar, então a classe deve ir num elemento do
+      `Content`, que só aparece uma vez.
+    - No macro, uma propriedade só com condição e sem `default` (`borderEndWidth: {orientation:
+      {vertical: 1}}`) não zera a borda quando a condição falha: com `borderStyle: 'solid'` a borda sai
+      `medium` (3 px). Ponha `default: 0`.
   - **Macro no vitest 5** (`vitest` 5.1.1, `unplugin-parcel-macros` do `package.json`, medido em
     2026-11-19): o `fsModuleCache` (padrão `true`) reaproveita o módulo transformado entre rodadas, e
     o macro não roda de novo, então o `macro-<hash>.css` que ele registra em memória não existe. O

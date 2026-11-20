@@ -28,7 +28,9 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   Ele carrega fontes do Google Fonts; o app, não.
 - **Quem vence quando o Spectrum e o protótipo discordam:** o Spectrum, nos controles padrão (botão,
   picker, menu, dialog, tabs, toast, campos, radio); o protótipo, no layout do shell e das
-  superfícies sem equivalente (composer, trilho de Perguntas, diagrama, gaveta de Logs).
+  superfícies sem equivalente (composer, trilho de Perguntas, diagrama, gaveta de Logs). Exceção
+  (usuário, 2026-11-20): no modal de Configurações vence o protótipo, com o menu vertical e o fundo
+  borrado (ver **Configurações**).
 - **Superfície própria** é montada em `react-aria-components` (ou HTML puro) e estilizada pelo macro
   `style` com os tokens do S2, não com cores soltas nem com as variáveis do protótipo.
 - **Nada depende de rede em runtime:** fontes, ícones e assets vão embutidos no bundle. Para
@@ -101,8 +103,8 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell, as Abas, a Início, a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
   Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho), o Bloco de diagrama, a
-  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.666,75 KB (gzip 542,35 KB) e o chunk
-  `s2-styles` 82,00 KB (gzip 15,28 KB); o `index-*.css` tem 0,80 KB. O modal trouxe `Dialog`, `Tabs`
+  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.642,45 KB (gzip 535,95 KB) e o chunk
+  `s2-styles` 81,33 KB (gzip 15,08 KB); o `index-*.css` tem 0,80 KB (o menu próprio em RAC no lugar do `Tabs` do S2 tirou 24 KB do JS, gzip 6,4 KB, e 0,7 KB do CSS). O modal trouxe `Dialog`, `Tabs`
   vertical, `ListView`, `SelectBoxGroup`, `NumberField` e `Badge` (+119 KB, gzip +30,6 KB no JS, e
   +15 KB no CSS), e tirar o phosphor não compensou, porque ele já saía do bundle por tree-shaking.
   Antes das Configurações eram 1.547 KB (gzip 511,69 KB) e 67,17 KB (gzip 11,96 KB), antes da gaveta
@@ -358,11 +360,25 @@ direto em Provedores, com um `InlineAlert informative` "Configuração necessár
 Workspace. O erro de qualquer chamada é um `InlineAlert negative` "Não foi possível concluir", acima
 das abas e com a causa do Go; não vira toast.
 
-- **Navegação:** `Tabs` do S2 com três abas, cada uma com ícone: **Workspace** (`Folder`),
-  **Provedores** (`ListBulleted`) e **Aparência** (`BrightnessContrast`). Verticais com a janela a
-  partir de 1080 px; abaixo de 1080 px o `orientation` vira `horizontal` (um `matchMedia`) e a lista
-  de provedores empilha sobre o formulário (um `@media` do macro, lista com 40% da altura). O corpo
-  tem no máximo 480 px de altura e cada painel rola por dentro.
+- **Navegação:** o menu vertical do protótipo (`.cfg-nav`), e não o `Tabs` do S2 (exceção pedida pelo
+  usuário: aqui o protótipo vence o Spectrum). É o `Tabs`/`TabList`/`Tab`/`TabPanel` do RAC com o
+  visual do macro, então a semântica é a de abas (`tablist`, `aria-orientation`, setas, tabindex
+  móvel, `aria-selected`, `tabpanel` ligado à aba), a mesma de antes. Três itens, cada um com ícone S2
+  (`XS`) e rótulo: **Workspace** (`Folder`), **Provedores** (`ListBulleted`) e **Aparência**
+  (`BrightnessContrast`). O menu tem 200 px, com 16 px de respiro e uma linha de 1 px (`gray-200`) que o
+  separa do conteúdo, a 24 px dele. O item tem raio `lg` (10 px) e texto `neutral-subdued`; o hover dá
+  `gray-100` e texto `neutral`; o ativo, `accent-subtle`, texto `accent` e peso 600; o foco de teclado
+  é o anel `focus-ring` de 2 px por dentro. Com a janela abaixo de 1080 px o `orientation` vira
+  `horizontal` (um `matchMedia`): o menu é uma linha, com a linha embaixo, e a lista de provedores
+  empilha sobre o formulário (um `@media` do macro, lista com 40% da altura).
+- **Rolagem e borrado:** o corpo do modal tem altura fixa, `min(496px, 100vh - 224px)` (o
+  `.modal-body` do protótipo, 540 px, menos o respiro que o `Dialog` do S2 já dá), e o cabeçalho (título
+  e fechar) fica fora dele. O menu, a lista de provedores, o formulário de edição e cada painel
+  rolam sozinhos, cada um com o próprio `overflow-y`. O app por trás fica borrado (4 px, como o
+  `.overlay` do protótipo) além do véu do S2: o `Tabs` leva a classe `blurBehind`, um `css()` do macro
+  que vira `body > :has(.x) { backdrop-filter: blur(4px) }`, porque o overlay do `Modal` do S2 é filho
+  direto do `body` e não aceita `className`. O borrado acompanha a opacidade do véu na entrada e na
+  saída, e o `Dialog` do S2 segue com o foco preso, o Esc e o rótulo.
 - **Workspace:** um `TextField` somente leitura com a pasta (placeholder "Nenhuma pasta escolhida — o
   agente não grava arquivos.") e o `Button` "Trocar..." (ou "Escolher..." sem pasta), que chama o
   `PickWorkspace`. Durante um turno (`workspaceLocked`) o botão fica desabilitado e a linha embaixo
@@ -436,7 +452,8 @@ elemento.
 | Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | **pronto** | `LogDrawer.tsx` |
 | Barra de status | própria | **pronto** | `components/StatusBar.tsx` |
 | Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | **pronto** | `SettingsModal.tsx` |
-| Configurações: navegação | S2 `Tabs orientation="vertical"` (horizontal abaixo de 1080 px) | **pronto** | `SettingsModal.tsx` |
+| Configurações: navegação | própria em RAC `Tabs orientation="vertical"` (horizontal abaixo de 1080 px), o menu `.cfg-nav` do protótipo; exceção: aqui o protótipo vence o S2 `Tabs` | **pronto** | `SettingsModal.tsx` |
+| Configurações: borrado sob o modal | própria: `css()` do macro com `body > :has(&) { backdrop-filter: blur(4px) }` sobre o véu do S2 | **pronto** | `SettingsModal.tsx` |
 | Campos (Workspace, provedor, modelo) | S2 `TextField` (`type="password"` na chave), `NumberField` (contexto) + `Button` | **pronto** | `SettingsModal.tsx`, `ModelsSection.tsx` |
 | Lista de provedores | S2 `ListView selectionMode="single"` (`selectionStyle="highlight"`) | **pronto** | `SettingsModal.tsx` |
 | Modelos | S2 `ListView` + `ActionButtonGroup` (padrão, editar, apagar) + `Badge` "padrão" | **pronto** | `ModelsSection.tsx` |

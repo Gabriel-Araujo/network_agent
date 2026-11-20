@@ -12,17 +12,14 @@ import {
   Provider,
   SelectBox,
   SelectBoxGroup,
-  Tab,
-  TabList,
-  TabPanel,
-  Tabs,
   Text,
   TextField,
   Tooltip,
   TooltipTrigger,
   ActionButton,
 } from '@react-spectrum/s2'
-import { css, style } from '@react-spectrum/s2/style' with { type: 'macro' }
+import { Tab, TabList, TabPanel, Tabs } from 'react-aria-components'
+import { css, iconStyle, style } from '@react-spectrum/s2/style' with { type: 'macro' }
 import Add from '@react-spectrum/s2/icons/Add'
 import BrightnessContrast from '@react-spectrum/s2/icons/BrightnessContrast'
 import Delete from '@react-spectrum/s2/icons/Delete'
@@ -232,29 +229,31 @@ export default function SettingsModal({
             )}
 
             <Tabs
-              aria-label="Seções de configuração"
               orientation={narrow ? 'horizontal' : 'vertical'}
               selectedKey={section}
               onSelectionChange={(k) => setSection(k as Section)}
-              styles={tabs}
+              className={(r) => `${tabs({ orientation: r.orientation })} ${blurBehind}`}
             >
-              <TabList>
-                <Tab id="workspace">
-                  <Folder />
-                  <Text>Workspace</Text>
+              <TabList
+                aria-label="Seções de configuração"
+                className={(r) => navList({ orientation: r.orientation })}
+              >
+                <Tab id="workspace" className={(r) => navItem(r)}>
+                  <Folder styles={navIcon} />
+                  <span>Workspace</span>
                 </Tab>
-                <Tab id="providers">
-                  <ListBulleted />
-                  <Text>Provedores</Text>
+                <Tab id="providers" className={(r) => navItem(r)}>
+                  <ListBulleted styles={navIcon} />
+                  <span>Provedores</span>
                 </Tab>
-                <Tab id="appearance">
-                  <BrightnessContrast />
-                  <Text>Aparência</Text>
+                <Tab id="appearance" className={(r) => navItem(r)}>
+                  <BrightnessContrast styles={navIcon} />
+                  <span>Aparência</span>
                 </Tab>
               </TabList>
 
               {/* O Workspace é do app, não do provedor (ticket 05, §4): tem aba própria. */}
-              <TabPanel id="workspace" styles={panel}>
+              <TabPanel id="workspace" className={(r) => panel(r)}>
                 <div className={pane}>
                   <div className={row}>
                     <TextField
@@ -275,7 +274,7 @@ export default function SettingsModal({
                 </div>
               </TabPanel>
 
-              <TabPanel id="providers" styles={panel}>
+              <TabPanel id="providers" className={(r) => panel(r)}>
                 <div className={split}>
                   <div className={column}>
                     <div className={listHead}>
@@ -400,7 +399,7 @@ export default function SettingsModal({
                 </div>
               </TabPanel>
 
-              <TabPanel id="appearance" styles={panel}>
+              <TabPanel id="appearance" className={(r) => panel(r)}>
                 <div className={pane}>
                   <h3 className={editTitle} id="theme-label">
                     Tema
@@ -476,14 +475,84 @@ function Mini({ scheme }: { scheme: 'light' | 'dark' }) {
 
 const alert = style({ width: 'full', marginBottom: 12 })
 
-// O corpo do modal: a altura segue a janela (a gaveta de rolagem é de cada painel).
-const tabs = style({ height: '[min(480px, calc(100vh - 260px))]', minHeight: 0, width: 'full' })
-const panel = style({ minWidth: 0, minHeight: 0, flexGrow: 1 })
+// O corpo do modal tem altura fixa (a do protótipo, `.modal-body`, sem o respiro que o `Dialog`
+// do S2 já dá): o menu, a lista de provedores e o formulário rolam cada um por conta própria, e
+// o cabeçalho do `Dialog` fica de fora.
+const tabs = style({
+  display: 'flex',
+  flexDirection: { orientation: { vertical: 'row', horizontal: 'column' } },
+  columnGap: 24,
+  rowGap: 16,
+  height: '[min(496px, calc(100vh - 224px))]',
+  minHeight: 0,
+  width: 'full',
+})
+
+// O S2 pinta o véu do modal sem borrar. O overlay é filho direto do `body` e não aceita
+// `className`; esta classe, no corpo do modal, o acha por `:has` e põe o borrado do protótipo
+// (`.overlay`, 4 px), que acompanha a opacidade do véu na entrada e na saída.
+const blurBehind = css(`body > :has(&) { backdrop-filter: blur(4px); }`)
+
+// O menu vertical do protótipo (`.cfg-nav`): ícone e rótulo, hover leve, item ativo no acento e
+// uma linha que o separa do conteúdo. Abaixo de 1080 px vira horizontal. É o `Tabs` do RAC: a
+// semântica (tablist, setas, roving tabindex, aria-selected, tabpanel) é a mesma do S2.
+const navList = style({
+  display: 'flex',
+  flexDirection: { orientation: { vertical: 'column', horizontal: 'row' } },
+  gap: 2,
+  flexShrink: 0,
+  boxSizing: 'border-box',
+  width: { orientation: { vertical: 200 } },
+  paddingEnd: { orientation: { vertical: 16 } },
+  paddingBottom: { orientation: { horizontal: 8 } },
+  overflowY: { orientation: { vertical: 'auto', horizontal: 'hidden' } },
+  overflowX: { orientation: { vertical: 'hidden', horizontal: 'auto' } },
+  borderStyle: 'solid',
+  borderWidth: 0,
+  borderEndWidth: { default: 0, orientation: { vertical: 1 } },
+  borderBottomWidth: { default: 0, orientation: { horizontal: 1 } },
+  borderColor: 'gray-200',
+})
+const navItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flexShrink: 0,
+  paddingX: 12,
+  paddingY: 8,
+  font: 'ui',
+  fontWeight: { default: 'normal', isSelected: '[600]' },
+  color: { default: 'neutral-subdued', isHovered: 'neutral', isSelected: 'accent' },
+  backgroundColor: { default: 'transparent', isHovered: 'gray-100', isSelected: 'accent-subtle' },
+  borderRadius: 'lg',
+  cursor: 'default',
+  whiteSpace: 'nowrap',
+  outlineStyle: { default: 'none', isFocusVisible: 'solid' },
+  outlineColor: 'focus-ring',
+  outlineWidth: 2,
+  outlineOffset: -2,
+  transition: 'default',
+  '--iconPrimary': { type: 'color', value: '[currentColor]' },
+})
+const navIcon = iconStyle({ size: 'XS' })
+
+const panel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minWidth: 0,
+  minHeight: 0,
+  outlineStyle: { default: 'none', isFocusVisible: 'solid' },
+  outlineColor: 'focus-ring',
+  outlineWidth: 2,
+  outlineOffset: -2,
+})
 const pane = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
-  height: 'full',
+  flexGrow: 1,
+  minHeight: 0,
   overflowY: 'auto',
   paddingX: 4,
 })
@@ -505,7 +574,7 @@ const split = style({
   },
   columnGap: 16,
   rowGap: 12,
-  height: 'full',
+  flexGrow: 1,
   minHeight: 0,
 })
 const column = style({ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, minHeight: 0 })
