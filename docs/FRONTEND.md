@@ -101,7 +101,7 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell, as Abas, a Início, a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
   Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho), o Bloco de diagrama, a
-  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.666,68 KB (gzip 542,33 KB) e o chunk
+  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.666,75 KB (gzip 542,35 KB) e o chunk
   `s2-styles` 82,00 KB (gzip 15,28 KB); o `index-*.css` tem 0,80 KB. O modal trouxe `Dialog`, `Tabs`
   vertical, `ListView`, `SelectBoxGroup`, `NumberField` e `Badge` (+119 KB, gzip +30,6 KB no JS, e
   +15 KB no CSS), e tirar o phosphor não compensou, porque ele já saía do bundle por tree-shaking.
@@ -156,6 +156,17 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
 - **Grade** (`App.tsx`, macro `style`): a titlebar (48 px) em cima, na largura toda, as três colunas
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
+- **Moldura e cartão:** a titlebar, a sidebar (ou a faixa recolhida), a gaveta de Logs e a barra de
+  status são a **moldura**, em `layer-1`. A coluna do conteúdo é um **cartão** solto dela, em
+  `layer-2` (`content` no `App.tsx`): `margin: 8`, `border` de 1 px em `gray-300`, `borderRadius:
+  'xl'` (16 px, o raio exato do protótipo) e `overflow: hidden`, então a barra de abas fica dentro
+  dele e com a cor dele. O cartão pinta o fundo uma vez: a Conversa, a Início, o composer e a barra
+  de abas não pintam o delas. Valores resolvidos no app (S2 1.8.2, 2026-11-20): claro, moldura
+  `rgb(248, 248, 248)`, cartão `rgb(255, 255, 255)`, borda `rgb(218, 218, 218)`; escuro, moldura
+  `rgb(27, 27, 27)`, cartão `rgb(34, 34, 34)`, borda `rgb(57, 57, 57)`. O cartão é mais claro que a
+  moldura nos dois temas, como no protótipo (`#F4F4F5`/`#FFFFFF` e `#1A1B1E`/`#202125`). A gaveta de
+  Logs, na moldura, não tem borda: o cartão e a margem de 8 px a separam. Fechada, a coluna tem
+  largura 0 e o cartão fica a 8 px da borda da janela.
   A Conversa (ver **Conversa**), a Início, o composer (`InputDock`), a titlebar, a sidebar, a
   barra de abas, a barra de status, o Bloco de diagrama, a gaveta de Logs e as Configurações seguem o tema.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,

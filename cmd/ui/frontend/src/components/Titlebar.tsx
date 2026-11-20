@@ -31,7 +31,7 @@ const bar = style({
   gap: 8,
   height: 48,
   paddingX: 12,
-  backgroundColor: 'base',
+  backgroundColor: 'layer-1',
   userSelect: 'none',
   minWidth: 0,
 })

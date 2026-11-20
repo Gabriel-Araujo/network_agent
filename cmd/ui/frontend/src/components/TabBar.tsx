@@ -36,7 +36,6 @@ const list = style({
   borderBottomWidth: 1,
   borderStyle: 'solid',
   borderColor: 'gray-200',
-  backgroundColor: 'base',
 })
 
 const tab = style({

@@ -323,6 +323,14 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   `rgb(248, 248, 248)` no claro.
   Fontes: <https://github.com/adobe/react-spectrum/blob/main/packages/@react-spectrum/s2/src/page.macro.ts>,
   <https://cdn.jsdelivr.net/npm/@react-spectrum/s2@1.8.2/page.css>.
+- **Fundos empilhados no macro, medido no app (S2 1.8.2, 2026-11-20, `getComputedStyle`):**
+  `backgroundColor: 'layer-1'` vale `rgb(248, 248, 248)` no claro e `rgb(27, 27, 27)` no escuro, e
+  `'layer-2'` vale `rgb(255, 255, 255)` e `rgb(34, 34, 34)`: o `layer-2` é mais claro que o `layer-1`
+  nos dois temas, a mesma relação do protótipo (`#F4F4F5`/`#FFFFFF` e `#1A1B1E`/`#202125`), então
+  moldura em `layer-1` e cartão em `layer-2` dão o efeito de cartão sem outro par de tokens.
+  `borderColor: 'gray-300'` vale `rgb(218, 218, 218)` no claro e `rgb(57, 57, 57)` no escuro. O raio
+  `'xl'` é 16 px (`corner-radius-extra-large-default`), igual ao `--radius-xl` do protótipo; a
+  escala é `sm` 4, `default` 8, `lg` 10 e `xl` 16 (`style/spectrum-theme.ts`).
 - **O acento do protótipo é o acento padrão do S2.** `#3B63FB` = `rgb(59, 99, 251)` =
   `accent-color-900` claro = `accent-background-color-default`. O `--accent-hover` (`#4069FD`) e o
   `--accent-down` (`#274DEA`) do protótipo também aparecem literais no `Button.css` compilado. No

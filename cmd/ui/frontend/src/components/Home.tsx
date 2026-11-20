@@ -31,7 +31,6 @@ const home = style({
   paddingY: 40,
   minHeight: 0,
   overflowY: 'auto',
-  backgroundColor: 'base',
 })
 
 const title = style({

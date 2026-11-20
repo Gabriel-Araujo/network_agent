@@ -38,11 +38,7 @@ const drawer = style({
   gridTemplateRows: ['auto', 'minmax(0, 1fr)', 'auto'],
   minWidth: 0,
   minHeight: 0,
-  backgroundColor: 'base',
-  borderWidth: 0,
-  borderStartWidth: 1,
-  borderStyle: 'solid',
-  borderColor: 'gray-300',
+  backgroundColor: 'layer-1',
 })
 
 const head = style({

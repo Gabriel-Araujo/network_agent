@@ -768,8 +768,22 @@ const columns = style({
   minHeight: 0,
 })
 
-// A coluna do meio: a barra de abas em cima e os painéis embaixo.
-const content = style({ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 })
+// A coluna do meio é um cartão solto da moldura (docs/FRONTEND.md, Shell e janela):
+// a barra de abas em cima e os painéis embaixo, em `layer-2` sobre a moldura em
+// `layer-1`. O cartão pinta o fundo; as telas de dentro não pintam o delas.
+const content = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  minHeight: 0,
+  margin: 8,
+  backgroundColor: 'layer-2',
+  borderWidth: 1,
+  borderStyle: 'solid',
+  borderColor: 'gray-300',
+  borderRadius: 'xl',
+  overflow: 'hidden',
+})
 
 // Os painéis empilham na mesma célula. O de aba fora de foco é `inert` (RAC) e
 // some com `visibility`, que, ao contrário de `display: none`, guarda a rolagem.

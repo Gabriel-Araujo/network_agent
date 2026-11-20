@@ -28,7 +28,6 @@ const dock = style({
   paddingX: 24,
   paddingTop: 8,
   paddingBottom: 20,
-  backgroundColor: 'base',
 })
 
 const composer = style({

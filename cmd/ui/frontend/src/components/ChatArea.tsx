@@ -14,7 +14,6 @@ const chat = style({
   flexDirection: 'column',
   minHeight: 0,
   overflow: 'hidden',
-  backgroundColor: 'base',
 })
 // A div que contém as bolhas é quem rola.
 const scroll = style({ flexGrow: 1, minHeight: 0, overflow: 'auto' })
