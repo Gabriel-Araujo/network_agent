@@ -393,6 +393,9 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   `transition: '[width]'` + `transitionDuration: 300` animam a largura, como faz o `SideNavPanel`.
   O `outlineColor` aceita `focus-ring`, o `borderColor` não. Fonte: `style/style-macro.ts`
   (`compileCondition`) e `src/SideNavPanel.tsx` do pacote.
+  - `alignItems` usa `start`/`end` (não `flex-start`/`flex-end`), e o espaçamento (`gap`,
+    `padding*`) só aceita a escala de tokens (2, 4, 8, 12, 16, …); `7`, `10` e `14` não compilam no
+    TS do macro. Medido no app ao montar a Início, 2026-11-19.
 - **RAC `GridList` com um `input` na linha (react-aria-components 1.22.1, medido no app):** um `ref`
   + `useEffect` que chama `focus()` não foca o input da tela, porque a coleção também monta os itens
   numa cópia fora do DOM; `autoFocus` foca. Com `keyboardNavigationBehavior="tab"` as setas não são

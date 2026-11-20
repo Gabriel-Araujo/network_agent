@@ -102,11 +102,11 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     Sem ela, abre como browser puro: sem histórico, e o envio falha visível.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
-- **Bundle (Vite 8):** com o Shell e as Abas (Titlebar, Sidebar, TabBar, StatusBar, botões da
-  janela) e só o pt-BR, o JS tem 1.535 KB (gzip 505 KB) e o chunk `s2-styles` 59 KB (gzip 10 KB).
-  Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB (gzip 7,3 KB); sem o
-  filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB. Medição anterior em
-  [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
+- **Bundle (Vite 8):** com o Shell, as Abas e a Início (Titlebar, Sidebar, TabBar, StatusBar, Home,
+  composer, botões da janela) e só o pt-BR, o JS tem 1.525 KB (gzip 504 KB) e o chunk `s2-styles`
+  60,6 KB (gzip 10,6 KB). Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB
+  (gzip 7,3 KB); sem o filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB.
+  Medição anterior em [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
 
 ## Tema
 
@@ -144,9 +144,9 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
 - **Grade** (`App.tsx`, macro `style`): a titlebar (48 px) em cima, na largura toda, as três colunas
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
-  O conteúdo das abas ainda é o legado (`ChatArea` + `InputDock`), pintado pelo vidro escuro do
-  `App.css` nos dois temas; a titlebar, a sidebar, a barra de abas e a barra de status já seguem o
-  tema.
+  O conteúdo das abas ainda é o legado do `ChatArea`, pintado pelo vidro escuro do `App.css` nos
+  dois temas; a Início, o composer (`InputDock`), a titlebar, a sidebar, a barra de abas e a barra
+  de status já seguem o tema.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
   Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
   janela. A janela liga o
@@ -265,9 +265,9 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Lista de Conversas | própria em RAC `GridList` + `GridListSection` (grupos por data); ações em S2 `ActionButton isQuiet`; renomear inline | **pronto** | `Sidebar.tsx` |
 | Card de erro da sidebar | S2 `InlineAlert variant="negative"` + `ActionButton` (Tentar de novo, Dispensar) | **pronto** | `Sidebar.tsx` |
 | Abas | própria em RAC `Tabs`/`TabList`/`Tab`: o "x" dentro da aba, fora da ordem de Tab, e fechar também por teclado; rola na horizontal quando não cabe | **pronto** | `components/TabBar.tsx` |
-| Início: título e subtítulo | própria | estado vazio do `ChatArea.tsx` | `components/Home.tsx` |
-| Sugestões | própria, cartão em RAC `Button` | chips do `ChatArea.tsx` | `Home.tsx` |
-| Composer (Início e Conversa) | própria: RAC `TextArea` + botão de enviar próprio | `InputDock.tsx` | `InputDock.tsx` |
+| Início: título e subtítulo | própria | **pronto** | `components/Home.tsx` |
+| Sugestões | própria, cartão em RAC `Button` | **pronto** | `Home.tsx` |
+| Composer (Início e Conversa) | própria: RAC `TextArea` + botão de enviar próprio | **pronto** | `InputDock.tsx` |
 | Markdown | própria | `Markdown.tsx` | `Markdown.tsx` |
 | Bloco de código | própria: cabeçalho com a linguagem da fence (vazio se não houver) + S2 `ActionButton isQuiet` com `Copy` e `Tooltip`; sem realce de sintaxe | `<pre>` do `Markdown.tsx` | `components/CodeBlock.tsx` |
 | Bloco de diagrama: canvas | própria | `Mermaid.tsx` | `Mermaid.tsx` |
@@ -291,7 +291,7 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Aparência (tema) | S2 `SelectBoxGroup`, cartões com a prévia | — | `SettingsModal.tsx` |
 | Salvar / Excluir | S2 `Button variant="accent"` / `variant="negative"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
 | Apagar Conversa | S2 `AlertDialog variant="destructive"` | **pronto** | `Sidebar.tsx` |
-| Envio bloqueado | S2 `AlertDialog` | o `.alert` do `App.tsx` | `App.tsx` |
+| Envio bloqueado | S2 `AlertDialog` | **pronto** | `App.tsx` |
 
 ### Ícones
 
@@ -345,7 +345,7 @@ medido).
 
 ## Início, barra de status e toast
 
-**Início** (_Decidido, a implementar_, `components/Home.tsx`): o título "O que vamos fazer hoje?",
+**Início** (`components/Home.tsx`): o título "O que vamos fazer hoje?",
 o subtítulo "Descreva a tarefa. O Newton monta, ajusta, desenha ou explica configurações FRR.", o
 composer e quatro sugestões. As sugestões são uma lista fixa no próprio `Home.tsx`, uma por
 capacidade do Newton, nesta ordem:
@@ -358,8 +358,9 @@ capacidade do Newton, nesta ordem:
 Clicar numa sugestão põe o texto dela no composer da Início, no lugar do rascunho, e foca o campo
 com o cursor no fim. Ela não envia, porque um envio do Builder pode substituir o `frr.conf` do
 Workspace. As sugestões nunca ficam desabilitadas. Quando o envio está bloqueado (turno em outra
-aba, nenhum provedor), quem avisa é o composer. A Início não tem "Limpar conversa". Enquanto este
-corte não entra, a Início mostra o estado vazio legado do `ChatArea`.
+aba, nenhum provedor), quem avisa é o composer. A Início não tem "Limpar conversa". O composer é o
+`InputDock` compartilhado com a Conversa, e o `App` o preenche pelo `InputDockHandle` (`fill`). A
+Início monta as sugestões em uma coluna abaixo de 1080 px, como o protótipo.
 
 **Barra de status** (`components/StatusBar.tsx`): uma linha de 30 px no pé da janela, na largura
 toda, que mostra a Aba focada, não a do turno em voo.

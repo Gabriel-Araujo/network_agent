@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-// O alerta de envio bloqueado usa o visual `.alert`, que mora aqui.
-import './Settings.css'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
-import InputDock from './components/InputDock'
+import Home from './components/Home'
+import InputDock, { InputDockHandle } from './components/InputDock'
 import SettingsModal from './components/SettingsModal'
 import LogDrawer from './components/LogDrawer'
 import Titlebar from './components/Titlebar'
@@ -29,7 +28,7 @@ import { runMermaidRepair } from './mermaidRepair'
 import { Events } from '@wailsio/runtime'
 import { App as GoApp } from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui'
 import { inWails } from './types'
-import { ToastContainer } from '@react-spectrum/s2'
+import { AlertDialog, DialogContainer, ToastContainer } from '@react-spectrum/s2'
 import { TabPanel, Tabs } from 'react-aria-components'
 import { style } from '@react-spectrum/s2/style' with { type: 'macro' }
 
@@ -120,8 +119,9 @@ function App() {
   // depois); o boot espera a ponte em vez de abrir sem config/histórico.
   const [bridge, setBridge] = useState<Bridge>(() => (inWails() ? 'ready' : 'pending'))
 
-  // O campo do composer da Início, para a Nova conversa pôr o cursor nele.
-  const homeInput = useRef<HTMLTextAreaElement>(null)
+  // O composer da Início, para a Nova conversa focar o campo e a sugestão
+  // preencher o rascunho sem enviar.
+  const homeDock = useRef<InputDockHandle>(null)
   // timer do pull do estado da conexão (só existe enquanto carregando).
   const connectionTimer = useRef<number | undefined>(undefined)
   // ref síncrono de "enviando": bloqueia double-submit no mesmo tick.
@@ -464,7 +464,7 @@ function App() {
   // rascunho. O campo só fica focável depois que o painel aparece.
   const newChat = () => {
     setTabState((s) => ({ ...s, focused: HOME }))
-    requestAnimationFrame(() => homeInput.current?.focus())
+    requestAnimationFrame(() => homeDock.current?.focus())
   }
 
   // Abrir uma Conversa foca a aba dela, ou abre uma no fim da barra, focada. A
@@ -596,16 +596,20 @@ function App() {
   // O título da aba do turno, para a linha "Newton está respondendo em …" nas outras abas.
   const busyIn = (key: string) => (turnConvId && key !== turnConvId ? titleOf(turnConvId) : undefined)
 
-  // O conteúdo de uma aba: o transcript (vazio na Início, que até o corte da
-  // Início mostra o estado vazio legado do ChatArea) e o composer dela.
+  // O conteúdo de uma aba: a Início (título, sugestões e o composer) ou o
+  // transcript da Conversa, com o mesmo composer embaixo.
   const panel = (key: string, messages: Message[]) => (
     <TabPanel key={key} id={key} shouldForceMount className={({ isInert }) => tabPanel({ isInert })}>
-      <ChatArea messages={messages} onSuggestion={(t) => send(key, t)} onNewChat={newChat} isWorking={isWorking} />
+      {key === HOME ? (
+        <Home onSuggestion={(t) => homeDock.current?.fill(t)} />
+      ) : (
+        <ChatArea messages={messages} isWorking={isWorking} />
+      )}
       <InputDock
+        ref={key === HOME ? homeDock : undefined}
         onSend={(t) => send(key, t)}
         isWorking={isWorking}
         busyIn={busyIn(key)}
-        inputRef={key === HOME ? homeInput : undefined}
         configReady={configReady !== false}
         onBlocked={() => setBlocked(sendBlock)}
       />
@@ -677,45 +681,32 @@ function App() {
         dismissible={configReady !== false}
       />
 
-      {blocked && (
-        <div className="alert-scrim" role="presentation" onMouseDown={() => setBlocked(null)}>
-          <div
-            className="alert"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label={blocked.title}
-            onMouseDown={(e) => e.stopPropagation()}
+      {/* O envio bloqueado por configuração/conexão tem lugar próprio, não toast. */}
+      <DialogContainer onDismiss={() => setBlocked(null)}>
+        {blocked && (
+          <AlertDialog
+            title={blocked.title}
+            cancelLabel={blocked.cta ? 'Fechar' : undefined}
+            primaryActionLabel={
+              blocked.cta === 'settings'
+                ? 'Abrir Configurações'
+                : blocked.cta === 'reconnect'
+                  ? 'Reconectar'
+                  : 'Fechar'
+            }
+            onCancel={() => setBlocked(null)}
+            onPrimaryAction={() => {
+              setBlocked(null)
+              if (blocked.cta === 'settings') setSettingsOpen(true)
+              else if (blocked.cta === 'reconnect') reconnectNow()
+            }}
           >
-            <h3 className="alert__title">{blocked.title}</h3>
-            <p className="alert__text">{blocked.text}</p>
-            <div className="alert__actions">
-              <button className="btn-ghost" onClick={() => setBlocked(null)}>Fechar</button>
-              {blocked.cta === 'settings' && (
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    setBlocked(null)
-                    setSettingsOpen(true)
-                  }}
-                >
-                  Abrir Configurações
-                </button>
-              )}
-              {blocked.cta === 'reconnect' && (
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    setBlocked(null)
-                    reconnectNow()
-                  }}
-                >
-                  Reconectar
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+            {blocked.text.split('\n\n').map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </AlertDialog>
+        )}
+      </DialogContainer>
 
       {/* Só as cópias e as falhas delas disparam toast (docs/FRONTEND.md, Início, barra de status e toast). */}
       <ToastContainer placement="bottom end" />
