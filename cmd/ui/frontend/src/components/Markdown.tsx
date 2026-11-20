@@ -143,8 +143,7 @@ export default function Markdown({ content, streaming = false }: MarkdownProps) 
   // documento = ordem de extração).
   let mermaidSeen = 0
   return (
-    // `md` fica de gancho: o App.css do Bloco de diagrama escopa `.md .mermaid`.
-    <div className={`${root} ${edges} md`}>
+    <div className={`${root} ${edges}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -160,7 +159,7 @@ export default function Markdown({ content, streaming = false }: MarkdownProps) 
               // Durante o streaming o diagrama ainda está incompleto: mostra o
               // código cru e só renderiza o SVG quando a resposta fecha.
               if (streaming) {
-                return <pre className="mermaid-source">{code}</pre>
+                return <CodeBlock language="mermaid" code={code} />
               }
               return <Mermaid code={code} />
             }

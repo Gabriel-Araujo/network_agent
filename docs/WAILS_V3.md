@@ -254,7 +254,9 @@ navegador do `wails dev` ([§4](#4-frontend)).
   - Então o download fica com a interface padrão do WebView2, como no v2.
   - Nenhuma issue aberta sobre download no WebView2 do v3 (busca de 2026-11-19).
 
-  Isso é inferência do código, não medida.
+  Isso era inferência do código. **Medido (2026-11-19, ticket _Bloco de diagrama_):** o clique em
+  Baixar SVG abre o painel de downloads do WebView2 (um alvo CDP novo, `edge://downloads-hub/`) e
+  grava `diagrama.svg` (com ` (1)`, ` (2)` se já existir) em `Downloads`.
   Fontes: `internal/webview2/pkg/webview2/ICoreWebView2DownloadStartingEventArgs.go`,
   `pkg/application/webview_window_windows.go:2878-2880`.
 

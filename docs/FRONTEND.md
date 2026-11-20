@@ -104,7 +104,8 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell, as Abas, a Início e a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
   Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho) e só o pt-BR, o JS tem
-  1.538 KB (gzip 508 KB) e o chunk `s2-styles` 64,2 KB (gzip 11,4 KB). Antes da Conversa eram 1.525 KB
+  1.543 KB (gzip 510,6 KB) e o chunk `s2-styles` 66,76 KB (gzip 11,86 KB); isso já inclui o Bloco de diagrama. Antes dele
+  eram 1.538 KB (gzip 508 KB) e 64,2 KB (gzip 11,4 KB), e antes da Conversa 1.525 KB
   (gzip 504 KB) e 60,6 KB (gzip 10,6 KB). Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB
   (gzip 7,3 KB); sem o filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB.
   Medição anterior em [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
@@ -112,7 +113,7 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
 ## Tema
 
 O `Provider` (`main.tsx`) não recebe `colorScheme`, então hoje o app está sempre no Sistema. O
-**Seletor** e o **Diagrama** ainda faltam.
+**Seletor** ainda falta.
 
 - **Três escolhas, padrão Sistema.** Claro e Escuro passam `colorScheme` ao `Provider`. Sistema,
   que vale também quando nada foi salvo, omite o prop, e então o app acompanha o Windows mesmo com a
@@ -130,10 +131,16 @@ O `Provider` (`main.tsx`) não recebe `colorScheme`, então hoje o app está sem
   `color-scheme` `light` ou `dark`, ou `light dark` no Sistema. A janela não tem mais
   `BackgroundColour`. Enquanto o visual legado existir, o `body` do `App.css` pinta o vidro escuro
   por cima nos dois temas.
-- **Diagrama** (_Decidido, a implementar_): o SVG na tela usa `var(--pele-*)`, então troca de tema sozinho, sem renderizar de
-  novo. O SVG baixado leva o tema em uso, com as cores **resolvidas** (rgb/hex) no `<style>`
-  injetado: um `light-dark(…)` dos tokens do S2 não pode ir para o arquivo, porque fora do app ele
-  sempre resolveria para o claro ou nem renderizaria.
+- **Diagrama** (`Mermaid.tsx`): o pele lê `--pele-*`, e o macro `style` do canvas as define com os tokens
+  do S2 (fundo `gray-25`, texto `neutral`, linha `gray-600`, superfícies `gray-100`/`gray-200`,
+  borda `gray-400`, acento `accent`, fonte `sans`; a `--pele-font-mono` é a JetBrains Mono, por
+  `css()`). Elas saem como `light-dark(…)`, então o SVG na tela troca de tema sozinho, sem
+  renderizar de novo. O SVG baixado leva o tema em uso, com as cores **resolvidas** (rgb) no `<style>`
+  injetado, mais `background: var(--pele-bg)` (o SVG não pinta o fundo, e o escuro sobre a página
+  branca de quem o abre ficaria ilegível). Um `light-dark(…)` dos tokens não pode ir para o arquivo,
+  porque fora do app ele sempre resolveria para o claro ou nem renderizaria. Para resolver, o
+  `resolvedTheme` põe um `span` de prova no canvas, aplica cada `--pele-*` em `color` (as fontes em
+  `font-family`) e lê o valor computado.
 - **Bloco de código:** sem realce de sintaxe, então as cores `--code-*` do protótipo não entram.
 
 ## Shell e janela
@@ -146,8 +153,8 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
   A Conversa (ver **Conversa**), a Início, o composer (`InputDock`), a titlebar, a sidebar, a
-  barra de abas e a barra de status já seguem o tema; o Bloco de diagrama e a gaveta de Logs ainda
-  são o legado, no vidro escuro do `App.css`.
+  barra de abas e a barra de status e o Bloco de diagrama já seguem o tema; a gaveta de Logs ainda
+  é o legado, no vidro escuro do `App.css`.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
   Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
   janela. A janela liga o
@@ -250,7 +257,7 @@ depois do render. Um `MutationObserver` no `TabList` reposiciona o indicador qua
 ## Conversa
 
 O conteúdo de uma Aba de Conversa (`components/ChatArea.tsx`): a coluna que rola, com as bolhas, e o
-trilho de Perguntas por cima. O Bloco de diagrama é o legado (`Mermaid.tsx`), de outro corte.
+trilho de Perguntas por cima. O Bloco de diagrama tem seção própria, logo abaixo.
 
 - **Coluna:** 720 px no máximo, centralizada, com 44 px de respiro dos lados; é ela que rola, e o
   composer fica fora dela, embaixo. Rola até o fim a cada mensagem nova.
@@ -269,16 +276,41 @@ trilho de Perguntas por cima. O Bloco de diagrama é o legado (`Mermaid.tsx`), d
 - **Markdown** (`Markdown.tsx`): cada elemento tem uma classe do macro, pelo `components` do
   `react-markdown` (parágrafo, listas, citação, títulos, tabela com borda e rolagem, link, código
   inline, `hr`, caixa de seleção do GFM). O `<pre>` do react-markdown some (`pre: Fragment`): o
-  bloco de código e o diagrama trazem o invólucro deles. A classe `md` fica no invólucro só como
-  gancho do `App.css` do diagrama.
+  bloco de código e o diagrama trazem o invólucro deles.
 - **Bloco de código** (`CodeBlock.tsx`): a linguagem da fence no cabeçalho e o copiar (`ActionButton
   isQuiet` + `Copy` + `Tooltip` "Copiar"), sem realce. Copiar usa o `Clipboard` do Wails (e o
   `navigator.clipboard` fora do app) e dispara o toast "Código copiado." ou "Não foi possível
   copiar." (ver **Toast**).
+- **Bloco de diagrama** (`Mermaid.tsx`): ver a seção **Bloco de diagrama**.
 - **Trilho de Perguntas** (`QuestionNav.tsx`): a partir da segunda pergunta, uma barra de 18 px por
   pergunta na borda direita (`gray-400`, 24 px e `accent` no hover e no foco). Mouse ou foco no
   trilho abre um painel de 260 px à esquerda dele, com o número e o texto de cada pergunta; clicar
   numa barra ou num item leva à mensagem, e o painel fechado tira os itens da ordem de Tab.
+
+## Bloco de diagrama
+
+O fonte Mermaid de uma fence `mermaid`, renderizado em SVG inline pelo pele (síncrono, sem estado de
+carga). Mora em `components/Mermaid.tsx`; o `Markdown.tsx` o monta.
+
+- **Canvas:** a caixa do bloco (borda `gray-300`, raio `xl`, fundo `gray-25`, o mesmo desenho do
+  bloco de código), com a barra em cima e o viewport embaixo. O viewport tem no máximo 520 px de
+  altura, e o diagrama cabe na largura da coluna.
+- **Barra:** à esquerda, um `ActionButtonGroup` (`isQuiet`, `size="S"`) com Menos zoom (`ZoomOut`), Mais
+  zoom (`ZoomIn`), Redefinir zoom e posição (`Refresh`: 100% e centro) e Ajustar à tela
+  (`ZoomFitToScreen`), e o valor do zoom em `output`. À direita, Ver código (um S2 `ToggleButton`
+  com `Code`, que alterna o canvas pelo fonte) e, num `ActionButtonGroup`, Baixar SVG (`Download`).
+  Cada botão tem `Tooltip`. Com o código à vista, os botões de zoom somem. O download continua
+  com a interface do WebView2.
+- **Zoom:** de 25% a 300%, por botão (passo de 1,2) ou pela roda do mouse (o listener é nativo e
+  não passivo, para não rolar a Conversa), e arrastar move. Ajustar à tela escolhe o zoom que cabe o
+  diagrama (no tamanho de layout) no viewport e o centraliza: um diagrama alto encolhe até caber; um
+  baixo fica em 100%.
+- **Código:** o fonte numa `pre` em JetBrains Mono, sem cabeçalho. Durante o streaming o bloco
+  ainda não renderiza, e o fonte sai no `CodeBlock` (linguagem `mermaid`).
+- **Falha de render:** um `InlineAlert negative` ("O diagrama não renderizou", a causa do pele em
+  JetBrains Mono, `pre-wrap`, e o próximo passo), com o fonte num `CodeBlock` embaixo. Os blocos
+  vizinhos não são afetados.
+- **Cores:** ver **Tema** → **Diagrama**.
 
 ## Componentes
 
@@ -309,8 +341,8 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Composer (Início e Conversa) | própria: RAC `TextArea` + botão de enviar próprio | **pronto** | `InputDock.tsx` |
 | Markdown | própria: uma classe do macro por elemento, pelo `components` do `react-markdown` | **pronto** | `Markdown.tsx` |
 | Bloco de código | própria: cabeçalho com a linguagem da fence (vazio se não houver) + S2 `ActionButton isQuiet` com `Copy` e `Tooltip`; sem realce de sintaxe | **pronto** | `components/CodeBlock.tsx` |
-| Bloco de diagrama: canvas | própria | `Mermaid.tsx` | `Mermaid.tsx` |
-| Bloco de diagrama: barra | S2 `ActionButtonGroup` + `ActionButton` (`ZoomOut`, `ZoomIn`, `Refresh`, `ZoomFitToScreen`, `Code`, `Download`) | `Mermaid.tsx` | `Mermaid.tsx` |
+| Bloco de diagrama: canvas | própria | **pronto** | `Mermaid.tsx` |
+| Bloco de diagrama: barra | S2 `ActionButtonGroup` + `ActionButton` (`ZoomOut`, `ZoomIn`, `Refresh`, `ZoomFitToScreen`, `Download`) e `ToggleButton` (`Code`) | **pronto** | `Mermaid.tsx` |
 | Bolha do usuário | própria | **pronto** | `MessageBubble.tsx` |
 | Meta da mensagem | própria | **pronto** | `MessageBubble.tsx` |
 | Tool call, "Mostrar resposta original" | S2 `Disclosure isQuiet`, densidade compacta | **pronto** | `MessageBubble.tsx` |
@@ -354,7 +386,7 @@ quadrados com menos/mais dentro, e o `new-window` é uma seta de link externo). 
 `src/icons/svg/LICENSE-JetBrains-icons.txt`; o pacote não traz NOTICE.
 
 _Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar,
-as Abas, a barra de status, os botões da janela e as bolhas da Conversa já não o usam; as outras telas ainda usam (o Mermaid, a gaveta de Logs e as Configurações).
+as Abas, a barra de status, os botões da janela e as bolhas da Conversa já não o usam; as outras telas ainda usam (a gaveta de Logs e as Configurações).
 
 ### Fonte
 
@@ -439,8 +471,8 @@ O `Link` da gaveta de Logs fica sempre com o rótulo "Copiar o caminho do arquiv
 "Caminho copiado" por 1,6 s sai. Mais nada vira toast:
 
 - Salvar nas Configurações: o próprio dialog mostra o resultado.
-- Baixar o diagrama: o WebView2 mostra o download. Se o Wails v3 esconder essa interface, isso
-  volta a ser decidido.
+- Baixar o diagrama: o WebView2 mostra o download (medido no v3: abre o painel de downloads do
+  Edge e grava em `Downloads`).
 - Erro com lugar próprio. O **Aviso**, a falha e o resultado do turno ficam na bolha (ver
   [Abas e Conversas](#abas-e-conversas)). O erro das Configurações fica inline no dialog. O da lista
   de Conversas fica no card da sidebar.

@@ -435,6 +435,16 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   - `ToastQueue.positive(msg)` sem `timeout` **não some sozinho**; a confirmação de cópia passa
     `{timeout: 5000}` (o mínimo).
   - `InlineAlert` dimensiona pelo conteúdo; para ocupar a coluna, `styles={style({width: 'full'})}`.
+  - **Custom property de cor no macro** (S2 1.8.2, medido no Bloco de diagrama, 2026-11-19):
+    `'--x': {type: 'backgroundColor' | 'color' | 'borderColor', value: 'gray-400'}` compila, e
+    `{type: 'fontFamily', value: 'sans'}` também. O build do lightningcss troca o `light-dark(…)`
+    por `var(--lightningcss-light, …) var(--lightningcss-dark, …)`, e a variável segue o tema
+    sem renderizar de novo. Uma custom property guarda o valor cru; para o valor resolvido
+    (arquivo exportado, por exemplo), um elemento de prova com `color: var(--x)` e
+    `getComputedStyle(…).color` devolve o rgb do tema em uso. O `css()` aceita aninhamento
+    (`& > svg {…}` sai como `.classe > svg`). O `ToggleButton` S2 dentro de `TooltipTrigger` e o
+    `ActionButton` dentro do `ActionButtonGroup` com `Tooltip` funcionam; o `ActionButtonGroup`
+    não tem seleção, então o botão de alternar é um `ToggleButton` ao lado.
   - **Macro no vitest 5** (`vitest` 5.1.1, `unplugin-parcel-macros` do `package.json`, medido em
     2026-11-19): o `fsModuleCache` (padrão `true`) reaproveita o módulo transformado entre rodadas, e
     o macro não roda de novo, então o `macro-<hash>.css` que ele registra em memória não existe. O
