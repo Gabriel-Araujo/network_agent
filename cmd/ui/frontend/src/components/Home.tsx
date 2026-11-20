@@ -35,6 +35,7 @@ const home = style({
 })
 
 const title = style({
+  margin: 0,
   font: 'heading-2xl',
   color: 'neutral',
   textAlign: 'center',
@@ -42,6 +43,7 @@ const title = style({
 })
 
 const subtitle = style({
+  margin: 0,
   font: 'ui',
   color: 'neutral-subdued',
   textAlign: 'center',

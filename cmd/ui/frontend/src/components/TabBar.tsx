@@ -32,6 +32,7 @@ const list = style({
   overflowX: 'auto',
   overflowY: 'hidden',
   scrollbarWidth: 'thin',
+  borderWidth: 0,
   borderBottomWidth: 1,
   borderStyle: 'solid',
   borderColor: 'gray-200',

@@ -87,6 +87,8 @@ const send = style({
 const sendIcon = iconStyle({ size: 'XS', color: 'white' })
 
 const note = style({
+  marginX: 0,
+  marginBottom: 0,
   marginTop: 8,
   textAlign: 'center',
   font: 'ui-sm',

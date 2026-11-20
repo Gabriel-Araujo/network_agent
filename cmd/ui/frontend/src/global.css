@@ -1,7 +1,7 @@
 /* O único CSS global do app (docs/FRONTEND.md, Componentes → Fonte e Movimento). */
 
-/* Ordem das camadas: o legado abaixo da `_` do S2, e o movimento reduzido acima dela. */
-@layer legacy, _, reduced-motion;
+/* Ordem das camadas: a base abaixo da `_` do S2, e o movimento reduzido acima dela. */
+@layer base, _, reduced-motion;
 
 @font-face {
   font-family: 'Source Sans 3';
@@ -25,6 +25,21 @@
   font-weight: 100 800;
   font-display: swap;
   src: url('./assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
+
+/* O que o app precisa do navegador, abaixo da `_`: sem a margem do body (a janela é o app) e com a
+   caixa do `border-box`, que os controles S2 já usam. A barra de rolagem fica fina. */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  * {
+    scrollbar-width: thin;
+  }
+  body {
+    margin: 0;
+    overscroll-behavior: none;
+  }
 }
 
 /* A família dos controles S2 e das superfícies com `fontFamily: 'sans'` (variável não documentada). */

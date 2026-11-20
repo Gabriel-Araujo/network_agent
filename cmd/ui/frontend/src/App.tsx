@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import './App.css'
 import Sidebar from './components/Sidebar'
 import ChatArea from './components/ChatArea'
 import Home from './components/Home'

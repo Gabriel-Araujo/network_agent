@@ -87,7 +87,7 @@ const thinking = style({
   color: 'neutral-subdued',
 })
 
-const cause = style({ whiteSpace: 'pre-wrap', fontSize: 'code-sm', lineHeight: 'code' })
+const cause = style({ margin: 0, whiteSpace: 'pre-wrap', fontSize: 'code-sm', lineHeight: 'code' })
 const alertWide = style({ width: 'full' })
 const alertGap = style({ marginTop: 12 })
 const warnList = style({ margin: 0, paddingStart: 20 })

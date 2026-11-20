@@ -58,18 +58,15 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   `esModuleInterop` (sempre ligado), então a opção saiu do `tsconfig.json`.
 - **`allowScripts`:** `"@swc/core": false`. O `postinstall` dele só instala o fallback wasm, e o
   binário nativo chega por `optionalDependencies`.
-- **CSS global:** `src/global.css`, importado primeiro no `main.tsx`, é o único CSS global do app.
-  Ele declara a ordem das camadas, `@layer legacy, _, reduced-motion;`, e traz os `@font-face`
-  (**Fonte**) e a regra de movimento reduzido (**Movimento**). No build, o `index-*.css` (legado e
-  global) carrega antes do `s2-styles-*.css`, e a ordem final é `legacy`, `_`, `reduced-motion`.
-- **CSS legado:** `App.css` e `Settings.css` ficam inteiros dentro de `@layer legacy { … }`, abaixo da
-  camada `_` do S2 pela ordem do `global.css`. Assim, o CSS global antigo (`*`, `body`, `button`) não
-  vence os controles do S2. Fica assim até o visual novo apagar os dois arquivos.
-  - Conflito conhecido: popover do S2 (Picker, Menu) aberto dentro de um overlay legado com
-    `z-index` (o modal de Configurações, `.settings-scrim`, `z-index: 100`) fica invisível atrás
-    dele. Controle S2 com popover só entra em superfície legada se essa superfície já tiver saído.
-  - As superfícies legadas seguem com a pilha de sistema do `App.css` (Segoe UI no Windows). Só os
-    controles S2 e as superfícies novas recebem a Source Sans 3.
+- **CSS global:** `src/global.css`, importado primeiro no `main.tsx`, é o único CSS do app: não há
+  `App.css` nem `Settings.css`, e toda superfície é do macro `style`. Ele declara a ordem das camadas,
+  `@layer base, _, reduced-motion;`, e traz os `@font-face` (**Fonte**), a regra de movimento reduzido
+  (**Movimento**) e a camada `base`: `box-sizing: border-box` em tudo, `scrollbar-width: thin` em tudo
+  (a propriedade não herda, então vai no `*`) e, no `body`, `margin: 0` e `overscroll-behavior: none`.
+  Nada mais do navegador é zerado: `margin` de `h1`, `p`, `ul`, `pre`, `h3` e a borda de
+  `borderStyle: 'solid'` sem `borderWidth: 0` (os outros lados saem com 3 px) são do estilo de cada
+  superfície. No build, o `index-*.css` (global) carrega antes do `s2-styles-*.css`, e a ordem final é
+  `base`, `_`, `reduced-motion`.
 - **Rede:** o `index.html` traz `<meta http-equiv="Content-Security-Policy" content="font-src 'self' data:">`.
   O `Provider` do S2 sempre tenta a Adobe Clean em `use.typekit.net`, e essa política faz o WebView2
   barrar essas requisições antes de saírem (medido: 49 entradas de `use.typekit.net`, todas com
@@ -102,26 +99,34 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     Sem ela, abre como browser puro: sem histórico, e o envio falha visível.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
-- **Bundle (Vite 8):** com o Shell, as Abas, a Início e a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
-  Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho) e só o pt-BR, o JS tem
-  1.547 KB (gzip 511,69 KB) e o chunk `s2-styles` 67,17 KB (gzip 11,96 KB); isso já inclui a gaveta de Logs e o Bloco de diagrama. Antes da gaveta
-  eram 1.543 KB (gzip 510,6 KB) e 66,76 KB (gzip 11,86 KB), antes do Bloco de diagrama 1.538 KB (gzip 508 KB) e 64,2 KB (gzip 11,4 KB), e antes da Conversa 1.525 KB
+- **Bundle (Vite 8):** com o Shell, as Abas, a Início, a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
+  Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho), o Bloco de diagrama, a
+  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.666,68 KB (gzip 542,33 KB) e o chunk
+  `s2-styles` 82,00 KB (gzip 15,28 KB); o `index-*.css` tem 0,80 KB. O modal trouxe `Dialog`, `Tabs`
+  vertical, `ListView`, `SelectBoxGroup`, `NumberField` e `Badge` (+119 KB, gzip +30,6 KB no JS, e
+  +15 KB no CSS), e tirar o phosphor não compensou, porque ele já saía do bundle por tree-shaking.
+  Antes das Configurações eram 1.547 KB (gzip 511,69 KB) e 67,17 KB (gzip 11,96 KB), antes da gaveta
+  1.543 KB (gzip 510,6 KB) e 66,76 KB (gzip 11,86 KB), antes do Bloco de diagrama 1.538 KB (gzip 508 KB) e 64,2 KB (gzip 11,4 KB), e antes da Conversa 1.525 KB
   (gzip 504 KB) e 60,6 KB (gzip 10,6 KB). Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB
   (gzip 7,3 KB); sem o filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB.
   Medição anterior em [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
 
 ## Tema
 
-O `Provider` (`main.tsx`) não recebe `colorScheme`, então hoje o app está sempre no Sistema. O
-**Seletor** ainda falta.
+O `Provider` (`main.tsx`) lê o tema de `src/theme.ts` (`useTheme`) e passa `colorScheme` só quando a
+escolha é Claro ou Escuro. O **Seletor** é a aba Aparência das Configurações.
 
 - **Três escolhas, padrão Sistema.** Claro e Escuro passam `colorScheme` ao `Provider`. Sistema,
   que vale também quando nada foi salvo, omite o prop, e então o app acompanha o Windows mesmo com a
   janela aberta. Não há paleta própria: o escuro é o do S2.
-- **Seletor** (_Decidido, a implementar_): em Configurações → Aparência, um `SelectBoxGroup` com cartões de prévia. A troca
-  vale ao clicar, sem botão Salvar.
+- **Seletor:** em Configurações → Aparência (ver **Configurações**), um `SelectBoxGroup` com três
+  cartões de prévia (Claro, Escuro, Sistema). A troca vale ao clicar, sem botão Salvar: o cartão chama
+  `setTheme` (`theme.ts`), que guarda a escolha, põe o `color-scheme` no `<html>` (o `Canvas` do script
+  inline acompanha) e avisa os `useTheme` por `useSyncExternalStore`, então o `Provider` e todo o app
+  trocam na hora, sem recarregar.
 - **Persistência:** a escolha vai para o `localStorage` do WebView2, na chave `theme` (`'light'` ou
-  `'dark'`; ausente é o Sistema). Para que o `wails3 dev`, o `go run` e o binário construído
+  `'dark'`; ausente é o Sistema, e escolher Sistema apaga a chave). Conferido: o escuro escolhido pelo
+  seletor volta igual depois de reiniciar o app. Para que o `wails3 dev`, o `go run` e o binário construído
   enxerguem a mesma escolha, o `main.go` fixa `application.Options.Windows.WebviewUserDataPath` em
   `~/.network_agent/webview2` (ao lado do `config.json`). Sem ele, o WebView2 usa
   `%AppData%\<nome do exe>`, uma pasta por forma de rodar.
@@ -129,8 +134,7 @@ O `Provider` (`main.tsx`) não recebe `colorScheme`, então hoje o app está sem
   `events.Windows.WebViewNavigationCompleted`. Antes disso, um script inline no `<head>` do
   `index.html` lê a chave `theme` e pinta o fundo do `<html>` com `background-color: Canvas` sob
   `color-scheme` `light` ou `dark`, ou `light dark` no Sistema. A janela não tem mais
-  `BackgroundColour`. Enquanto o visual legado existir, o `body` do `App.css` pinta o vidro escuro
-  por cima nos dois temas.
+  `BackgroundColour`. O fundo é o `Canvas` do `<html>`: o app não pinta um `body` próprio.
 - **Diagrama** (`Mermaid.tsx`): o pele lê `--pele-*`, e o macro `style` do canvas as define com os tokens
   do S2 (fundo `gray-25`, texto `neutral`, linha `gray-600`, superfícies `gray-100`/`gray-200`,
   borda `gray-400`, acento `accent`, fonte `sans`; a `--pele-font-mono` é a JetBrains Mono, por
@@ -153,7 +157,7 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
   A Conversa (ver **Conversa**), a Início, o composer (`InputDock`), a titlebar, a sidebar, a
-  barra de abas, a barra de status, o Bloco de diagrama e a gaveta de Logs já seguem o tema.
+  barra de abas, a barra de status, o Bloco de diagrama, a gaveta de Logs e as Configurações seguem o tema.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
   Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
   janela. A janela liga o
@@ -214,7 +218,7 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   refluir). Não tem divisor para redimensionar: as linhas quebram. A coluna anima a largura em
   0,3 s ao abrir e fechar; a gaveta fica montada e, fechada, é `inert`. O conteúdo é a seção **Gaveta de Logs**.
 - **Tamanho:** a janela abre em 1024×768, com mínimo de 900×600 (`MinWidth`/`MinHeight`). As regras
-  do `App.css` para larguras até 768 px saíram. O
+  do protótipo para larguras até 768 px não entraram. O
   breakpoint de 1080 px vale no shell. O que ele muda no modal de Configurações e nas sugestões é
   das seções dessas telas.
 
@@ -332,16 +336,62 @@ larguras e a animação, é do **Shell e janela**.
   Sem caminho (execução sem arquivo de log, ou fora do app), o rodapé diz "Esta execução não abriu
   arquivo de log." e não há `Link`. O rótulo nunca troca.
 
+## Configurações
+
+O modal de Configurações (`components/SettingsModal.tsx`, com os Modelos em `ModelsSection.tsx`), aberto
+pelo menu principal da titlebar ou pelo alerta de envio bloqueado. É um `DialogContainer` com um
+`Dialog size="XL"` (960 px, no máximo 90% da janela) montado só com `open`; o título é "Configurações".
+`isDismissible` vem da prop `dismissible`: com a configuração obrigatória pendente (nenhum provedor com
+modelo) não há o fechar (`Descartar`, o texto do S2 em pt-BR), nem Esc, nem clique fora, e o modal abre
+direto em Provedores, com um `InlineAlert informative` "Configuração necessária". Fora disso abre em
+Workspace. O erro de qualquer chamada é um `InlineAlert negative` "Não foi possível concluir", acima
+das abas e com a causa do Go; não vira toast.
+
+- **Navegação:** `Tabs` do S2 com três abas, cada uma com ícone: **Workspace** (`Folder`),
+  **Provedores** (`ListBulleted`) e **Aparência** (`BrightnessContrast`). Verticais com a janela a
+  partir de 1080 px; abaixo de 1080 px o `orientation` vira `horizontal` (um `matchMedia`) e a lista
+  de provedores empilha sobre o formulário (um `@media` do macro, lista com 40% da altura). O corpo
+  tem no máximo 480 px de altura e cada painel rola por dentro.
+- **Workspace:** um `TextField` somente leitura com a pasta (placeholder "Nenhuma pasta escolhida — o
+  agente não grava arquivos.") e o `Button` "Trocar..." (ou "Escolher..." sem pasta), que chama o
+  `PickWorkspace`. Durante um turno (`workspaceLocked`) o botão fica desabilitado e a linha embaixo
+  diz por quê ("Trocar de Workspace fica bloqueado enquanto o agente responde."): o S2 não põe
+  `title` no botão.
+- **Provedores:** à esquerda, "PROVEDORES", o `ActionButton` com `Add` ("Novo provedor") e um
+  `ListView selectionMode="single" selectionStyle="highlight"` com nome e "N modelos" (mais "· em
+  uso" no selecionado do app); criar mostra uma linha "Novo provedor". À direita o formulário
+  (`TextField` Nome, URL base, Chave de API com `type="password"`), "Usar este" (se não for o em uso) e
+  `Button variant="negative" fillStyle="outline"` "Excluir" (sem confirmação, como antes), e o
+  `Button variant="accent"` "Salvar alterações" ou "Criar provedor" (com "Cancelar" ao criar). A
+  coluna do formulário rola. Sem provedor, o formulário diz "Selecione um provedor à esquerda ou crie
+  um novo."
+- **Modelos** (`ModelsSection.tsx`, dentro do formulário de um provedor já criado; ao criar, a dica
+  "Crie o provedor para poder cadastrar os modelos dele."): "Novo modelo" (`Button` secundário) e um
+  `ListView isQuiet selectionMode="none"` com uma linha por modelo (nome, ou o id; embaixo "id … ·
+  contexto …"), o `Badge variant="accent" fillStyle="subtle"` "padrão" no modelo padrão e um
+  `ActionButtonGroup` com Tornar padrão (`Star`, só nos que não são), Editar (`Edit`) e Excluir
+  (`Delete`), cada um com `Tooltip`. A lista é virtualizada, então tem altura fixa: 52 px por linha
+  (`ROW`). O formulário do modelo (ID, Nome de exibição e o `NumberField` do contexto máximo, sem
+  separador de milhar) fica embaixo, com Cancelar e "Criar modelo" ou "Salvar modelo".
+- **Aparência:** "Tema" e um `SelectBoxGroup` (seleção única, sem esvaziar) com os cartões Claro,
+  Escuro e Sistema e a nota "O tema "Sistema" acompanha a preferência do sistema operacional.". A
+  prévia é uma janelinha de 96×62 px (barra lateral e duas linhas), desenhada com um `Provider`
+  aninhado em cada metade: `colorScheme="light"` ou `"dark"` pinta com os tokens do S2, sem hex, e
+  vale qualquer que seja o tema em uso; o Sistema parte uma metade de cada. O S2 só põe na área
+  `illustration` do cartão o que passa pelo `IllustrationContext`, então a prévia leva `grid-area:
+  illustration` por `css()`. O comportamento da escolha está em **Tema**.
+- **Estado:** o modal guarda a configuração e o rascunho. Fechar e reabrir recarrega o `GetConfig`; o
+  Workspace só muda pelo `PickWorkspace`.
+
 ## Componentes
 
 Cada elemento é um **controle S2** ou uma **superfície própria** (RAC ou HTML, estilizada pelo macro
 `style` com os tokens do S2). O único CSS global é o `src/global.css`, com os `@font-face`, a ordem
 das camadas e a regra de movimento reduzido.
 
-_Decidido, a implementar_ nas linhas da tabela abaixo cuja coluna **Hoje** ainda aponta o legado (as
-Configurações); as linhas com **pronto** já estão no código. `App.css` e `Settings.css` são apagados
-sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
-`components` do `react-markdown`, com uma classe do macro por elemento.
+`App.css` e `Settings.css` não existem mais, e nenhuma folha de superfícies tomou o lugar deles. O
+Markdown estiliza cada elemento pelo `components` do `react-markdown`, com uma classe do macro por
+elemento.
 
 | Elemento | Origem | Hoje | Arquivo |
 |---|---|---|---|
@@ -374,13 +424,13 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | **pronto** (o `ToastContainer` está no `App.tsx`; o `CodeBlock` e a gaveta de Logs o disparam) | `App.tsx` |
 | Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | **pronto** | `LogDrawer.tsx` |
 | Barra de status | própria | **pronto** | `components/StatusBar.tsx` |
-| Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
-| Configurações: navegação | S2 `Tabs orientation="vertical"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
-| Campos (Workspace, provedor) | S2 `TextField` (`type="password"` na chave) + `Button` | `SettingsModal.tsx` | `SettingsModal.tsx` |
-| Lista de provedores | S2 `ListView selectionMode="single"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
-| Modelos | S2 `ListView` + `ActionButtonGroup` (padrão, editar, apagar) + `Badge` "padrão" | `ModelsSection.tsx` | `ModelsSection.tsx` |
-| Aparência (tema) | S2 `SelectBoxGroup`, cartões com a prévia | — | `SettingsModal.tsx` |
-| Salvar / Excluir | S2 `Button variant="accent"` / `variant="negative"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
+| Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | **pronto** | `SettingsModal.tsx` |
+| Configurações: navegação | S2 `Tabs orientation="vertical"` (horizontal abaixo de 1080 px) | **pronto** | `SettingsModal.tsx` |
+| Campos (Workspace, provedor, modelo) | S2 `TextField` (`type="password"` na chave), `NumberField` (contexto) + `Button` | **pronto** | `SettingsModal.tsx`, `ModelsSection.tsx` |
+| Lista de provedores | S2 `ListView selectionMode="single"` (`selectionStyle="highlight"`) | **pronto** | `SettingsModal.tsx` |
+| Modelos | S2 `ListView` + `ActionButtonGroup` (padrão, editar, apagar) + `Badge` "padrão" | **pronto** | `ModelsSection.tsx` |
+| Aparência (tema) | S2 `SelectBoxGroup`, cartões com a prévia (um `Provider` aninhado por metade) | **pronto** | `SettingsModal.tsx`, `theme.ts` |
+| Salvar / Excluir | S2 `Button variant="accent"` / `variant="negative"` | **pronto** | `SettingsModal.tsx` |
 | Apagar Conversa | S2 `AlertDialog variant="destructive"` | **pronto** | `Sidebar.tsx` |
 | Envio bloqueado | S2 `AlertDialog` | **pronto** | `App.tsx` |
 
@@ -405,8 +455,8 @@ desenhados à mão**: o pacote não tem painel lateral nem glifo de janela (os `
 quadrados com menos/mais dentro, e o `new-window` é uma seta de link externo). A licença está em
 `src/icons/svg/LICENSE-JetBrains-icons.txt`; o pacote não traz NOTICE.
 
-_Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar,
-as Abas, a barra de status, os botões da janela e as bolhas da Conversa já não o usam; as Configurações ainda o usam.
+O `@phosphor-icons/react` não é mais dependência: saiu do `package.json` e do `package-lock.json`, e
+nenhum arquivo o importa.
 
 ### Fonte
 

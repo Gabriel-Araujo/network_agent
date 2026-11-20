@@ -23,7 +23,7 @@ Só fatos, nenhuma decisão: o que o app **decidiu e implementou** fica em
    vence o S2. Sub-paths por componente pedem `moduleResolution: "bundler"`. **Medido no app:** roda
    no Vite 7 e no Vite 8 (Rolldown) com a mesma config; no 8, `rollupOptions` e `manualChunks` funcionam
    mas estão deprecados. Nos dois, o `vite dev` precisa de `optimizeDeps.exclude` no
-   `@react-spectrum/s2/style`. Popover do S2 fica atrás de overlay legado com `z-index`.
+   `@react-spectrum/s2/style`. Popover do S2 fica atrás de overlay legado com `z-index` (o overlay legado já foi apagado).
 3. **Inventário:** os controles padrão existem. Faltam: `Tab` com fechar, Toast com título +
    subtítulo/ícone (o conteúdo é uma string), Toolbar, Drawer/Sheet, seções no ListView. O RAC
    (`react-aria-components`, sem estilo) tem Toolbar, GridList com seções e Sheet.
@@ -452,6 +452,30 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
     `fontSize: 'code-sm'` resolve para 14 px e o `'code-xs'` para 12 px. O `Link` sem `href`
     renderiza um `span role="link"` que responde ao `onPress`, e o `isDisabled` não existe nele: sem
     ação, não o renderize.
+  - **Modal de Configurações, medido** (S2 1.8.2, 2026-11-20, `tsc`, `npm run build` e ao vivo):
+    - `Dialog size="XL"` tem 960 px, `maxWidth: 90vw` e `maxHeight: 90%`. O `DialogContainer` aceita
+      `false` como filho (fechado), e o `isDismissible` põe o fechar (aria-label "Descartar" em pt-BR)
+      e tira os botões; o clique fora é do `isDismissable` do `Modal` (repassado do `isDismissible`, lido
+      no código-fonte), e o Esc é do `isKeyboardDismissDisabled`. O Esc fechou o modal ao vivo.
+    - `Tabs orientation="vertical"` fica numa linha (lista e painel), a aba tem `minHeight` 48 e a
+      lista `marginStart` 12 e `marginEnd` 20; o `aria-label` é obrigatório (lança erro). O colapso em
+      Picker é só do horizontal. O `TabPanel` inativo é desmontado.
+    - `SelectBoxGroup`: o cartão é de 170 px (e a lista centraliza). Só o que passa pelo
+      `IllustrationContext` (ícone ou ilustração S2) cai na área `illustration`; um `div` próprio
+      precisa de `grid-area: illustration` por `css()`. `selectedKeys` aceita um array e
+      `aria-labelledby` serve de rótulo.
+    - Um `Provider` aninhado com `colorScheme="light"` ou `"dark"` pinta o filho com os tokens daquele
+      esquema, qualquer que seja o tema do app (serve para prévia de tema).
+    - `ListView` é virtualizado: sem altura definida não renderiza as linhas. Uma linha com nome e
+      descrição mede 52 px. Um `Badge` dentro do `Text slot="label"` quebra a linha e a leva a 76 px;
+      num `span` `inline-block` com `marginY: -4` ela fica em 52. O `ListViewItem` aceita um
+      `ActionButtonGroup` como filho (vira `isQuiet`, `size="S"`).
+    - `NumberField.onChange` devolve `NaN` com o campo vazio.
+    - `scrollbar-width` não herda: `html { scrollbar-width: thin }` não alcança os painéis que rolam,
+      e o `*` alcança. No Windows o `thin` encolhe a barra, mas as setas das pontas continuam.
+    - No macro, `insetStart` (lógica) e um `css('left: auto')` (física) não se anulam: duas metades
+      absolutas, uma com `insetStart: 0` e outra com `left: auto; right: 0`, ficaram as duas à
+      esquerda. Declare `insetStart` numa e `insetEnd` na outra.
   - **Macro no vitest 5** (`vitest` 5.1.1, `unplugin-parcel-macros` do `package.json`, medido em
     2026-11-19): o `fsModuleCache` (padrão `true`) reaproveita o módulo transformado entre rodadas, e
     o macro não roda de novo, então o `macro-<hash>.css` que ele registra em memória não existe. O

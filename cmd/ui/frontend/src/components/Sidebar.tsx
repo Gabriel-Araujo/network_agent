@@ -100,7 +100,7 @@ const input = style({
   outlineStyle: 'none',
 })
 
-const empty = style({ font: 'ui-sm', color: 'neutral-subdued', paddingX: 8, paddingTop: 12 })
+const empty = style({ margin: 0, font: 'ui-sm', color: 'neutral-subdued', paddingX: 8, paddingTop: 12 })
 
 const stripe = style({
   width: 56,

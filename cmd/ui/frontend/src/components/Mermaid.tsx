@@ -80,7 +80,7 @@ const failed = style({ marginY: 12 })
 const wide = style({ width: 'full' })
 // A causa crua pode vir multilinha (o parse error do pele traz a linha e uma
 // linha de caret): o pre-wrap mantém o caret alinhado.
-const cause = style({ whiteSpace: 'pre-wrap', fontSize: 'code-sm', lineHeight: 'code' })
+const cause = style({ margin: 0, whiteSpace: 'pre-wrap', fontSize: 'code-sm', lineHeight: 'code' })
 const icon = iconStyle({ size: 'S' })
 
 const THEME_COLORS = ['--pele-bg', '--pele-fg', '--pele-muted', '--pele-line', '--pele-surface', '--pele-surface-alt', '--pele-border', '--pele-accent']
