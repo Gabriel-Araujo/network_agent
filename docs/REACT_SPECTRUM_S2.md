@@ -419,6 +419,27 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   num grid auto-posicionado ganham uma linha cada). O que funciona para empilhar na mesma caixa é
   `position: 'relative'` no pai e `position: 'absolute'` + `inset: 0` no filho; os dois compilam.
   Fonte: medido no app, 2026-11-19 (`npm run build`, CSS gerado).
+- **Macro `style`, medido na Conversa (S2 1.8.2, 2026-11-19, `tsc` e `npm run build`):**
+  - A escala de espaço (`padding`, `margin`, `gap`) só aceita 0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 36,
+    40, 44, 48, 56, 64, 80, 96 (e `-N`); 6, 10, 14, 18 e 22 são erro de tipo. `borderWidth` só aceita
+    0, 1, 2, 4 (3 é erro).
+  - `borderStyle: 'solid'` sem largura vale a do navegador (3 px) nos lados não declarados: com só
+    `borderBottomWidth: 1`, os outros três lados saem grossos. Declare `borderWidth: 0` antes.
+  - Uma condição própria (`isOpen`) ou `isFocusVisible` faz o `style(...)` devolver uma função, que se
+    chama com as props (`panel({isOpen})`), e o `className` deixa de ser uma `string`. Para o foco de
+    teclado numa superfície própria sem render props, a condição de pseudo-classe `':focus-visible'`
+    mantém o `style(...)` estático (é a que a Conversa usa, e foi conferida ao vivo).
+  - O macro não tem `font-style`, `tab-size` nem `accent-color`. O `font: 'code-*'` fixa o `font-family`
+    no token `code`; para outra família, use `fontSize`/`lineHeight` do token e uma classe de `css()`.
+  - Seletor aninhado (`& > :first-child`) não é chave do macro: vai por `css()`.
+  - `ToastQueue.positive(msg)` sem `timeout` **não some sozinho**; a confirmação de cópia passa
+    `{timeout: 5000}` (o mínimo).
+  - `InlineAlert` dimensiona pelo conteúdo; para ocupar a coluna, `styles={style({width: 'full'})}`.
+  - **Macro no vitest 5** (`vitest` 5.1.1, `unplugin-parcel-macros` do `package.json`, medido em
+    2026-11-19): o `fsModuleCache` (padrão `true`) reaproveita o módulo transformado entre rodadas, e
+    o macro não roda de novo, então o `macro-<hash>.css` que ele registra em memória não existe. O
+    teste falha com `Cannot find module '/@id/macro-….css'` a partir da 2ª rodada. Por isso,
+    `test.fsModuleCache: false`.
 
 ### 6. Fonte
 

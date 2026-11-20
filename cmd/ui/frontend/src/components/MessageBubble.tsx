@@ -1,43 +1,129 @@
 import {
-  Check,
-  Eye,
-  FileText,
-  Globe,
-  MagnifyingGlass,
-  PencilSimple,
-} from '@phosphor-icons/react'
+  Content,
+  Disclosure,
+  DisclosurePanel,
+  DisclosureTitle,
+  Heading,
+  InlineAlert,
+  ProgressCircle,
+} from '@react-spectrum/s2'
+import { iconStyle, style } from '@react-spectrum/s2/style' with { type: 'macro' }
+import CheckmarkCircle from '@react-spectrum/s2/icons/CheckmarkCircle'
+import Edit from '@react-spectrum/s2/icons/Edit'
+import FileText from '@react-spectrum/s2/icons/FileText'
+import GlobeGrid from '@react-spectrum/s2/icons/GlobeGrid'
+import Search from '@react-spectrum/s2/icons/Search'
+import Visibility from '@react-spectrum/s2/icons/Visibility'
 import { Message, ToolCall, contextOrigin } from '../types'
 import Markdown from './Markdown'
+import { mono } from './CodeBlock'
+
+// As bolhas da Conversa (docs/FRONTEND.md, Componentes): a do usuário é própria;
+// o agente fala sem bolha, na largura da coluna. Tool call e "Mostrar resposta
+// original" são `Disclosure`, o erro e os Avisos são `InlineAlert`.
+
+const userCol = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'end',
+  gap: 4,
+})
+const userBubble = style({
+  maxWidth: '[80%]',
+  paddingX: 16,
+  paddingY: 12,
+  borderRadius: 'xl',
+  backgroundColor: 'accent-subtle',
+  font: 'ui',
+  color: 'neutral',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'break-word',
+})
+const agentCol = style({ display: 'flex', flexDirection: 'column', minWidth: 0 })
+const author = style({
+  font: 'detail-sm',
+  color: 'neutral-subdued',
+  textTransform: 'capitalize',
+  marginBottom: 8,
+})
+const meta = style({ font: 'ui-sm', color: 'neutral-subdued', marginTop: 12 })
+const metaOwn = style({ font: 'ui-sm', color: 'neutral-subdued' })
+const usageRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  columnGap: 12,
+  rowGap: 2,
+  font: 'ui-sm',
+  color: 'neutral-subdued',
+})
+const usageOwn = style({ justifyContent: 'end' })
+const num = style({ fontWeight: 'bold', color: 'neutral' })
+const help = style({ cursor: 'help' })
+
+const tools = style({ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 })
+const toolTitle = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  '--iconPrimary': { type: 'color', value: '[currentColor]' },
+})
+const toolLabel = style({ flexGrow: 1 })
+const toolDone = style({ display: 'inline-flex' })
+const toolResult = style({
+  font: 'ui-sm',
+  color: 'neutral-subdued',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+})
+const icon = iconStyle({ size: 'S' })
+const doneIcon = iconStyle({ size: 'S', color: 'positive' })
+
+const thinking = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  font: 'ui',
+  color: 'neutral-subdued',
+})
+
+const cause = style({ whiteSpace: 'pre-wrap', fontSize: 'code-sm', lineHeight: 'code' })
+const alertWide = style({ width: 'full' })
+const alertGap = style({ marginTop: 12 })
+const warnList = style({ margin: 0, paddingStart: 20 })
+const repairText = style({ marginTop: 12, marginBottom: 0, font: 'ui-sm', color: 'neutral-subdued' })
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
-  search: <MagnifyingGlass size={14} weight="bold" />,
-  file: <FileText size={14} weight="bold" />,
-  globe: <Globe size={14} weight="bold" />,
-  pencil: <PencilSimple size={14} weight="bold" />,
-  eye: <Eye size={14} weight="bold" />,
+  search: <Search styles={icon} />,
+  file: <FileText styles={icon} />,
+  globe: <GlobeGrid styles={icon} />,
+  pencil: <Edit styles={icon} />,
+  eye: <Visibility styles={icon} />,
 }
 
 function ToolCallCard({ tc }: { tc: ToolCall }) {
   return (
-    <details className="tool-call">
-      <summary className="tool-call__summary">
-        <span className="tool-call__icon" aria-hidden="true">
-          {ACTION_ICONS[tc.action] ?? <PencilSimple size={14} weight="bold" />}
+    <Disclosure isQuiet size="S" density="compact">
+      <DisclosureTitle>
+        <span className={toolTitle}>
+          {ACTION_ICONS[tc.action] ?? <Edit styles={icon} />}
+          <span className={toolLabel}>{tc.label}</span>
+          <span className={toolDone} role="img" aria-label="Concluída">
+            <CheckmarkCircle styles={doneIcon} />
+          </span>
         </span>
-        <span className="tool-call__label">{tc.label}</span>
-        <span className="tool-call__state" aria-label="Concluída">
-          <Check size={14} weight="bold" />
-        </span>
-      </summary>
-      <div className="tool-call__result">{tc.result}</div>
-    </details>
+      </DisclosureTitle>
+      <DisclosurePanel>
+        <div className={toolResult}>{tc.result}</div>
+      </DisclosurePanel>
+    </Disclosure>
   )
 }
 
 function ThinkingIndicator() {
   return (
-    <span className="thinking">
-      <span className="thinking__dot" aria-hidden="true" />
+    <span className={thinking}>
+      <ProgressCircle size="S" isIndeterminate aria-label="Trabalhando" />
       Trabalhando
     </span>
   )
@@ -68,31 +154,26 @@ function TokenUsageFooter({
   const origin = usage.contextTotal > 0 ? contextOrigin(usage.contextSource) : null
 
   return (
-    <div className={`usage ${own ? 'usage--own' : ''}`}>
-      <span className="usage__item">
-        Entrada <strong>{fmtNum(usage.input)}</strong>
+    <div className={own ? `${usageRow} ${usageOwn}` : usageRow}>
+      <span>
+        Entrada <b className={num}>{fmtNum(usage.input)}</b>
       </span>
-      <span className="usage__sep" aria-hidden="true" />
-      <span className="usage__item">
-        Saída <strong>{fmtNum(usage.output)}</strong>
+      <span>
+        Saída <b className={num}>{fmtNum(usage.output)}</b>
       </span>
-      <span className="usage__sep" aria-hidden="true" />
-      <span className="usage__item">
-        Total <strong>{fmtNum(usage.total)}</strong>
+      <span>
+        Total <b className={num}>{fmtNum(usage.total)}</b>
       </span>
       {origin && (
-        <>
-          <span className="usage__sep" aria-hidden="true" />
-          <span className="usage__item">
-            Contexto{' '}
-            <strong>
-              {fmtNum(usage.contextUsed)}/{fmtNum(usage.contextTotal)}
-            </strong>
-            <span className="usage__origin" title={origin.title}>
-              ({origin.label})
-            </span>
+        <span>
+          Contexto{' '}
+          <b className={num}>
+            {fmtNum(usage.contextUsed)}/{fmtNum(usage.contextTotal)}
+          </b>{' '}
+          <span className={help} title={origin.title}>
+            ({origin.label})
           </span>
-        </>
+        </span>
       )}
     </div>
   )
@@ -101,26 +182,32 @@ function TokenUsageFooter({
 /**
  * Os avisos de degradação do turno. Ficam na bolha do turno em que
  * aconteceram: é a resposta degradada que eles explicam, e um aviso que só
- * chega ao arquivo de log é um aviso silencioso.
+ * chega ao arquivo de log é um aviso silencioso. Um `InlineAlert` por mensagem,
+ * com a lista dentro.
  */
 function WarningList({ warnings }: { warnings: string[] }) {
   return (
-    <ul className="warnings" role="status">
-      {warnings.map((w, i) => (
-        <li key={i} className="warnings__item">
-          {w}
-        </li>
-      ))}
-    </ul>
+    <div className={alertGap}>
+      <InlineAlert variant="notice" styles={alertWide}>
+        <Heading>{warnings.length > 1 ? 'Avisos' : 'Aviso'}</Heading>
+        <Content>
+          <ul className={warnList}>
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </Content>
+      </InlineAlert>
+    </div>
   )
 }
 
 export default function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
-      <div className="msg msg--user" data-msg-id={message.id}>
-        <div className="bubble bubble--user">{message.content}</div>
-        {message.time && <span className="msg-ts msg-ts--own">{message.time}</span>}
+      <div className={userCol} data-msg-id={message.id}>
+        <div className={userBubble}>{message.content}</div>
+        {message.time && <span className={metaOwn}>{message.time}</span>}
         {message.usage && <TokenUsageFooter usage={message.usage} own />}
       </div>
     )
@@ -134,26 +221,32 @@ export default function MessageBubble({ message }: { message: Message }) {
   const warnings = message.warnings?.length ? <WarningList warnings={message.warnings} /> : null
 
   return (
-    <div className="msg msg--agent" data-msg-id={message.id}>
+    <div className={agentCol} data-msg-id={message.id}>
       {message.error ? (
-        <div className="bubble bubble--agent bubble--error" role="alert">
-          <p className="error__title">{message.error.what}</p>
-          <p className="error__why">{message.error.why}</p>
-          <p className="error__next">{message.error.next}</p>
+        <>
+          <InlineAlert variant="negative" styles={alertWide}>
+            <Heading>{message.error.what}</Heading>
+            <Content>
+              {/* A causa crua pode vir multilinha (o parse error do mermaid traz a
+                  linha e uma linha de caret): o pre-wrap mantém o caret alinhado. */}
+              <p className={`${cause} ${mono}`}>{message.error.why}</p>
+              <p>{message.error.next}</p>
+            </Content>
+          </InlineAlert>
           {warnings}
-        </div>
+        </>
       ) : (
-        <div className={`bubble bubble--agent ${streaming ? 'bubble--streaming' : ''}`}>
+        <>
           {/* Quem respondeu. Só depois do stream: o autor chega com a conversa
               gravada, e enquanto os tokens correm a mensagem na tela ainda não
               o tem — dizer "Agente" para depois trocar por "Teacher" seria
               mostrar um autor que não é o do turno. Vazio É o agente genérico,
               e aparece como tal: nada escrito não distinguiria o genérico de
               uma conversa gravada antes de o autor existir. */}
-          {!streaming && <span className="author">{message.subagent || 'Agente'}</span>}
+          {!streaming && <span className={author}>{message.subagent || 'Agente'}</span>}
 
           {message.toolCalls && message.toolCalls.length > 0 && (
-            <div className="bubble__tools">
+            <div className={tools}>
               {message.toolCalls.map((tc) => (
                 <ToolCallCard key={tc.id} tc={tc} />
               ))}
@@ -166,27 +259,32 @@ export default function MessageBubble({ message }: { message: Message }) {
             <Markdown content={content} streaming={streaming} />
           )}
 
-          {repair?.state === 'repairing' && <p className="repair-status" role="status">Tentando corrigir o diagrama automaticamente…</p>}
-          {(repair?.state === 'started' || repair?.state === 'candidate') && <p className="repair-status" role="status">A tentativa de correção foi interrompida. Peça outra forma ao agente.</p>}
-          {(repair?.state === 'failed' || repair?.state === 'rejected') && <p className="repair-status" role="status">A correção automática não foi concluída. {repair.error} Peça outra forma ao agente.</p>}
+          {repair?.state === 'repairing' && <p className={repairText} role="status">Tentando corrigir o diagrama automaticamente…</p>}
+          {(repair?.state === 'started' || repair?.state === 'candidate') && <p className={repairText} role="status">A tentativa de correção foi interrompida. Peça outra forma ao agente.</p>}
+          {(repair?.state === 'failed' || repair?.state === 'rejected') && <p className={repairText} role="status">A correção automática não foi concluída. {repair.error} Peça outra forma ao agente.</p>}
           {repair?.state === 'accepted' && (
-            <div className="repair-status" role="status">
+            <div className={repairText} role="status">
               Diagrama corrigido automaticamente.
-              <details><summary>Mostrar resposta original</summary><Markdown content={message.content} /></details>
+              <Disclosure isQuiet size="S" density="compact">
+                <DisclosureTitle>Mostrar resposta original</DisclosureTitle>
+                <DisclosurePanel>
+                  <Markdown content={message.content} />
+                </DisclosurePanel>
+              </Disclosure>
             </div>
           )}
 
           {warnings}
 
           {message.status === 'done' && message.time && (
-            <span className="msg-ts msg-ts--meta">
+            <span className={meta}>
               {message.time}
               {message.elapsedMs != null && ` · ${fmtDuration(message.elapsedMs)}`}
               {/* tokens medidos: vêm do usage do provedor, gravado no disco */}
               {message.tokens != null && ` · ${message.tokens} tokens`}
             </span>
           )}
-        </div>
+        </>
       )}
     </div>
   )

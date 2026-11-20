@@ -43,7 +43,7 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
   `@vitejs/plugin-react` 5.2.0 e `vitest` 5.1.0.
 - **`vite.config.ts`:** a config oficial do S2. `macros.vite()` é o primeiro plugin, seguido do
   `optimizeLocales.vite({locales: ['pt-BR']})` com `enforce: 'pre'` (ver **Idioma**), com
-  `build.target: ['es2022']`, `cssMinify: 'lightningcss'` e um `manualChunks` que junta o CSS do S2
+  `test.server.deps.inline` do S2 (o Markdown, nos testes, importa componentes dele, que importam `.css`, e o Node não os carrega), `test.fsModuleCache: false` (o cache em disco do vitest pula o macro; ver `REACT_SPECTRUM_S2.md`), `build.target: ['es2022']`, `cssMinify: 'lightningcss'` e um `manualChunks` que junta o CSS do S2
   e dos macros no chunk `s2-styles`. Há ainda `optimizeDeps.exclude: ['@react-spectrum/s2/style']`:
   sem ele, o scan do `vite dev` não resolve o import do macro e recarrega a página na primeira
   carga (no Vite 8 também). Os nomes `rollupOptions` e `manualChunks` estão deprecados no Vite 8, mas
@@ -102,9 +102,10 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     Sem ela, abre como browser puro: sem histórico, e o envio falha visível.
   - Cancelar o seletor de pasta não é erro: o `PickWorkspace` trata o `"cancelled by user"` do v3
     como o `""` do v2.
-- **Bundle (Vite 8):** com o Shell, as Abas e a Início (Titlebar, Sidebar, TabBar, StatusBar, Home,
-  composer, botões da janela) e só o pt-BR, o JS tem 1.525 KB (gzip 504 KB) e o chunk `s2-styles`
-  60,6 KB (gzip 10,6 KB). Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB
+- **Bundle (Vite 8):** com o Shell, as Abas, a Início e a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
+  Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho) e só o pt-BR, o JS tem
+  1.538 KB (gzip 508 KB) e o chunk `s2-styles` 64,2 KB (gzip 11,4 KB). Antes da Conversa eram 1.525 KB
+  (gzip 504 KB) e 60,6 KB (gzip 10,6 KB). Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB
   (gzip 7,3 KB); sem o filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB.
   Medição anterior em [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
 
@@ -144,9 +145,9 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
 - **Grade** (`App.tsx`, macro `style`): a titlebar (48 px) em cima, na largura toda, as três colunas
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
-  O conteúdo das abas ainda é o legado do `ChatArea`, pintado pelo vidro escuro do `App.css` nos
-  dois temas; a Início, o composer (`InputDock`), a titlebar, a sidebar, a barra de abas e a barra
-  de status já seguem o tema.
+  A Conversa (ver **Conversa**), a Início, o composer (`InputDock`), a titlebar, a sidebar, a
+  barra de abas e a barra de status já seguem o tema; o Bloco de diagrama e a gaveta de Logs ainda
+  são o legado, no vidro escuro do `App.css`.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
   Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
   janela. A janela liga o
@@ -246,6 +247,39 @@ depois do render. Um `MutationObserver` no `TabList` reposiciona o indicador qua
   disco, e reabrir a Conversa religa o stream. Renomear e apagar seguem bloqueados durante um turno.
 - **Sem persistência:** o app sempre abre só com a Início. As Conversas recentes estão na sidebar.
 
+## Conversa
+
+O conteúdo de uma Aba de Conversa (`components/ChatArea.tsx`): a coluna que rola, com as bolhas, e o
+trilho de Perguntas por cima. O Bloco de diagrama é o legado (`Mermaid.tsx`), de outro corte.
+
+- **Coluna:** 720 px no máximo, centralizada, com 44 px de respiro dos lados; é ela que rola, e o
+  composer fica fora dela, embaixo. Rola até o fim a cada mensagem nova.
+- **Usuário** (`MessageBubble.tsx`): bolha à direita, `accent-subtle`, até 80% da coluna. Embaixo, a
+  hora e a linha de tokens do turno (entrada, saída, total e o contexto com a origem).
+- **Agente:** sem bolha, na largura da coluna. No topo, o autor (o Subagente, ou "Agente"), só depois
+  do stream. Depois, os tool calls (cada um um `Disclosure isQuiet` compacto: ícone da ação, rótulo,
+  `CheckmarkCircle` e o resultado no painel), o Markdown (ou o "Trabalhando" com `ProgressCircle`
+  enquanto não há texto), o status do reparo do diagrama, o Aviso e a meta (hora, duração, tokens). O
+  texto novo não faz fade: as keyframes do protótipo não entram.
+- **Erro do turno:** um `InlineAlert negative` no lugar da resposta: o título é o "o quê", e o
+  conteúdo traz a causa (em JetBrains Mono, `pre-wrap`, porque o parse error do mermaid vem
+  multilinha e o caret precisa alinhar) e o próximo passo.
+- **Aviso:** um `InlineAlert notice` por mensagem ("Aviso" ou "Avisos"), com a lista dentro. Vale na
+  resposta e no erro. Nunca vira toast.
+- **Markdown** (`Markdown.tsx`): cada elemento tem uma classe do macro, pelo `components` do
+  `react-markdown` (parágrafo, listas, citação, títulos, tabela com borda e rolagem, link, código
+  inline, `hr`, caixa de seleção do GFM). O `<pre>` do react-markdown some (`pre: Fragment`): o
+  bloco de código e o diagrama trazem o invólucro deles. A classe `md` fica no invólucro só como
+  gancho do `App.css` do diagrama.
+- **Bloco de código** (`CodeBlock.tsx`): a linguagem da fence no cabeçalho e o copiar (`ActionButton
+  isQuiet` + `Copy` + `Tooltip` "Copiar"), sem realce. Copiar usa o `Clipboard` do Wails (e o
+  `navigator.clipboard` fora do app) e dispara o toast "Código copiado." ou "Não foi possível
+  copiar." (ver **Toast**).
+- **Trilho de Perguntas** (`QuestionNav.tsx`): a partir da segunda pergunta, uma barra de 18 px por
+  pergunta na borda direita (`gray-400`, 24 px e `accent` no hover e no foco). Mouse ou foco no
+  trilho abre um painel de 260 px à esquerda dele, com o número e o texto de cada pergunta; clicar
+  numa barra ou num item leva à mensagem, e o painel fechado tira os itens da ordem de Tab.
+
 ## Componentes
 
 Cada elemento é um **controle S2** ou uma **superfície própria** (RAC ou HTML, estilizada pelo macro
@@ -273,19 +307,19 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Início: título e subtítulo | própria | **pronto** | `components/Home.tsx` |
 | Sugestões | própria, cartão em RAC `Button` | **pronto** | `Home.tsx` |
 | Composer (Início e Conversa) | própria: RAC `TextArea` + botão de enviar próprio | **pronto** | `InputDock.tsx` |
-| Markdown | própria | `Markdown.tsx` | `Markdown.tsx` |
-| Bloco de código | própria: cabeçalho com a linguagem da fence (vazio se não houver) + S2 `ActionButton isQuiet` com `Copy` e `Tooltip`; sem realce de sintaxe | `<pre>` do `Markdown.tsx` | `components/CodeBlock.tsx` |
+| Markdown | própria: uma classe do macro por elemento, pelo `components` do `react-markdown` | **pronto** | `Markdown.tsx` |
+| Bloco de código | própria: cabeçalho com a linguagem da fence (vazio se não houver) + S2 `ActionButton isQuiet` com `Copy` e `Tooltip`; sem realce de sintaxe | **pronto** | `components/CodeBlock.tsx` |
 | Bloco de diagrama: canvas | própria | `Mermaid.tsx` | `Mermaid.tsx` |
 | Bloco de diagrama: barra | S2 `ActionButtonGroup` + `ActionButton` (`ZoomOut`, `ZoomIn`, `Refresh`, `ZoomFitToScreen`, `Code`, `Download`) | `Mermaid.tsx` | `Mermaid.tsx` |
-| Bolha do usuário | própria | `MessageBubble.tsx` | `MessageBubble.tsx` |
-| Meta da mensagem | própria | rodapé do `MessageBubble.tsx` | `MessageBubble.tsx` |
-| Tool call, "Mostrar resposta original" | S2 `Disclosure isQuiet`, densidade compacta | `<details>` do `MessageBubble.tsx` | `MessageBubble.tsx` |
-| Pensando | S2 `ProgressCircle size="S" isIndeterminate` | `ThinkingIndicator` | `MessageBubble.tsx` |
-| Erro do turno | S2 `InlineAlert variant="negative"` | `.bubble--error` | `MessageBubble.tsx` |
-| Avisos | um S2 `InlineAlert variant="notice"` por mensagem, com a lista dentro; na bolha, nunca num toast | `WarningList` | `MessageBubble.tsx` |
-| Status do reparo do diagrama | texto com `role="status"` | `MessageBubble.tsx` | `MessageBubble.tsx` |
-| Trilho de Perguntas | própria | `QuestionNav.tsx` | `QuestionNav.tsx` |
-| Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | o `ToastContainer` já está no `App.tsx`, sem nada que o dispare | `App.tsx` |
+| Bolha do usuário | própria | **pronto** | `MessageBubble.tsx` |
+| Meta da mensagem | própria | **pronto** | `MessageBubble.tsx` |
+| Tool call, "Mostrar resposta original" | S2 `Disclosure isQuiet`, densidade compacta | **pronto** | `MessageBubble.tsx` |
+| Pensando | S2 `ProgressCircle size="S" isIndeterminate` | **pronto** | `MessageBubble.tsx` |
+| Erro do turno | S2 `InlineAlert variant="negative"` | **pronto** | `MessageBubble.tsx` |
+| Avisos | um S2 `InlineAlert variant="notice"` por mensagem, com a lista dentro; na bolha, nunca num toast | **pronto** | `MessageBubble.tsx` |
+| Status do reparo do diagrama | texto com `role="status"` | **pronto** | `MessageBubble.tsx` |
+| Trilho de Perguntas | própria | **pronto** | `QuestionNav.tsx` |
+| Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | o `ToastContainer` está no `App.tsx`; o `CodeBlock` já o dispara, e a gaveta de Logs ainda não | `App.tsx` |
 | Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | `LogDrawer.tsx` | `LogDrawer.tsx` |
 | Barra de status | própria | **pronto** | `components/StatusBar.tsx` |
 | Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
@@ -320,7 +354,7 @@ quadrados com menos/mais dentro, e o `new-window` é uma seta de link externo). 
 `src/icons/svg/LICENSE-JetBrains-icons.txt`; o pacote não traz NOTICE.
 
 _Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar,
-as Abas, a barra de status e os botões da janela já não o usam; as outras telas ainda usam.
+as Abas, a barra de status, os botões da janela e as bolhas da Conversa já não o usam; as outras telas ainda usam (o Mermaid, a gaveta de Logs e as Configurações).
 
 ### Fonte
 
@@ -331,8 +365,10 @@ OFL ao lado (`OFL-SourceSans3.txt`, `OFL-JetBrainsMono.txt`). Os arquivos vêm d
 à mão, sem dependência. Os `@font-face` ficam no `global.css`. Os controles S2 e as superfícies com
 `fontFamily: 'sans'` recebem a família por `--s2-font-family-sans: 'Source Sans 3'` no `:root`. A variável não é documentada;
 se sumir, a queda é a Segoe UI. A JetBrains Mono entra pelo escape-hatch `css()` do macro, porque o
-`fontFamily` dele só aceita os tokens, e o token `code` é fixo. Nenhuma superfície usa a JetBrains
-Mono ainda: o navegador só baixa o arquivo quando alguma usar.
+`fontFamily` dele só aceita os tokens, e o token `code` é fixo. Usam a JetBrains Mono o bloco de
+código, o código inline e a causa do erro do turno, pela classe `mono` que o `CodeBlock.tsx` exporta (o
+tamanho e a altura de linha vão pelo macro, com `fontSize: 'code-sm'`, sem `font`, para não disputar o
+`font-family`).
 
 ### Movimento
 
@@ -390,8 +426,7 @@ toda, que mostra a Aba focada, não a do turno em voo.
 - **Na Início:** a mesma barra, com os totais zerados, o contexto em 0 sobre a janela do modelo
   ativo e sem horário.
 
-**Toast** (_Decidido, a implementar_): o `ToastQueue` do S2, no `ToastContainer` do `App.tsx`. Hoje
-o container está montado e nada o dispara. Ele só confirma uma ação que não deixa rastro visível ou
+**Toast** (_Decidido, a implementar_ na gaveta de Logs; o `CodeBlock` já faz o dele): o `ToastQueue` do S2, no `ToastContainer` do `App.tsx`. Ele só confirma uma ação que não deixa rastro visível ou
 avisa que ela falhou:
 
 | Ação | Variante | Frase |

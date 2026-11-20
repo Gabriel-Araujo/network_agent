@@ -1,4 +1,4 @@
-import {defineConfig} from 'vite'
+import {defineConfig} from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import macros from 'unplugin-parcel-macros'
 import wails from '@wailsio/runtime/plugins/vite'
@@ -24,6 +24,10 @@ export default defineConfig({
     port: Number(process.env.WAILS_VITE_PORT) || 9245,
     strictPort: true,
   },
+  // O Markdown (nos testes) importa componentes do S2, que importam `.css`: o Vite os processa em
+  // vez de deixar o Node carregá-los como módulo. Sem o `fsModuleCache`: um módulo lido do cache não
+  // passa pelo macro, que então não registra o `macro-<hash>.css` que o módulo importa.
+  test: {fsModuleCache: false, server: {deps: {inline: [/@react-spectrum\/s2/]}}},
   build: {
     target: ['es2022'],
     cssMinify: 'lightningcss',
