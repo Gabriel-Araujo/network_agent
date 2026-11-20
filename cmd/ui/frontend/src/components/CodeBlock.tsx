@@ -52,7 +52,7 @@ const grow = style({ flexGrow: 1 })
 const icon = iconStyle({ size: 'S' })
 
 // Copia pelo Clipboard do Wails; fora do app (browser puro) cai no do navegador.
-async function copyText(text: string) {
+export async function copyText(text: string) {
   if (inWails()) await Clipboard.SetText(text)
   else await navigator.clipboard.writeText(text)
 }

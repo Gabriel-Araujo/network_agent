@@ -104,8 +104,8 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell, as Abas, a Início e a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
   Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho) e só o pt-BR, o JS tem
-  1.543 KB (gzip 510,6 KB) e o chunk `s2-styles` 66,76 KB (gzip 11,86 KB); isso já inclui o Bloco de diagrama. Antes dele
-  eram 1.538 KB (gzip 508 KB) e 64,2 KB (gzip 11,4 KB), e antes da Conversa 1.525 KB
+  1.547 KB (gzip 511,69 KB) e o chunk `s2-styles` 67,17 KB (gzip 11,96 KB); isso já inclui a gaveta de Logs e o Bloco de diagrama. Antes da gaveta
+  eram 1.543 KB (gzip 510,6 KB) e 66,76 KB (gzip 11,86 KB), antes do Bloco de diagrama 1.538 KB (gzip 508 KB) e 64,2 KB (gzip 11,4 KB), e antes da Conversa 1.525 KB
   (gzip 504 KB) e 60,6 KB (gzip 10,6 KB). Só com `Provider` + `ToastContainer` eram 1.327 KB (gzip 446 KB) e 44 KB
   (gzip 7,3 KB); sem o filtro de locales, 1.427 KB (gzip 469 KB). As três fontes somam 98 KB.
   Medição anterior em [`REACT_SPECTRUM_S2.md`](REACT_SPECTRUM_S2.md#9-peso).
@@ -153,8 +153,7 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
   A Conversa (ver **Conversa**), a Início, o composer (`InputDock`), a titlebar, a sidebar, a
-  barra de abas e a barra de status e o Bloco de diagrama já seguem o tema; a gaveta de Logs ainda
-  é o legado, no vidro escuro do `App.css`.
+  barra de abas, a barra de status, o Bloco de diagrama e a gaveta de Logs já seguem o tema.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,
   Configurações), marca, "Network Agent" e o chip do Workspace. À direita, o modelo e os botões da
   janela. A janela liga o
@@ -213,8 +212,7 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
 - **Gaveta de Logs:** é a terceira coluna, sem scrim. Tem 360 px fixos, que caem para 300 px com a
   janela abaixo de 1080 px de largura (a `--logs-w` da coluna, que a gaveta também lê para não
   refluir). Não tem divisor para redimensionar: as linhas quebram. A coluna anima a largura em
-  0,3 s ao abrir e fechar; a gaveta fica montada e, fechada, é `inert`. O conteúdo dela ainda é o
-  legado.
+  0,3 s ao abrir e fechar; a gaveta fica montada e, fechada, é `inert`. O conteúdo é a seção **Gaveta de Logs**.
 - **Tamanho:** a janela abre em 1024×768, com mínimo de 900×600 (`MinWidth`/`MinHeight`). As regras
   do `App.css` para larguras até 768 px saíram. O
   breakpoint de 1080 px vale no shell. O que ele muda no modal de Configurações e nas sugestões é
@@ -312,14 +310,36 @@ carga). Mora em `components/Mermaid.tsx`; o `Markdown.tsx` o monta.
   vizinhos não são afetados.
 - **Cores:** ver **Tema** → **Diagrama**.
 
+## Gaveta de Logs
+
+As mesmas linhas que o CLI mostra no terminal, porque a fonte é o sink de console: o Go escreve nos
+dois destinos no mesmo `Handle`. Daí o que ela não mostra: nada de `source`, valor truncado em 512,
+nada de TRACE. Quem quer isso lê o arquivo. Mora em `components/LogDrawer.tsx`; a coluna, com as
+larguras e a animação, é do **Shell e janela**.
+
+- **Cabeçalho:** "LOGS", o contador de linhas (uma pílula `accent-subtle`) e o fechar (S2
+  `ActionButton isQuiet` com `Close` e `Tooltip`).
+- **Linhas:** em JetBrains Mono 12 px (`code-xs`), sem scroll lateral: elas quebram
+  (`pre-wrap`, `overflow-wrap: anywhere`). O timestamp sai em `neutral-subdued`, e a cor do resto
+  da linha só aparece no nível, lido do token `[INFO ]` (colunas 24 a 31 da linha do console):
+  `DEBUG` em `cyan-900`, `INFO` em `positive-900`, `WARN` em `notice-900` e `ERROR` em
+  `negative`. Uma mensagem que termina em `
+` rende uma linha em branco, como no terminal.
+- **Transporte:** pull de `GetLogLines` a cada 250 ms, só com a gaveta aberta (o writer do Go não
+  conhece o Wails e não emite evento). Acompanha o fim só se a rolagem já estava no fim.
+- **Rodapé:** o `Link` S2 "Copiar o caminho do arquivo" (`GetLogPath`) copia pelo `copyText` do
+  `CodeBlock` e dispara o toast "Caminho copiado." ou "Não foi possível copiar." (ver **Toast**).
+  Sem caminho (execução sem arquivo de log, ou fora do app), o rodapé diz "Esta execução não abriu
+  arquivo de log." e não há `Link`. O rótulo nunca troca.
+
 ## Componentes
 
 Cada elemento é um **controle S2** ou uma **superfície própria** (RAC ou HTML, estilizada pelo macro
 `style` com os tokens do S2). O único CSS global é o `src/global.css`, com os `@font-face`, a ordem
 das camadas e a regra de movimento reduzido.
 
-_Decidido, a implementar_ nas linhas da tabela abaixo cuja coluna **Hoje** ainda aponta o legado; as
-linhas com **pronto** já estão no código. `App.css` e `Settings.css` são apagados
+_Decidido, a implementar_ nas linhas da tabela abaixo cuja coluna **Hoje** ainda aponta o legado (as
+Configurações); as linhas com **pronto** já estão no código. `App.css` e `Settings.css` são apagados
 sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 `components` do `react-markdown`, com uma classe do macro por elemento.
 
@@ -351,8 +371,8 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Avisos | um S2 `InlineAlert variant="notice"` por mensagem, com a lista dentro; na bolha, nunca num toast | **pronto** | `MessageBubble.tsx` |
 | Status do reparo do diagrama | texto com `role="status"` | **pronto** | `MessageBubble.tsx` |
 | Trilho de Perguntas | própria | **pronto** | `QuestionNav.tsx` |
-| Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | o `ToastContainer` está no `App.tsx`; o `CodeBlock` já o dispara, e a gaveta de Logs ainda não | `App.tsx` |
-| Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | `LogDrawer.tsx` | `LogDrawer.tsx` |
+| Toast | S2 `ToastContainer placement="bottom end"` + `ToastQueue`; uma frase só, sem subtítulo | **pronto** (o `ToastContainer` está no `App.tsx`; o `CodeBlock` e a gaveta de Logs o disparam) | `App.tsx` |
+| Gaveta de Logs | `aside` própria + S2 `ActionButton` (fechar) + S2 `Link` (copiar o caminho) | **pronto** | `LogDrawer.tsx` |
 | Barra de status | própria | **pronto** | `components/StatusBar.tsx` |
 | Configurações: modal | S2 `DialogContainer` + `Dialog size="XL"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
 | Configurações: navegação | S2 `Tabs orientation="vertical"` | `SettingsModal.tsx` | `SettingsModal.tsx` |
@@ -386,7 +406,7 @@ quadrados com menos/mais dentro, e o `new-window` é uma seta de link externo). 
 `src/icons/svg/LICENSE-JetBrains-icons.txt`; o pacote não traz NOTICE.
 
 _Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar,
-as Abas, a barra de status, os botões da janela e as bolhas da Conversa já não o usam; as outras telas ainda usam (a gaveta de Logs e as Configurações).
+as Abas, a barra de status, os botões da janela e as bolhas da Conversa já não o usam; as Configurações ainda o usam.
 
 ### Fonte
 
@@ -398,7 +418,7 @@ OFL ao lado (`OFL-SourceSans3.txt`, `OFL-JetBrainsMono.txt`). Os arquivos vêm d
 `fontFamily: 'sans'` recebem a família por `--s2-font-family-sans: 'Source Sans 3'` no `:root`. A variável não é documentada;
 se sumir, a queda é a Segoe UI. A JetBrains Mono entra pelo escape-hatch `css()` do macro, porque o
 `fontFamily` dele só aceita os tokens, e o token `code` é fixo. Usam a JetBrains Mono o bloco de
-código, o código inline e a causa do erro do turno, pela classe `mono` que o `CodeBlock.tsx` exporta (o
+código, as linhas da gaveta de Logs, o código inline e a causa do erro do turno, pela classe `mono` que o `CodeBlock.tsx` exporta (o
 tamanho e a altura de linha vão pelo macro, com `fontSize: 'code-sm'`, sem `font`, para não disputar o
 `font-family`).
 
@@ -458,7 +478,7 @@ toda, que mostra a Aba focada, não a do turno em voo.
 - **Na Início:** a mesma barra, com os totais zerados, o contexto em 0 sobre a janela do modelo
   ativo e sem horário.
 
-**Toast** (_Decidido, a implementar_ na gaveta de Logs; o `CodeBlock` já faz o dele): o `ToastQueue` do S2, no `ToastContainer` do `App.tsx`. Ele só confirma uma ação que não deixa rastro visível ou
+**Toast:** o `ToastQueue` do S2, no `ToastContainer` do `App.tsx`. Ele só confirma uma ação que não deixa rastro visível ou
 avisa que ela falhou:
 
 | Ação | Variante | Frase |
@@ -467,8 +487,8 @@ avisa que ela falhou:
 | Copiar o caminho do log (`LogDrawer.tsx`) | `positive` | "Caminho copiado." |
 | Uma dessas cópias falhar | `negative` | "Não foi possível copiar." |
 
-O `Link` da gaveta de Logs fica sempre com o rótulo "Copiar o caminho do arquivo". A troca para
-"Caminho copiado" por 1,6 s sai. Mais nada vira toast:
+O `Link` da gaveta de Logs fica sempre com o rótulo "Copiar o caminho do arquivo": o toast é a
+confirmação, sem troca de rótulo. Mais nada vira toast:
 
 - Salvar nas Configurações: o próprio dialog mostra o resultado.
 - Baixar o diagrama: o WebView2 mostra o download (medido no v3: abre o painel de downloads do

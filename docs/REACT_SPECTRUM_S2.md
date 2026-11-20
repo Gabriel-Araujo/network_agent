@@ -445,6 +445,13 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
     (`& > svg {…}` sai como `.classe > svg`). O `ToggleButton` S2 dentro de `TooltipTrigger` e o
     `ActionButton` dentro do `ActionButtonGroup` com `Tooltip` funcionam; o `ActionButtonGroup`
     não tem seleção, então o botão de alternar é um `ToggleButton` ao lado.
+  - **Cor de texto e tamanho de código no macro, medido na gaveta de Logs** (S2 1.8.2, 2026-11-19, `tsc`):
+    `positive` e `notice` valem para `backgroundColor`, mas não para `color` (erro de tipo); no texto,
+    use `positive-900` e `notice-900` (`negative` vale nos dois). A cor por variante sai de
+    `style<{level: 'a' | 'b'}>({color: {level: {a: …, b: …}}})`, chamado como `fn({level})`. O
+    `fontSize: 'code-sm'` resolve para 14 px e o `'code-xs'` para 12 px. O `Link` sem `href`
+    renderiza um `span role="link"` que responde ao `onPress`, e o `isDisabled` não existe nele: sem
+    ação, não o renderize.
   - **Macro no vitest 5** (`vitest` 5.1.1, `unplugin-parcel-macros` do `package.json`, medido em
     2026-11-19): o `fsModuleCache` (padrão `true`) reaproveita o módulo transformado entre rodadas, e
     o macro não roda de novo, então o `macro-<hash>.css` que ele registra em memória não existe. O

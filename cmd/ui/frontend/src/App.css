@@ -116,27 +116,6 @@ button {
   transform: scale(0.94);
 }
 
-.icon-btn--xs {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-}
-
-.icon-btn--xs:disabled {
-  opacity: 0.4;
-}
-
-.link-btn {
-  font-size: 12.5px;
-  color: var(--accent-strong);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.link-btn:hover {
-  color: #9dc2ff;
-}
-
 /* fade genérico para elementos que aparecem */
 @keyframes fadeIn {
   from {
@@ -157,101 +136,5 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* ---------- gaveta de Logs (LogDrawer) ---------- */
-
-/* A coluna (App.tsx) anima a largura; a gaveta fica na largura final, `--logs-w`. */
-.logs {
-  width: var(--logs-w);
-  height: 100%;
-  position: relative;
-  z-index: 18;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  min-width: 0;
-  min-height: 0;
-  background: var(--bg-elev);
-  border-left: 1px solid var(--border);
-}
-
-.logs__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 10px 9px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.logs__title {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-.logs__count {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
-}
-
-.logs__spacer {
-  flex: 1;
-}
-
-.logs__body {
-  overflow: auto;
-  padding: 8px 12px 10px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-/* pre-wrap: a linha do console é larga (valor truncado em 512) e o diagnóstico
-   está no fim dela — quebrar é melhor que esconder atrás de scroll lateral. */
-.logs__line {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--text-dim);
-}
-
-/* Mensagem terminada em \n rende uma linha em branco — medido no drive: 3 das
-   15 linhas do run. O terminal mostra o branco, então a gaveta também mostra. */
-.logs__line:empty {
-  min-height: 1em;
-}
-
-/* As mesmas cores do console (console.go:25-30), mas lidas do token [INFO ]. */
-.logs__level {
-  font-weight: 650;
-}
-
-.logs__level--debug {
-  color: #22d3ee;
-}
-
-.logs__level--info {
-  color: #4ade80;
-}
-
-.logs__level--warn {
-  color: #facc15;
-}
-
-.logs__level--error {
-  color: #f87171;
-}
-
-.logs__empty {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-faint);
-}
-
-.logs__foot {
-  padding: 8px 14px;
-  border-top: 1px solid var(--border);
 }
 }
