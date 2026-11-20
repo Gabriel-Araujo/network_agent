@@ -19,6 +19,13 @@ export class Config {
      */
     "workspace"?: string;
 
+    /**
+     * RecentWorkspaces são as pastas que já foram o Workspace, a de uso mais
+     * recente primeiro, no máximo MaxRecentWorkspaces. Não é raiz de nada: só
+     * o Workspace é. O UseWorkspace é quem a mantém.
+     */
+    "recentWorkspaces"?: string[];
+
     /** Creates a new Config instance. */
     constructor($$source: Partial<Config> = {}) {
         if (!("selected" in $$source)) {
@@ -36,9 +43,13 @@ export class Config {
      */
     static createFrom($$source: any = {}): Config {
         const $$createField1_0 = $$createType1;
+        const $$createField3_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("providers" in $$parsedSource) {
             $$parsedSource["providers"] = $$createField1_0($$parsedSource["providers"]);
+        }
+        if ("recentWorkspaces" in $$parsedSource) {
+            $$parsedSource["recentWorkspaces"] = $$createField3_0($$parsedSource["recentWorkspaces"]);
         }
         return new Config($$parsedSource as Partial<Config>);
     }
@@ -105,7 +116,7 @@ export class Provider {
      * Creates a new Provider instance from a string or object.
      */
     static createFrom($$source: any = {}): Provider {
-        const $$createField4_0 = $$createType3;
+        const $$createField4_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("models" in $$parsedSource) {
             $$parsedSource["models"] = $$createField4_0($$parsedSource["models"]);
@@ -117,5 +128,6 @@ export class Provider {
 // Private type creation functions
 const $$createType0 = Provider.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = Model.createFrom;
-const $$createType3 = $Create.Array($$createType2);
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = Model.createFrom;
+const $$createType4 = $Create.Array($$createType3);

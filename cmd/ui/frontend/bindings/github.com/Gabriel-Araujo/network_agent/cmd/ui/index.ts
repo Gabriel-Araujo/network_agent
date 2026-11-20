@@ -7,5 +7,6 @@ export {
 };
 
 export {
-    MermaidRepairStart
+    MermaidRepairStart,
+    RecentWorkspace
 } from "./models.js";

@@ -13,6 +13,7 @@ export type {
 } from '../bindings/github.com/Gabriel-Araujo/network_agent/internal/history/models'
 export type {
   MermaidRepairStart,
+  RecentWorkspace,
   contextWindow as ContextWindow,
 } from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui/models'
 export type {

@@ -159,17 +159,22 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   botões), o corte desliga a opção, volta ao `--wails-draggable: drag` com `no-drag` nos controles
   e ao `onDoubleClick` → `Window.ToggleMaximise()`, e registra no `WAILS_V3.md` o que quebrou.
 - **Chip do Workspace:** mostra o nome da pasta do Workspace em uso, com o caminho no `title` (sem
-  pasta: "Nenhuma pasta"). **Hoje** o menu tem um item só, "Abrir outra pasta…", que chama o mesmo
-  `PickWorkspace` das Configurações e já grava; cancelar o diálogo não muda nada, e uma falha cai no
-  card de erro da sidebar. _Decidido, a implementar_ (corte _Workspaces recentes_): o menu lista até 5 **Workspaces recentes** (`menuitemradio`: nome e, embaixo, o caminho), por uso
-  mais recente, com o atual marcado, e depois um separador e "Abrir outra pasta…" (o
-  `PickWorkspace`). A lista fica no `config.json` (`recentWorkspaces`, ao lado do `workspace`), e o Go
-  a atualiza a cada escolha de Workspace, pelo chip ou pelas Configurações. Um recente cuja pasta
-  não existe mais aparece desabilitado, com "Pasta não encontrada", e sai sozinho quando cinco outros
-  entram na frente; não há remoção à mão. Se a pasta some entre abrir o menu e clicar, o Go recusa,
-  o Workspace não muda e o menu reabre com o item desabilitado, sem toast. Enquanto um turno roda,
-  trocar de Workspace fica bloqueado no chip e no campo das Configurações, com o motivo no `title`,
-  como o renomear e o apagar.
+  pasta: "Nenhuma pasta"). O menu lista até 5 **Workspaces recentes** (`MenuSection` com
+  `selectionMode="single"`, então `menuitemradio`: nome e, embaixo, o caminho), por uso mais recente,
+  com o atual marcado, e depois, noutra seção, "Abrir outra pasta…" (o `PickWorkspace`, cujo diálogo
+  nativo cancelado não muda nada). A lista fica no `config.json` (`recentWorkspaces`, ao lado do
+  `workspace`) e é do Go: `Config.UseWorkspace` põe a pasta no topo, sem duplicata (caminho comparado
+  sem diferenciar maiúsculas) e corta em 5, a cada escolha, pelo chip ou pelas Configurações, e o
+  `Normalize` põe o Workspace em uso no topo mesmo num `config.json` de antes da lista. O front lê
+  `ListRecentWorkspaces` (cada recente com `exists`, conferido no disco pelo Go) no boot, a cada troca
+  e a cada abertura do menu, e troca com `PickRecentWorkspace(path)`, que grava e reconecta como o
+  `PickWorkspace`. Um recente cuja pasta não existe mais aparece desabilitado, com "Pasta não
+  encontrada" no lugar do caminho, e sai sozinho quando cinco outros entram na frente; não há remoção
+  à mão. Se a pasta some entre abrir o menu e clicar, o Go recusa e não muda nada, e o menu reabre
+  (controlado, `isOpen`) com o item desabilitado, sem toast nem card; qualquer outra falha cai no
+  card de erro da sidebar. Enquanto um turno roda (`isWorking`), o chip fica desabilitado, com o
+  motivo no `title`, e o botão "Trocar..." do campo das Configurações também, como o renomear e o
+  apagar da sidebar.
 - **Modelo e conexão:** na titlebar, antes dos botões da janela, aparece o texto "provedor ·
   modelo". Enquanto o modelo carrega, um `ProgressCircle size="S"` fica ao lado dele. Quando a
   conexão falha, aparece um `ActionButton` "Reconectar", com a causa no `title` de um `span` em volta
@@ -257,7 +262,7 @@ sem uma folha de superfícies no lugar. O Markdown estiliza cada elemento pelo
 | Titlebar (marca, região de arrasto) | própria | **pronto** | `components/Titlebar.tsx` |
 | Recolher painel | S2 `ActionButton isQuiet` + ícone próprio | **pronto** | `Titlebar.tsx` |
 | Menu principal (Logs, Configurações) | S2 `MenuTrigger` + `Menu` | **pronto** | `Titlebar.tsx` |
-| Chip do Workspace | S2 `MenuTrigger` + `Menu` (gatilho: `ActionButton isQuiet`) | **pronto**, com um item só | `Titlebar.tsx` |
+| Chip do Workspace | S2 `MenuTrigger` + `Menu` (gatilho: `ActionButton isQuiet`) | **pronto**, com os recentes | `Titlebar.tsx` |
 | Modelo e conexão | própria (texto "provedor · modelo") + S2 `ProgressCircle size="S"` (carregando) + S2 `ActionButton` "Reconectar" (falha) | **pronto** | `Titlebar.tsx` |
 | Botões da janela | própria (o hover vermelho do fechar não sai do S2) | **pronto** | `WindowControls.tsx` |
 | Faixa recolhida | `nav` própria + S2 `Button variant="accent"` só com ícone | **pronto** | `Sidebar.tsx` |

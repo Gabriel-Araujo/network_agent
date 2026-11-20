@@ -89,8 +89,63 @@ func (a *App) PickWorkspace() (types.Config, error) {
 	}
 
 	log.Info("Workspace escolhido", "path", dir)
-	cfg.Workspace = dir
+	cfg.UseWorkspace(dir)
 	return a.persist(cfg)
+}
+
+// RecentWorkspace é um recente como o menu do chip o lê: `Exists` é a conferência
+// no disco, que o front não faz.
+type RecentWorkspace struct {
+	Path   string `json:"path"`
+	Exists bool   `json:"exists"`
+}
+
+// ListRecentWorkspaces devolve os Workspaces recentes, o de uso mais recente
+// primeiro, cada um com a pasta conferida agora. O front chama ao abrir o menu.
+func (a *App) ListRecentWorkspaces() ([]RecentWorkspace, error) {
+	configMux.Lock()
+	defer configMux.Unlock()
+	cfg, err := readConfig()
+	if err != nil {
+		return nil, err
+	}
+	config.Normalize(&cfg)
+	list := make([]RecentWorkspace, len(cfg.RecentWorkspaces))
+	for i, p := range cfg.RecentWorkspaces {
+		list[i] = RecentWorkspace{Path: p, Exists: isDir(p)}
+	}
+	return list, nil
+}
+
+// PickRecentWorkspace faz de um recente o Workspace, sem diálogo. Se a pasta
+// sumiu, recusa e não muda nada.
+func (a *App) PickRecentWorkspace(dir string) (types.Config, error) {
+	configMux.Lock()
+	defer configMux.Unlock()
+	cfg, err := readConfig()
+	if err != nil {
+		return cfg, err
+	}
+	if err := useRecent(&cfg, dir); err != nil {
+		return cfg, err
+	}
+	log.Info("Workspace recente escolhido", "path", dir)
+	return a.persist(cfg)
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// useRecent é o PickRecentWorkspace sem o disco da configuração: confere a
+// pasta e, só então, troca o Workspace.
+func useRecent(cfg *types.Config, dir string) error {
+	if !isDir(dir) {
+		return fmt.Errorf("pasta não encontrada: %s", dir)
+	}
+	cfg.UseWorkspace(dir)
+	return nil
 }
 
 // SelectProvider define qual provedor está em uso (índice Selected).

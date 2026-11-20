@@ -13,6 +13,8 @@ interface SettingsModalProps {
   onConfigChanged?: (c: AppConfig) => void
   /** false = configuração obrigatória pendente: não pode fechar. */
   dismissible?: boolean
+  /** Um turno roda: trocar de Workspace fica bloqueado. */
+  workspaceLocked?: boolean
 }
 
 export default function SettingsModal({
@@ -20,6 +22,7 @@ export default function SettingsModal({
   onClose,
   onConfigChanged,
   dismissible = true,
+  workspaceLocked = false,
 }: SettingsModalProps) {
   const [config, setConfig] = useState<AppConfig>({ selected: 0, providers: [] })
   // índice do provedor selecionado; null = nenhum
@@ -220,7 +223,12 @@ export default function SettingsModal({
             >
               {config.workspace || 'Nenhuma pasta escolhida — o agente não grava arquivos.'}
             </span>
-            <button className="btn-ghost btn-ghost--sm" onClick={pickWorkspace}>
+            <button
+              className="btn-ghost btn-ghost--sm"
+              onClick={pickWorkspace}
+              disabled={workspaceLocked}
+              title={workspaceLocked ? 'Trocar de Workspace fica bloqueado enquanto o agente responde.' : undefined}
+            >
               {config.workspace ? 'Trocar...' : 'Escolher...'}
             </button>
           </div>

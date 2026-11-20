@@ -307,9 +307,14 @@
     color 0.2s ease;
 }
 
-.btn-ghost:hover {
+.btn-ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .btn-ghost--sm {

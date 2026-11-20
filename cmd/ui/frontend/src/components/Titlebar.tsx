@@ -1,5 +1,13 @@
-import type { CSSProperties } from 'react'
-import { ActionButton, Menu, MenuItem, MenuTrigger, ProgressCircle, Text } from '@react-spectrum/s2'
+import { useState, type CSSProperties } from 'react'
+import {
+  ActionButton,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuTrigger,
+  ProgressCircle,
+  Text,
+} from '@react-spectrum/s2'
 import { style } from '@react-spectrum/s2/style' with { type: 'macro' }
 import MenuHamburger from '@react-spectrum/s2/icons/MenuHamburger'
 import Folder from '@react-spectrum/s2/icons/Folder'
@@ -8,7 +16,7 @@ import Settings from '@react-spectrum/s2/icons/Settings'
 import FileText from '@react-spectrum/s2/icons/FileText'
 import PainelLateral from '../icons/PainelLateral'
 import WindowControls from './WindowControls'
-import type { Connection } from '../types'
+import type { Connection, RecentWorkspace } from '../types'
 
 // A titlebar da janela frameless (docs/FRONTEND.md, Shell e janela). Só o texto
 // "Network Agent" e o espaçador do meio são `caption`: arrastam, e o duplo
@@ -47,6 +55,8 @@ const model = style({
   whiteSpace: 'nowrap',
 })
 
+const PICK = '::pick' // chave que nenhum caminho tem
+
 /** O nome da pasta, do caminho do Windows ou POSIX. */
 function folderName(path: string): string {
   return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
@@ -59,6 +69,13 @@ interface TitlebarProps {
   onOpenSettings: () => void
   workspace: string
   onPickWorkspace: () => void
+  /** Os Workspaces recentes com a pasta conferida pelo Go, e o recarregar da lista. */
+  recents: RecentWorkspace[]
+  onOpenRecents: () => void
+  /** Troca para um recente; false se o Go recusou (a pasta sumiu). */
+  onPickRecent: (path: string) => Promise<boolean>
+  /** Um turno roda: trocar de Workspace fica bloqueado. */
+  workspaceLocked: boolean
   /** Provedor e modelo ativos, ou null sem modelo configurado. */
   active: { provider: string; model: string } | null
   connection: Connection | null
@@ -72,10 +89,24 @@ export default function Titlebar({
   onOpenSettings,
   workspace,
   onPickWorkspace,
+  recents,
+  onOpenRecents,
+  onPickRecent,
+  workspaceLocked,
   active,
   connection,
   onReconnect,
 }: TitlebarProps) {
+  // O menu do chip é controlado: se a pasta some entre abrir e clicar, o Go
+  // recusa e ele reabre, já com o item desabilitado.
+  const [recentsOpen, setRecentsOpen] = useState(false)
+  const openRecents = (open: boolean) => {
+    setRecentsOpen(open)
+    if (open) onOpenRecents()
+  }
+  const pickRecent = async (path: string) => {
+    if (!(await onPickRecent(path))) openRecents(true)
+  }
   const panelLabel = sidebarExpanded ? 'Recolher painel' : 'Expandir painel'
   return (
     <header className={bar}>
@@ -119,20 +150,41 @@ export default function Titlebar({
         Network Agent
       </span>
 
-      <span title={workspace || 'Nenhuma pasta escolhida: o agente não grava arquivos.'}>
-        <MenuTrigger>
+      <span
+        title={
+          workspaceLocked
+            ? 'Trocar de Workspace fica bloqueado enquanto o agente responde.'
+            : workspace || 'Nenhuma pasta escolhida: o agente não grava arquivos.'
+        }
+      >
+        <MenuTrigger isOpen={recentsOpen} onOpenChange={openRecents}>
           <ActionButton
             isQuiet
+            isDisabled={workspaceLocked}
             aria-label={`Workspace em uso: ${workspace ? folderName(workspace) : 'nenhum'}`}
           >
             <Folder />
             <Text>{workspace ? folderName(workspace) : 'Nenhuma pasta'}</Text>
           </ActionButton>
-          <Menu onAction={onPickWorkspace}>
-            <MenuItem id="pick" textValue="Abrir outra pasta…">
-              <FolderOpen />
-              <Text slot="label">Abrir outra pasta…</Text>
-            </MenuItem>
+          <Menu
+            onAction={(key) => (key === PICK ? onPickWorkspace() : key !== workspace && pickRecent(String(key)))}
+          >
+            {recents.length > 0 && (
+              <MenuSection selectionMode="single" selectedKeys={[workspace]} aria-label="Workspaces recentes">
+                {recents.map((r) => (
+                  <MenuItem key={r.path} id={r.path} textValue={r.path} isDisabled={!r.exists}>
+                    <Text slot="label">{folderName(r.path)}</Text>
+                    <Text slot="description">{r.exists ? r.path : 'Pasta não encontrada'}</Text>
+                  </MenuItem>
+                ))}
+              </MenuSection>
+            )}
+            <MenuSection>
+              <MenuItem id={PICK} textValue="Abrir outra pasta…">
+                <FolderOpen />
+                <Text slot="label">Abrir outra pasta…</Text>
+              </MenuItem>
+            </MenuSection>
           </Menu>
         </MenuTrigger>
       </span>

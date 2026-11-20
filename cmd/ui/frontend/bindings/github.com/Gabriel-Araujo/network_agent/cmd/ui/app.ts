@@ -194,6 +194,26 @@ export function ListConversations(): $CancellablePromise<history$0.Conversation[
 }
 
 /**
+ * ListRecentWorkspaces devolve os Workspaces recentes, o de uso mais recente
+ * primeiro, cada um com a pasta conferida agora. O front chama ao abrir o menu.
+ */
+export function ListRecentWorkspaces(): $CancellablePromise<$models.RecentWorkspace[]> {
+    return $Call.ByID(3459539712).then(($result: any) => {
+        return $$createType7($result);
+    });
+}
+
+/**
+ * PickRecentWorkspace faz de um recente o Workspace, sem diálogo. Se a pasta
+ * sumiu, recusa e não muda nada.
+ */
+export function PickRecentWorkspace(dir: string): $CancellablePromise<types$0.Config> {
+    return $Call.ByID(4222619584, dir).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
  * PickWorkspace abre o diálogo nativo de pasta e grava a escolha como o
  * Workspace do app: a única raiz de escrita das file tools. A pasta é do app e
  * não da Conversa (ticket 05, §4), então é um valor só.
@@ -244,7 +264,7 @@ export function RenameConversation(id: string, title: string): $CancellablePromi
  */
 export function RetryMermaidRepair(convID: string, attemptID: string, failures: history$0.MermaidFailure[]): $CancellablePromise<$models.MermaidRepairStart> {
     return $Call.ByID(2196853217, convID, attemptID, failures).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -268,7 +288,7 @@ export function SetDefaultModel(providerIndex: number, modelIndex: number): $Can
 
 export function StartMermaidRepair(convID: string, messageID: string, failures: history$0.MermaidFailure[]): $CancellablePromise<$models.MermaidRepairStart> {
     return $Call.ByID(944800919, convID, messageID, failures).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -291,4 +311,6 @@ const $$createType2 = $models.connection.createFrom;
 const $$createType3 = $models.contextWindow.createFrom;
 const $$createType4 = $Create.Array($Create.Any);
 const $$createType5 = $Create.Array($$createType0);
-const $$createType6 = $models.MermaidRepairStart.createFrom;
+const $$createType6 = $models.RecentWorkspace.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.MermaidRepairStart.createFrom;

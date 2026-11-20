@@ -39,6 +39,35 @@ export class MermaidRepairStart {
 }
 
 /**
+ * RecentWorkspace é um recente como o menu do chip o lê: `Exists` é a conferência
+ * no disco, que o front não faz.
+ */
+export class RecentWorkspace {
+    "path": string;
+    "exists": boolean;
+
+    /** Creates a new RecentWorkspace instance. */
+    constructor($$source: Partial<RecentWorkspace> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("exists" in $$source)) {
+            this["exists"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RecentWorkspace instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RecentWorkspace {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RecentWorkspace($$parsedSource as Partial<RecentWorkspace>);
+    }
+}
+
+/**
  * connection é o estado da conexão como o front-end o lê. `Cause` só existe no
  * estado failed: é o erro do Connect, cru, porque a causa que o usuário precisa
  * ver (servidor fora do ar, modelo inexistente, janela recusada) vem de dentro

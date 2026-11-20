@@ -21,6 +21,7 @@ import {
   activeModel,
   formatTs,
   parseBridgeError,
+  RecentWorkspace,
   sortByUpdatedDesc,
   toUiMessages,
 } from './types'
@@ -533,8 +534,42 @@ function App() {
     if (!inWails()) return
     try {
       setConfig(await GoApp.PickWorkspace())
+      pollConnection()
     } catch (e) {
       setSidebarError(parseBridgeError(e))
+    }
+  }
+
+  // Os recentes do menu do chip: o Go confere cada pasta no disco, a cada abertura.
+  const [recents, setRecents] = useState<RecentWorkspace[]>([])
+  const refreshRecents = useCallback(async () => {
+    if (!inWails()) return []
+    try {
+      const list = await GoApp.ListRecentWorkspaces()
+      setRecents(list)
+      return list
+    } catch {
+      return []
+    }
+  }, [])
+  useEffect(() => {
+    refreshRecents()
+  }, [refreshRecents, config?.workspace])
+
+  // Trocar por um recente. Se a pasta sumiu entre abrir o menu e clicar, o Go
+  // recusa e nada muda: devolve false, o menu reabre com o item desabilitado e
+  // não há toast nem card. Qualquer outra falha cai no card da sidebar.
+  const pickRecentWorkspace = async (path: string) => {
+    if (!inWails()) return true
+    try {
+      setConfig(await GoApp.PickRecentWorkspace(path))
+      pollConnection()
+      return true
+    } catch (e) {
+      const list = await refreshRecents()
+      if (list.some((r) => r.path === path && !r.exists)) return false
+      setSidebarError(parseBridgeError(e))
+      return true
     }
   }
 
@@ -625,6 +660,10 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         workspace={config?.workspace ?? ''}
         onPickWorkspace={pickWorkspace}
+        recents={recents}
+        onOpenRecents={refreshRecents}
+        onPickRecent={pickRecentWorkspace}
+        workspaceLocked={isWorking}
         active={active ? { provider: active.provider.name, model: active.model.name } : null}
         connection={connection}
         onReconnect={reconnectNow}
@@ -679,6 +718,7 @@ function App() {
         onClose={closeSettings}
         onConfigChanged={handleConfigChanged}
         dismissible={configReady !== false}
+        workspaceLocked={isWorking}
       />
 
       {/* O envio bloqueado por configuração/conexão tem lugar próprio, não toast. */}
