@@ -299,10 +299,20 @@ Os do S2 (`@react-spectrum/s2/icons/<Nome>`), em todo o app. Quatro são própri
 desenhados a partir do SVG do protótipo: **painel lateral** (`PainelLateral`, recolher painel) e os
 três da janela, **minimizar**, **maximizar** e **restaurar** (`MinimizarJanela`, `MaximizarJanela`,
 `RestaurarJanela`): o `Minimize`/`Maximize` do S2 são setas de encolher e expandir, não os glifos de
-janela. O SVG fonte (20×20, fill `var(--iconPrimary, #222)`) fica em `src/icons/svg/`, e o `.tsx` sai
+janela. (Três saem do SVG do protótipo e um da JetBrains, ver abaixo.) O SVG fonte (20×20, fill `var(--iconPrimary, #222)`) fica em `src/icons/svg/`, e o `.tsx` sai
 do `@react-spectrum/s2-icon-builder` 1.1.2, rodado fora do projeto, sem virar dependência:
 `npx transform-icons -i <svg> -o <pasta>` (o cabeçalho do arquivo diz de onde veio). Ícone de ação
 do tool call sem equivalente no S2 segue o mesmo caminho.
+
+**Origem dos quatro.** A fonte preferida é o [JetBrains icons](https://github.com/JetBrains/icons)
+(`@jetbrains/icons` 5.25.0, Apache-2.0, variante `-20px`). Das 2.333 entradas do pacote, só uma
+serve: `remove-20px.svg`, um traço horizontal, é o **`MinimizarJanela`** (o fill
+`currentColor` virou `var(--iconPrimary, #222)`; o cabeçalho do `.tsx` diz o arquivo e a versão).
+Ele tem 18 de largura contra os 12 do quadrado do maximizar, e por isso o traço fica um pouco mais
+largo que os vizinhos. `PainelLateral`, `MaximizarJanela` e `RestaurarJanela` **continuam
+desenhados à mão**: o pacote não tem painel lateral nem glifo de janela (os `collapse`/`expand` são
+quadrados com menos/mais dentro, e o `new-window` é uma seta de link externo). A licença está em
+`src/icons/svg/LICENSE-JetBrains-icons.txt`; o pacote não traz NOTICE.
 
 _Decidido, a implementar:_ o `@phosphor-icons/react` sai do `package.json`. A Titlebar, a Sidebar,
 as Abas, a barra de status e os botões da janela já não o usam; as outras telas ainda usam.

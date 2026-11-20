@@ -512,6 +512,9 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
   e gera um `.tsx` por SVG, com `createIcon` do `@react-spectrum/s2`; o fill
   `var(--iconPrimary, #222)` sai como `var(--iconPrimary, light-dark(rgb(41, 41, 41), rgb(219, 219, 219)))`.
   O componente aceita `styles={iconStyle(…)}` como os do S2. Fonte: `index.js` do pacote.
+- **Ícone de fora do S2 (medido, 2026-11-19):** o `@jetbrains/icons` 5.25.0 (Apache-2.0) passa pelo
+  mesmo `transform-icons` sem ajuste, desde que o `fill="currentColor"` seja trocado por
+  `var(--iconPrimary, #222)`. Fonte: `npm pack @jetbrains/icons`.
 - **`ActionButton` com dois ícones** (ícone + `Text` + `ChevronDown`, 1.8.2): só o primeiro aparece
   (medido no app, 2026-11-19). Um chevron de "abre menu" não cabe no slot de ícone.
 
