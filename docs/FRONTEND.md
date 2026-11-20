@@ -103,8 +103,8 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell, as Abas, a Início, a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
   Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho), o Bloco de diagrama, a
-  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.642,45 KB (gzip 535,95 KB) e o chunk
-  `s2-styles` 81,33 KB (gzip 15,08 KB); o `index-*.css` tem 0,80 KB (o menu próprio em RAC no lugar do `Tabs` do S2 tirou 24 KB do JS, gzip 6,4 KB, e 0,7 KB do CSS). O modal trouxe `Dialog`, `Tabs`
+  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.642,94 KB (gzip 536,03 KB) e o chunk
+  `s2-styles` 80,85 KB (gzip 15,02 KB); o `index-*.css` tem 1,23 KB (o menu próprio em RAC no lugar do `Tabs` do S2 tirou 24 KB do JS, gzip 6,4 KB, e 0,7 KB do CSS). O modal trouxe `Dialog`, `Tabs`
   vertical, `ListView`, `SelectBoxGroup`, `NumberField` e `Badge` (+119 KB, gzip +30,6 KB no JS, e
   +15 KB no CSS), e tirar o phosphor não compensou, porque ele já saía do bundle por tree-shaking.
   Antes das Configurações eram 1.547 KB (gzip 511,69 KB) e 67,17 KB (gzip 11,96 KB), antes da gaveta
@@ -323,9 +323,13 @@ trilho de Perguntas por cima. O Bloco de diagrama tem seção própria, logo aba
   copiar." (ver **Toast**).
 - **Bloco de diagrama** (`Mermaid.tsx`): ver a seção **Bloco de diagrama**.
 - **Trilho de Perguntas** (`QuestionNav.tsx`): a partir da segunda pergunta, uma barra de 18 px por
-  pergunta na borda direita (`gray-400`, 24 px e `accent` no hover e no foco). Mouse ou foco no
-  trilho abre um painel de 260 px à esquerda dele, com o número e o texto de cada pergunta; clicar
-  numa barra ou num item leva à mensagem, e o painel fechado tira os itens da ordem de Tab.
+  pergunta na borda direita (`gray-400`). Mouse ou foco no trilho abre um painel de 260 px à
+  esquerda dele, com o número e o texto de cada pergunta; clicar numa barra ou num item leva à
+  mensagem, e o painel fechado tira os itens da ordem de Tab. O destaque é **cruzado**: o trilho
+  guarda o índice da pergunta ativa (mouse ou foco, em qualquer das duas pontas) e acende as duas
+  juntas, a barra (24 px e `accent`) e a linha (fundo `accent-subtle`, o token de seleção da
+  Sidebar, e texto `neutral`). Sair do trilho (mouse ou foco) apaga tudo. Não há "fixar o painel" do
+  protótipo.
 
 ## Bloco de diagrama
 

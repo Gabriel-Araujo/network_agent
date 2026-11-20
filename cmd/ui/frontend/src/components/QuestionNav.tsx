@@ -9,7 +9,9 @@ interface QuestionNavProps {
 
 // O trilho de Perguntas (docs/FRONTEND.md, Componentes): uma barra por pergunta
 // do usuário na borda direita, a partir da segunda. Passar o mouse ou focar abre
-// o painel com as perguntas; clicar leva à mensagem correspondente.
+// o painel com as perguntas; clicar leva à mensagem correspondente. O destaque é
+// cruzado: a barra e a linha da mesma pergunta acendem juntas, por qualquer dos
+// dois lados (mouse ou foco), e apagam ao sair do trilho.
 
 const rail = style({
   position: 'absolute',
@@ -31,12 +33,12 @@ const marks = style({
   flexShrink: 0,
 })
 const mark = style({
-  width: { default: 18, ':hover': 24, ':focus-visible': 24 },
+  width: { default: 18, isActive: 24 },
   height: 4,
   padding: 0,
   borderStyle: 'none',
   borderRadius: 'full',
-  backgroundColor: { default: 'gray-400', ':hover': 'accent', ':focus-visible': 'accent' },
+  backgroundColor: { default: 'gray-400', isActive: 'accent' },
   outlineStyle: 'none',
   cursor: 'pointer',
   transition: 'default',
@@ -78,8 +80,8 @@ const item = style({
   paddingY: 4,
   borderStyle: 'none',
   borderRadius: 'default',
-  backgroundColor: { default: 'transparent', ':hover': 'gray-100', ':focus-visible': 'gray-100' },
-  color: { default: 'neutral-subdued', ':hover': 'neutral', ':focus-visible': 'neutral' },
+  backgroundColor: { default: 'transparent', isActive: 'accent-subtle' },
+  color: { default: 'neutral-subdued', isActive: 'neutral' },
   font: 'ui',
   textAlign: 'start',
   cursor: 'pointer',
@@ -106,6 +108,8 @@ const text = style({
 
 export default function QuestionNav({ userMessages, onNavigate }: QuestionNavProps) {
   const [open, setOpen] = useState(false)
+  // Índice da pergunta em destaque (bolinha e linha), ou -1.
+  const [active, setActive] = useState(-1)
   if (userMessages.length < 2) return null
 
   return (
@@ -113,17 +117,25 @@ export default function QuestionNav({ userMessages, onNavigate }: QuestionNavPro
       className={rail}
       aria-label="Perguntas do usuário"
       onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseLeave={() => {
+        setOpen(false)
+        setActive(-1)
+      }}
       onFocus={() => setOpen(true)}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setOpen(false)
+          setActive(-1)
+        }
       }}
     >
       <div className={marks}>
         {userMessages.map((m, i) => (
           <button
             key={m.id}
-            className={mark}
+            className={mark({ isActive: active === i })}
+            onMouseEnter={() => setActive(i)}
+            onFocus={() => setActive(i)}
             onClick={() => onNavigate(m.id)}
             aria-label={`Ir para pergunta ${i + 1}`}
           />
@@ -133,7 +145,14 @@ export default function QuestionNav({ userMessages, onNavigate }: QuestionNavPro
       <div className={panel({ isOpen: open })} role="tooltip">
         <p className={title}>Perguntas</p>
         {userMessages.map((m, i) => (
-          <button key={m.id} className={item} onClick={() => onNavigate(m.id)} tabIndex={open ? 0 : -1}>
+          <button
+            key={m.id}
+            className={item({ isActive: active === i })}
+            onMouseEnter={() => setActive(i)}
+            onFocus={() => setActive(i)}
+            onClick={() => onNavigate(m.id)}
+            tabIndex={open ? 0 : -1}
+          >
             <span className={num}>{i + 1}</span>
             <span className={text}>{m.content}</span>
           </button>
