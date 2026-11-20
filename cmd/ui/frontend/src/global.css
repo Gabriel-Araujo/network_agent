@@ -28,17 +28,44 @@
 }
 
 /* O que o app precisa do navegador, abaixo da `_`: sem a margem do body (a janela é o app) e com a
-   caixa do `border-box`, que os controles S2 já usam. A barra de rolagem fica fina. */
+   caixa do `border-box`, que os controles S2 já usam. */
 @layer base {
   *, *::before, *::after {
     box-sizing: border-box;
   }
-  * {
-    scrollbar-width: thin;
-  }
   body {
     margin: 0;
     overscroll-behavior: none;
+  }
+}
+
+/* Barra de rolagem fina e sem setas (docs/FRONTEND.md, Barra de rolagem). É a do protótipo: 14 px de
+   caixa, o polegar recuado 5 px por borda transparente (`background-clip: padding-box`), então o que
+   se vê é uma barra de 4 px arredondada, e o trilho transparente. Tem que ser `::-webkit-scrollbar`:
+   com `scrollbar-width` ou `scrollbar-color` definidos, o Chromium ignora estes seletores e, no
+   Windows, deixa as setas. Um seletor global não usa o macro, então as cores são o valor medido do
+   token (S2 1.8.2), no `light-dark()` que o próprio S2 emite; o `color-scheme` do `<html>` e do
+   `Provider` decide o lado. */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: light-dark(rgb(198, 198, 198), rgb(68, 68, 68)); /* gray-400 */
+    background-clip: padding-box;
+    border: 5px solid transparent;
+    border-radius: 7px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: light-dark(rgb(143, 143, 143), rgb(109, 109, 109)); /* gray-500 */
   }
 }
 

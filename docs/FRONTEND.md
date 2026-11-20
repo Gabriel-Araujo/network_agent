@@ -63,8 +63,8 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
 - **CSS global:** `src/global.css`, importado primeiro no `main.tsx`, é o único CSS do app: não há
   `App.css` nem `Settings.css`, e toda superfície é do macro `style`. Ele declara a ordem das camadas,
   `@layer base, _, reduced-motion;`, e traz os `@font-face` (**Fonte**), a regra de movimento reduzido
-  (**Movimento**) e a camada `base`: `box-sizing: border-box` em tudo, `scrollbar-width: thin` em tudo
-  (a propriedade não herda, então vai no `*`) e, no `body`, `margin: 0` e `overscroll-behavior: none`.
+  (**Movimento**) e a camada `base`: `box-sizing: border-box` em tudo, `margin: 0` e
+  `overscroll-behavior: none` no `body` e a barra de rolagem (**Barra de rolagem**, em **Shell e janela**).
   Nada mais do navegador é zerado: `margin` de `h1`, `p`, `ul`, `pre`, `h3` e a borda de
   `borderStyle: 'solid'` sem `borderWidth: 0` (os outros lados saem com 3 px) são do estilo de cada
   superfície. No build, o `index-*.css` (global) carrega antes do `s2-styles-*.css`, e a ordem final é
@@ -123,8 +123,8 @@ escolha é Claro ou Escuro. O **Seletor** é a aba Aparência das Configuraçõe
   janela aberta. Não há paleta própria: o escuro é o do S2.
 - **Seletor:** em Configurações → Aparência (ver **Configurações**), um `SelectBoxGroup` com três
   cartões de prévia (Claro, Escuro, Sistema). A troca vale ao clicar, sem botão Salvar: o cartão chama
-  `setTheme` (`theme.ts`), que guarda a escolha, põe o `color-scheme` no `<html>` (o `Canvas` do script
-  inline acompanha) e avisa os `useTheme` por `useSyncExternalStore`, então o `Provider` e todo o app
+  `setTheme` (`theme.ts`), que guarda a escolha, põe o `color-scheme` no `<html>` (o `light-dark()` do fundo
+  do script inline acompanha) e avisa os `useTheme` por `useSyncExternalStore`, então o `Provider` e todo o app
   trocam na hora, sem recarregar.
 - **Persistência:** a escolha vai para o `localStorage` do WebView2, na chave `theme` (`'light'` ou
   `'dark'`; ausente é o Sistema, e escolher Sistema apaga a chave). Conferido: o escuro escolhido pelo
@@ -134,9 +134,13 @@ escolha é Claro ou Escuro. O **Seletor** é a aba Aparência das Configuraçõe
   `%AppData%\<nome do exe>`, uma pasta por forma de rodar.
 - **Sem piscar ao abrir:** a janela nasce com `Hidden: true`, e o `main.go` chama `window.Show()` no
   `events.Windows.WebViewNavigationCompleted`. Antes disso, um script inline no `<head>` do
-  `index.html` lê a chave `theme` e pinta o fundo do `<html>` com `background-color: Canvas` sob
-  `color-scheme` `light` ou `dark`, ou `light dark` no Sistema. A janela não tem mais
-  `BackgroundColour`. O fundo é o `Canvas` do `<html>`: o app não pinta um `body` próprio.
+  `index.html` lê a chave `theme` e pinta o fundo do `<html>` com
+  `background-color: light-dark(rgb(248, 248, 248), rgb(27, 27, 27))` sob `color-scheme` `light` ou
+  `dark`, ou `light dark` no Sistema. Esses dois valores são o `layer-1` da moldura (ver **Shell e
+  janela**), o mesmo que o `Provider` pinta depois, então a janela não troca de cor quando o React
+  monta (conferido com o bundle bloqueado: `root` vazio e o `<html>` já em `rgb(248, 248, 248)` e
+  `rgb(27, 27, 27)`). Se o `layer-1` mudar, o script muda junto. A janela não tem mais
+  `BackgroundColour`. O app não pinta um `body` próprio.
 - **Diagrama** (`Mermaid.tsx`): o pele lê `--pele-*`, e o macro `style` do canvas as define com os tokens
   do S2 (fundo `gray-25`, texto `neutral`, linha `gray-600`, superfícies `gray-100`/`gray-200`,
   borda `gray-400`, acento `accent`, fonte `sans`; a `--pele-font-mono` é a JetBrains Mono, por
@@ -159,7 +163,13 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   no meio (sidebar ou faixa, conteúdo e gaveta de Logs) e a barra de status embaixo, na largura
   toda. A coluna do conteúdo é o `Tabs` do RAC: a barra de abas em cima e um painel por aba embaixo.
 - **Moldura e cartão:** a titlebar, a sidebar (ou a faixa recolhida), a gaveta de Logs e a barra de
-  status são a **moldura**, em `layer-1`. A coluna do conteúdo é um **cartão** solto dela, em
+  status são a **moldura**, em `layer-1`, **pintada uma vez só**: o `Provider` (`main.tsx`) leva
+  `background="layer-1"`, e a grade do shell e as frestas entre as colunas (a margem de 8 px do cartão)
+  ficam sobre ele. Nenhum desses quatro componentes pinta o próprio fundo. Sem isso, a margem do cartão
+  mostrava o `Canvas` do `<html>`, branco no claro (o "quadro branco" do print do ticket
+  [Fundo da moldura e barra de rolagem](../.agent/frontend-v2/issues/27-fundo-da-moldura-e-barra-de-rolagem.md)).
+  Um fundo que o próprio componente precisa (o campo de renomear da sidebar, o bloco de código, a
+  Início) segue no componente. A coluna do conteúdo é um **cartão** solto dela, em
   `layer-2` (`content` no `App.tsx`): `margin: 8`, `border` de 1 px em `gray-300`, `borderRadius:
   'xl'` (16 px, o raio exato do protótipo) e `overflow: hidden`, então a barra de abas fica dentro
   dele e com a cor dele. O cartão pinta o fundo uma vez: a Conversa, a Início, o composer e a barra
@@ -169,6 +179,21 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   moldura nos dois temas, como no protótipo (`#F4F4F5`/`#FFFFFF` e `#1A1B1E`/`#202125`). A gaveta de
   Logs, na moldura, não tem borda: o cartão e a margem de 8 px a separam. Fechada, a coluna tem
   largura 0 e o cartão fica a 8 px da borda da janela.
+- **Barra de rolagem** (`global.css`, camada `base`): a do protótipo, em toda área que rola (sidebar,
+  Conversa, Logs, Configurações, painel de Perguntas, barra de abas, tabela e bloco de código). É
+  `::-webkit-scrollbar` de 14 px com o polegar recuado 5 px por uma borda transparente
+  (`background-clip: padding-box`), então o que se vê é uma barra de 4 px com cantos totalmente
+  arredondados; trilho e canto transparentes; sem as setas (`::-webkit-scrollbar-button` em
+  `display: none`). **Não pode haver `scrollbar-width` nem `scrollbar-color`** em lugar nenhum
+  (inclusive em `style()`): com qualquer um dos dois o Chromium/WebView2 ignora o `::-webkit-scrollbar`
+  e, no Windows, desenha a barra nativa com as setas. O seletor global não usa o macro, então as cores
+  são o valor medido do token (S2 1.8.2, 2026-11-20), em `light-dark()`: polegar `gray-400`, claro
+  `rgb(198, 198, 198)` e escuro `rgb(68, 68, 68)`; hover `gray-500`, claro `rgb(143, 143, 143)` e escuro
+  `rgb(109, 109, 109)`. O protótipo usa `#D6D6D9`/`#BFBFC4` e `#45464D`/`#5A5B63`; o token mais próximo
+  do polegar claro seria o `gray-300`, mas ele é a cor da borda do cartão e some nela. O `color-scheme`
+  do `<html>` e o do `Provider` escolhem o lado, também para o que sai em portal (Configurações,
+  menus). A barra de abas, com 14 px de rolagem horizontal, perde 15 px da altura útil das abas só
+  enquanto rola.
   A Conversa (ver **Conversa**), a Início, o composer (`InputDock`), a titlebar, a sidebar, a
   barra de abas, a barra de status, o Bloco de diagrama, a gaveta de Logs e as Configurações seguem o tema.
 - **Titlebar** (`components/Titlebar.tsx`): à esquerda, recolher painel, menu principal (Logs,

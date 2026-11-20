@@ -6,7 +6,7 @@
     <!-- Nada depende de rede: fonte só do próprio bundle. Barra o preload e os @font-face da Typekit que o Provider do S2 sempre tenta. -->
     <meta http-equiv="Content-Security-Policy" content="font-src 'self' data:"/>
     <title>net_agent</title>
-    <!-- Antes de tudo: pinta o fundo com o tema salvo, para a janela não piscar (docs/FRONTEND.md, Tema).
+    <!-- Antes de tudo: pinta o fundo da moldura com o tema salvo, para a janela não piscar (docs/FRONTEND.md, Tema).
          `theme` no localStorage é 'light' ou 'dark'; ausente é o Sistema. -->
     <script>
         (function () {
@@ -14,7 +14,9 @@
             try { t = localStorage.getItem('theme') } catch (e) {}
             var s = document.documentElement.style
             s.colorScheme = t === 'light' || t === 'dark' ? t : 'light dark'
-            s.backgroundColor = 'Canvas'
+            // A moldura em `layer-1` do S2 (claro rgb(248,248,248), escuro rgb(27,27,27)): o `Provider` pinta o mesmo
+            // fundo depois, então não há troca de cor entre este script e o React.
+            s.backgroundColor = 'light-dark(rgb(248, 248, 248), rgb(27, 27, 27))'
         })()
     </script>
 </head>

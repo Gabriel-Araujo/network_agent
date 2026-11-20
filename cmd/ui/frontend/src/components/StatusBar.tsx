@@ -13,7 +13,6 @@ const bar = style({
   gap: 12,
   height: 30,
   paddingX: 16,
-  backgroundColor: 'layer-1',
   font: 'ui-sm',
   color: 'neutral-subdued',
   whiteSpace: 'nowrap',

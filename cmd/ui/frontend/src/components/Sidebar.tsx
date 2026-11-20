@@ -27,7 +27,6 @@ const column = style({
   transitionDuration: 300,
   transitionTimingFunction: 'default',
   overflow: 'hidden',
-  backgroundColor: 'layer-1',
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,

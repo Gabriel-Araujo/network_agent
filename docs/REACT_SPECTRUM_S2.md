@@ -312,7 +312,10 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
 
 - **`Provider`:** `colorScheme` aceita `'light' | 'dark'`, e o padrão "Defaults to operating system
   preferences". **Não existe o valor `'system'`.** "Sistema" é simplesmente omitir o prop.
-  `background` aceita `'base' | 'layer-1' | 'layer-2'`; sem ele o fundo é transparente.
+  `background` aceita `'base' | 'layer-1' | 'layer-2'`; sem ele o fundo é transparente (num `div`; só
+  como `<html>` raiz o padrão é `'base'`). Como o `Provider` renderiza um `div` na altura do conteúdo,
+  `background="layer-1"` pinta a grade inteira do app, inclusive as frestas entre as caixas
+  (conferido no app, 2026-11-20).
   Fontes: <https://react-spectrum.adobe.com/Provider.md>,
   <https://github.com/adobe/react-spectrum/blob/main/packages/@react-spectrum/s2/src/Provider.tsx>.
 - **Como segue o SO:** um CSS de baixa especificidade define `--s2-color-scheme: light dark` e usa
@@ -482,6 +485,14 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
     - `NumberField.onChange` devolve `NaN` com o campo vazio.
     - `scrollbar-width` não herda: `html { scrollbar-width: thin }` não alcança os painéis que rolam,
       e o `*` alcança. No Windows o `thin` encolhe a barra, mas as setas das pontas continuam.
+      **Medido no WebView2 158.0.4370.33 (2026-11-20):** com `scrollbar-width` (ou `scrollbar-color`)
+      diferente de `auto` em qualquer ancestral que o aplique, o `::-webkit-scrollbar` é ignorado. Sem
+      eles, `::-webkit-scrollbar { width: 14px }` vale (`offsetWidth - clientWidth` = 14, e o
+      `scrollbar-width` computado fica `auto`), `::-webkit-scrollbar-button { display: none }` tira as
+      setas e `light-dark()` funciona no `::-webkit-scrollbar-thumb`, resolvido pelo `color-scheme` do
+      elemento. Tokens medidos no macro (`backgroundColor`, S2 1.8.2), claro/escuro: `gray-200`
+      `225`/`50`, `gray-300` `218`/`57`, `gray-400` `198`/`68`, `gray-500` `143`/`109`, `gray-600`
+      `113`/`138`, `gray-700` `80`/`175` (cada um em `rgb(n, n, n)`).
     - No macro, `insetStart` (lógica) e um `css('left: auto')` (física) não se anulam: duas metades
       absolutas, uma com `insetStart: 0` e outra com `left: auto; right: 0`, ficaram as duas à
       esquerda. Declare `insetStart` numa e `insetEnd` na outra.
