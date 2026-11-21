@@ -181,7 +181,7 @@ func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToo
 		result = responses.ResponseInputItemParamOfFunctionCallOutput(
 			fmt.Sprintf("Error: tool %q was not offered to you. Use only the tools in your list.", call.Name))
 
-	case call.Name == skills.ToolUseSkill, call.Name == skills.ToolReadSkillFile:
+	case call.Name == skills.ToolUseSkill, call.Name == skills.ToolReadSkillFile, call.Name == skills.ToolReadSkillDirectory:
 		var err error
 		result, err = a.SkillCall(ctx, call)
 		if err != nil {
@@ -220,8 +220,9 @@ func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToo
 	return tools.CallFunction(ctx, call, a.workspace)
 }
 
-// SkillCall ativa ou lê arquivos de uma skill (use_skill / read_skill_file),
-// devolvendo o corpo da skill (ou do arquivo bundlado) para o modelo.
+// SkillCall ativa, lê arquivos ou lista pastas de uma skill (use_skill /
+// read_skill_file / read_skill_directory), devolvendo o corpo da skill, o
+// arquivo bundlado ou a listagem para o modelo.
 func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, error) {
 	return skills.HandleSkillCall(call)
 }

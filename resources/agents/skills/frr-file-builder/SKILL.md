@@ -35,9 +35,8 @@ used here.
    over an interface the request describes needs that interface).
 2. **Read the packs.** For each technology with a row in the table above, read
    `references/<slug>/TECH.md` first: its "Required Facts" says what the request must give, and
-   its "Examples" lists the example files, since a folder cannot be listed. Then read
-   `references/<slug>/syntax.md`, `references/<slug>/doctrine.md` and the one example from that
-   list closest to the request. A technology with no row has no pack: the `<recovered_context>`
+   its "Examples" describes each example file. Then read `references/<slug>/syntax.md`,
+   `references/<slug>/doctrine.md` and the one example from that list closest to the request. A technology with no row has no pack: the `<recovered_context>`
    is its only source.
 3. **Check the facts.** Collect every identity value the configuration needs and the request
    does not give: each one in a pack's "Required Facts" that blocks the build, and, for any

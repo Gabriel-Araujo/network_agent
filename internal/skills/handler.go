@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/openai/openai-go/v3/responses"
 )
 
 // HandleSkillCall processa uma chamada de função relacionada a skills
-// (use_skill / read_skill_file) e devolve o resultado para o modelo
+// (use_skill / read_skill_file / read_skill_directory) e devolve o resultado para o modelo
 // como uma saída de função (function call output).
 //
 // Devolve também a falha, quando houve: o erro é o canal que leva a falha de
@@ -51,6 +52,23 @@ func HandleSkillCall(call responses.ResponseFunctionToolCall) (responses.Respons
 				fmt.Errorf("lendo o arquivo %q da skill %q: %w", args.RelativePath, args.SkillName, err)
 		}
 		return responses.ResponseInputItemParamOfFunctionCallOutput(content), nil
+
+	case ToolReadSkillDirectory:
+		var args struct {
+			SkillName    string `json:"skill_name"`
+			RelativePath string `json:"relative_path"`
+		}
+		if err := json.Unmarshal([]byte(call.Arguments), &args); err != nil {
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: argumentos inválidos: %v", err)),
+				fmt.Errorf("argumentos ilegíveis na chamada de skill: %w", err)
+		}
+
+		items, err := reg.ListDir(args.SkillName, args.RelativePath)
+		if err != nil {
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: %v", err)),
+				fmt.Errorf("listando a pasta %q da skill %q: %w", args.RelativePath, args.SkillName, err)
+		}
+		return responses.ResponseInputItemParamOfFunctionCallOutput(strings.Join(items, "\n")), nil
 
 	default:
 		return responses.ResponseInputItemParamOfFunctionCallOutput("Error: Called invalid skill function"),

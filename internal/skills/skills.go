@@ -14,8 +14,9 @@ import (
 var log = logger.Named("SKILLS")
 
 const (
-	ToolUseSkill      = "use_skill"
-	ToolReadSkillFile = "read_skill_file"
+	ToolUseSkill           = "use_skill"
+	ToolReadSkillFile      = "read_skill_file"
+	ToolReadSkillDirectory = "read_skill_directory"
 
 	// ReadSkillFileNoActivation diz o que o HandleSkillCall realmente faz: lê o
 	// arquivo bundled pelo nome da skill, sem conferir ativação em lugar nenhum.
@@ -72,10 +73,10 @@ func (r *Registry) useSkillToolFor(names []string) responses.ToolUnionParam {
 	}
 }
 
-// ReadSkillFileTool é a tool de leitura de arquivo bundled, a única tool de
-// skill do Subagente despachado. Não tem receiver de propósito: ela não
-// enumera skill nenhuma, logo não precisa do registry — é exatamente por isso
-// que serve ao despachado, que não deve ler catálogo. O alcance continua
+// ReadSkillFileTool é a tool de leitura de arquivo bundled, que todo Subagente
+// despachado leva ao lado de ReadSkillDirectoryTool. Não tem receiver de
+// propósito: ela não enumera skill nenhuma, logo não precisa do registry — é
+// exatamente por isso que serve ao despachado, que não deve ler catálogo. O alcance continua
 // inteiro (HandleSkillCall resolve pelo registry completo), e os AGENT.md do
 // Illustrator e do Teacher nomeiam a skill "mermaid" e esta tool, então as
 // references seguem alcançáveis sem catálogo.
@@ -94,6 +95,34 @@ func ReadSkillFileTool() responses.ToolUnionParam {
 					"relative_path": map[string]any{
 						"type":        "string",
 						"description": "Caminho relativo à raiz da skill, ex: references/avancado.md",
+					},
+				},
+				"required": []string{"skill_name", "relative_path"},
+			},
+		},
+	}
+}
+
+// ReadSkillDirectoryTool é a irmã de ReadSkillFileTool, no mesmo formato e
+// pelo mesmo motivo sem receiver: lista o que há numa pasta da skill, para o
+// modelo achar o arquivo que depois lê com read_skill_file.
+func ReadSkillDirectoryTool() responses.ToolUnionParam {
+	return responses.ToolUnionParam{
+		OfFunction: &responses.FunctionToolParam{
+			Name: ToolReadSkillDirectory,
+			Description: param.NewOpt(
+				"Lista, recursivamente, os arquivos e as pastas dentro de uma pasta de uma skill, " +
+					"pelo nome dela: um caminho por linha, relativo à raiz da skill (o formato que " +
+					ToolReadSkillFile + " recebe), pasta terminando em /. " +
+					"Não exige ativação prévia da skill: a pasta é listada pelo nome dela.",
+			),
+			Parameters: responses.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"skill_name": map[string]any{"type": "string"},
+					"relative_path": map[string]any{
+						"type":        "string",
+						"description": "Pasta relativa à raiz da skill, ex: references/; vazio lista a raiz",
 					},
 				},
 				"required": []string{"skill_name", "relative_path"},

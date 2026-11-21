@@ -79,9 +79,10 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 // never names the file tools (writing and replying belong to the agent that
 // activates it), and read_skill_file reaches every file of the bgp pack the
 // body orders read — TECH.md, syntax.md, doctrine.md — plus every example the
-// TECH.md index lists. The index is the only way the model finds an example,
-// since read_skill_file cannot list a folder, so a row naming a missing file
-// is an example the model asks for and never gets.
+// TECH.md index lists. The index is how the model picks an example, by its
+// description, so it must name exactly what read_skill_directory lists under
+// examples/: a row naming a missing file is an example the model asks for and
+// never gets, and a file with no row is one it can only pick blind.
 func TestFrrFileBuilderSkillInCatalog(t *testing.T) {
 	t.Chdir(repoRoot(t))
 
@@ -133,10 +134,23 @@ func TestFrrFileBuilderSkillInCatalog(t *testing.T) {
 	if len(examples) == 0 {
 		t.Fatal(`TECH.md of the bgp pack lists no example under "Examples"`)
 	}
+	var indexed []string
 	for _, m := range examples {
 		if got := read("references/bgp/" + m[1]); !strings.Contains(got, "```") {
 			t.Errorf("%s has no fenced frr.conf shape", m[1])
 		}
+		indexed = append(indexed, "references/bgp/"+m[1])
+	}
+
+	item, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{
+		CallID:    "call_list",
+		Name:      skills.ToolReadSkillDirectory,
+		Arguments: `{"skill_name": "` + skill + `", "relative_path": "references/bgp/examples"}`,
+	})
+	listed := strings.Split(callOutput(t, item), "\n")
+	slices.Sort(indexed)
+	if !slices.Equal(listed, indexed) {
+		t.Errorf("read_skill_directory references/bgp/examples = %v, the TECH.md index = %v", listed, indexed)
 	}
 }
 

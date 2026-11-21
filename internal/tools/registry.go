@@ -23,14 +23,15 @@ var log = logger.Named("TOOLS")
 var Tools = FileTools
 
 // GetFileAndSkillTools returns the toolset of a dispatched Subagente: the file
-// tools plus read_skill_file, and use_skill narrowed to the named skills —
+// tools plus read_skill_file and read_skill_directory, and use_skill narrowed
+// to the named skills —
 // none named, no activation tool at all. The narrowing is per Subagente: the
 // catalog a dispatched model reads carries ONLY the skills its own prompt
 // names (promptSkills in internal/agent), so no description can order the
 // activation of a pipeline skill again — the 12 of 30 wasted calls the ticket
 // 28 batch measured. An unknown name is an explicit error: the list is code.
 func GetFileAndSkillTools(skillNames []string) ([]responses.ToolUnionParam, error) {
-	toolset := []responses.ToolUnionParam{skills.ReadSkillFileTool()}
+	toolset := []responses.ToolUnionParam{skills.ReadSkillFileTool(), skills.ReadSkillDirectoryTool()}
 	if len(skillNames) > 0 {
 		activation, err := skills.LoadSkills().UseSkillTool(skillNames)
 		if err != nil {

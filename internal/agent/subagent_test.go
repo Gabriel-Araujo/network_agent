@@ -133,6 +133,12 @@ func TestSubagentToolsetDeniesTheWriteTools(t *testing.T) {
 			t.Fatalf("forSubagentAt(%q): %v", name, err)
 		}
 		got := toolNames(sub.availableTools)
+		// Every Subagente that reads a skill file also lists a skill folder.
+		for _, tool := range []string{skills.ToolReadSkillFile, skills.ToolReadSkillDirectory} {
+			if !slices.Contains(got, tool) {
+				t.Errorf("%s was dispatched without %s: %v", name, tool, got)
+			}
+		}
 
 		want := slices.DeleteFunc(slices.Clone(wholeNames), func(n string) bool {
 			return slices.Contains(denied[name], n)

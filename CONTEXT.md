@@ -161,14 +161,17 @@ _Avoid_: history, log, message list
 **Aviso**:
 What the app asserts about what **it** did in a turn, in the turn where it did
 it: a fallback of the composition (classification, retrieval, Subagente,
-diagram re-ask) or a tool call that failed. Not every fallback: it exists where
-the app has evidence that the fallback was a defect, which is why one of them —
-the empty routing with no search filter, see **Subagente** — is silent. It
+diagram re-ask), a tool call that failed, or an edit that removed lines from a
+file. Not every fallback: it exists where the app has evidence that the fallback
+was a defect, which is why one of them — the empty routing with no search
+filter, see **Subagente** — is silent. It
 rides the turn's outcome, is
 persisted on the Message and shows in its bubble. Distinct from the model's
 prose, which may report the same failure — and may report it with the wrong
 cause: an Aviso is the app's claim about its own action, never the model's. A
-successful event never fills it.
+successful event never fills it, with one exception: the edit that removed
+lines. That edit succeeded, but the app cannot tell a removal the request asked
+for from one it did not, so it names the lines either way.
 _Avoid_: erro, mensagem de erro, warning, log
 
 **Aba**:

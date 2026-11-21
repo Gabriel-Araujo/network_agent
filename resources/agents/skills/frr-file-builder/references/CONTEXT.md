@@ -29,10 +29,10 @@ The shape below is local to this skill. The teacher keeps its own, in
 ## Adding a Pack
 
 Create `<slug>/` with all four files plus `examples/`, and list every example
-in the "Examples" section of its `TECH.md`: `read_skill_file` cannot list a
-folder, so an unlisted example is never read. Add a row to the table above, to
-the pack table in `../SKILL.md`, and to the selection table in
-`../../../builder/CONTEXT.md`. No stage contract changes: they address the pack
+in the "Examples" section of its `TECH.md`: the model picks an example by the
+description there, so an unlisted one is only ever picked blind. Add a row to
+the table above, to the pack table in `../SKILL.md`, and to the selection table
+in `../../../builder/CONTEXT.md`. No stage contract changes: they address the pack
 through `{{TECH}}`.
 
 `reference/` is optional. Create it only when the pack has material worth
