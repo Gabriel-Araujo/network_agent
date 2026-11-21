@@ -1,6 +1,6 @@
 # MPLS L3VPN With VPNv4 And VRF
 
-Outside this pack's scope per `TECH.md`: ask for a run of the matching
+Outside this pack's scope per `TECH.md`: no pack covers this
 technology. Kept here as the canonical shape for the BGP half of it.
 
 BGP carries the customer routes with a route distinguisher and route target;

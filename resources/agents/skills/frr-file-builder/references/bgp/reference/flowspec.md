@@ -1,6 +1,6 @@
 # FlowSpec
 
-Outside this pack's scope per `TECH.md`: ask for a run of the matching
+Outside this pack's scope per `TECH.md`: no pack covers this
 technology. Kept here as reference, loaded by no stage.
 
 FlowSpec (RFC 8955) propagates filtering rules by 5-tuple, where RTBH

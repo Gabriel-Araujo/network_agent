@@ -3,8 +3,9 @@
 Per-technology reference material of the `frr-file-builder` skill. One folder
 per routing technology, the same files in each, so a reader can name a file
 without knowing which technology the request touches. Two readers load it: the
-skill body, through `read_skill_file`, and the stage contracts of the builder
-pipeline (`../../../builder/CONTEXT.md`), through `{{TECH}}`.
+skill body, through `read_skill_directory` and `read_skill_file`, and the stage
+contracts of the builder pipeline (`../../../builder/CONTEXT.md`), through
+`{{TECH}}`.
 
 The shape below is local to this skill. The teacher keeps its own, in
 `../../../teacher/tech-packs/CONTEXT.md`.
@@ -17,8 +18,8 @@ The shape below is local to this skill. The teacher keeps its own, in
 | `syntax.md` | skill, 04-render | Artifact shape and syntax rules |
 | `doctrine.md` | skill, 03-plan | Session policy, non negotiable security and performance rules |
 | `checklist.md` | 06-review | Verifiable pass/fail questions over the artifact |
-| `examples/` | skill, 03-plan, 04-render | Canonical shapes of `frr.conf`, short, values are placeholders. The skill reads the one closest to the request; 03 sees the titles and names one, 04 loads that one |
-| `reference/` | none | Material that is not a `frr.conf` shape: other daemons, other formats, technologies the pack declares out of scope. Human reading only |
+| `examples/` | skill, 03-plan, 04-render | Canonical shapes of `frr.conf`, short, values are placeholders. The skill lists the pack and reads the shape closest to the request, from here or `reference/`; 03 sees the titles and names one, 04 loads that one |
+| `reference/` | skill | Broader shapes the skill may pick as the closest one: other daemons, other formats, technologies the pack declares out of scope. Each file opens saying so when it is outside the pack's scope or not FRR syntax |
 
 ## Available Packs
 
@@ -35,6 +36,7 @@ the table above, to the pack table in `../SKILL.md`, and to the selection table
 in `../../../builder/CONTEXT.md`. No stage contract changes: they address the pack
 through `{{TECH}}`.
 
-`reference/` is optional. Create it only when the pack has material worth
-keeping that no reader should load. Every file in `examples/` has to be a
-pasteable `frr.conf` shape; anything else belongs in `reference/`.
+`reference/` is optional. Create it only when the pack has broader shapes
+worth keeping. The skill reads them, so a file outside the pack's scope opens
+saying so, and one that is not FRR syntax says that. Every file in `examples/`
+has to be a pasteable `frr.conf` shape; anything else belongs in `reference/`.

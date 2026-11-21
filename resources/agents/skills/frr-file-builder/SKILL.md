@@ -19,8 +19,9 @@ Every build uses each of these that exists:
   pack alone.
 - **The technology's pack**: a folder `references/<slug>/` of this skill. It says how this
   agent writes the technology: shape, syntax rules, policy, and the facts a request must give.
-  The pack of the turn's technology comes after this body; any other pack, and every example,
-  is read with `read_skill_file` (`skill_name`: `frr-file-builder`).
+  The pack of the turn's technology comes after this body. Every other file of a pack is
+  found with `read_skill_directory` and read with `read_skill_file` (`skill_name`:
+  `frr-file-builder` in both).
 
 The two do not overlap: the documentation names the commands, the pack decides how they are
 used here.
@@ -39,25 +40,31 @@ used here.
    named by its path. When the turn has no pack, a line after this body says why: no
    technology was classified, or no pack covers it (with the warning to write). A last line
    may say which technology the `<recovered_context>` was retrieved for. `TECH.md`'s
-   "Required Facts" says what the request must give, and its "Examples" describes each example
-   file: read the one closest to the request with `read_skill_file`. For any other technology
-   of the request with a row in the table above, read its `TECH.md`, `syntax.md`,
-   `doctrine.md` and closest example with `read_skill_file`. A technology with no row has no
-   pack: the `<recovered_context>` is its only source.
-3. **Check the facts.** Collect every identity value the configuration needs and the request
+   "Required Facts" says what the request must give. For any other technology of the request
+   with a row in the table above, read its `TECH.md`, `syntax.md` and `doctrine.md` with
+   `read_skill_file`. A technology with no row has no pack: the `<recovered_context>` is its
+   only source.
+3. **Find the closest shape.** For each pack read, list its folder `references/<slug>/` with
+   `read_skill_directory`, then read with `read_skill_file` the file closest to the request,
+   from `examples/` or `reference/`. `examples/` holds the shapes `TECH.md`'s "Examples"
+   describes; `reference/` holds broader ones. A file that opens saying it is outside the
+   pack's scope lends its structure only: that technology still has no pack, so the
+   `<recovered_context>` must cover it and its no-pack warning applies. A file that opens
+   saying it is not FRR syntax is never a shape for the configuration.
+4. **Check the facts.** Collect every identity value the configuration needs and the request
    does not give: each one in a pack's "Required Facts" that blocks the build, and, for any
    technology, any AS number, address, prefix, router-id, interface name, area or VRF name the
    lines would carry. When the content is new lines for an existing file, a value the file
    already states counts as given. If any value is missing, ask for each one by name, one
    question per value with the reason, and stop: produce no configuration. Never invent an
-   identity value, and never borrow one from an example or from the documentation.
-4. **Check the sources.** Every part of the request must be covered by its pack or by the
+   identity value, and never borrow one from a shape or from the documentation.
+5. **Check the sources.** Every part of the request must be covered by its pack or by the
    `<recovered_context>`. If a part is covered by neither, say which part and what was missing
    (no pack and no retrieved documentation for it), and stop: produce no configuration. Never
    build a part from memory.
-5. **Build.** Apply the rules below, then the syntax and doctrine of each pack. Copy an
-   example's structure, never its values.
-6. **Warn.** Add every warning the next section and the packs call for.
+6. **Build.** Apply the rules below, then the syntax and doctrine of each pack. Copy the
+   shape's structure, never its values.
+7. **Warn.** Add every warning the next section and the packs call for.
 
 ## Rules for every configuration
 

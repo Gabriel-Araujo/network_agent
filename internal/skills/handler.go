@@ -98,8 +98,8 @@ type Turn struct {
 const packSkill = "frr-file-builder"
 
 // packFiles são os arquivos do pack que a ativação entrega, nesta ordem.
-// Exemplo nenhum: esses o modelo escolhe pelo índice do TECH.md e lê com
-// read_skill_file.
+// Formato nenhum: o modelo lista o pack com read_skill_directory, escolhe o
+// mais próximo em examples/ ou reference/ e o lê com read_skill_file.
 var packFiles = []string{"TECH.md", "syntax.md", "doctrine.md"}
 
 // activation é o resultado do use_skill: o corpo e, só para a packSkill, o
@@ -119,7 +119,8 @@ func (r *Registry) activation(sk *Skill, turn Turn) (string, error) {
 	switch {
 	case turn.Protocol == "":
 		fmt.Fprintf(&out, "\n\nThis turn has no classified technology, so no pack follows this body: "+
-			"read the pack of each technology of the request that has a row in the table with %s.", ToolReadSkillFile)
+			"read the pack of each technology of the request that has a row in the table with %s, "+
+			"and list its folder with %s.", ToolReadSkillFile, ToolReadSkillDirectory)
 	case statErr != nil || !info.IsDir():
 		fmt.Fprintf(&out, "\n\nNo pack covers %[1]s, the technology of this turn. Above its first block write:\n"+
 			"! WARNING: no pack covers %[1]s; built from the retrieved FRR documentation only", turn.Protocol)

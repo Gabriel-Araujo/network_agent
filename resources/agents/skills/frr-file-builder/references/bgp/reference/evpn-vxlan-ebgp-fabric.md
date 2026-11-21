@@ -1,6 +1,6 @@
 # EVPN/VXLAN Over An eBGP Fabric
 
-Outside this pack's scope per `TECH.md`: ask for a run of the matching
+Outside this pack's scope per `TECH.md`: no pack covers this
 technology. Kept here as the canonical shape for the BGP half of it.
 
 BGP distributes MAC addresses (type 2) and IP prefixes (type 5) as routes;

@@ -1,6 +1,6 @@
 # Route Leaking Between VRFs
 
-Outside this pack's scope per `TECH.md`: ask for a run of the matching
+Outside this pack's scope per `TECH.md`: no pack covers this
 technology. Kept here as the canonical shape for the BGP half of it.
 
 Shares common services (DNS, monitoring, internet egress) between isolated

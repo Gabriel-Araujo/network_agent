@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	llm2 "github.com/Gabriel-Araujo/network_agent/internal/agent"
@@ -107,8 +108,10 @@ func TestSkillCallUseExistingSkill(t *testing.T) {
 
 	res, _ := a.SkillCall(context.Background(), call)
 
+	// A ativação da frr-file-builder abre com o corpo; o que vem depois (pack
+	// do turno ou a linha de protocolo vazio) é de TestActivationDeliversTheTurnPack.
 	got := callOutput(t, res)
-	if got != sk.Body {
+	if !strings.HasPrefix(got, sk.Body) {
 		t.Fatalf("skillCall deve devolver o body da skill.\nesperado: %q\nobtido:   %q", sk.Body, got)
 	}
 }

@@ -77,9 +77,10 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 // TestFrrFileBuilderSkillInCatalog pins the frr-file-builder material: the
 // skill loads, use_skill delivers a body that is no longer the stub and that
 // never names the file tools (writing and replying belong to the agent that
-// activates it), and read_skill_file reaches every file of the bgp pack the
-// body orders read — TECH.md, syntax.md, doctrine.md — plus every example the
-// TECH.md index lists. The index is how the model picks an example, by its
+// activates it) but orders the pack listed with read_skill_directory to find
+// the closest shape in examples/ or reference/, and read_skill_file reaches
+// every file of the bgp pack the body orders read — TECH.md, syntax.md,
+// doctrine.md — plus every example the TECH.md index lists. The index is how the model picks an example, by its
 // description, so it must name exactly what read_skill_directory lists under
 // examples/: a row naming a missing file is an example the model asks for and
 // never gets, and a file with no row is one it can only pick blind.
@@ -119,6 +120,8 @@ func TestFrrFileBuilderSkillInCatalog(t *testing.T) {
 		t.Error("the activated body is still the stub")
 	case !strings.Contains(body, "<recovered_context>"):
 		t.Error("the activated body no longer orders the RAG read")
+	case !strings.Contains(body, "`"+skills.ToolReadSkillDirectory+"`") || !strings.Contains(body, "`reference/`"):
+		t.Errorf("the activated body no longer orders the pack listed with %s to find the closest shape in examples/ or reference/", skills.ToolReadSkillDirectory)
 	}
 	for _, tool := range []string{"WriteFile", "EditFile"} {
 		if strings.Contains(body, tool) {
