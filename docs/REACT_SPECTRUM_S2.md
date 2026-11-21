@@ -513,6 +513,41 @@ Fontes da tabela: <https://react-spectrum.adobe.com/Tabs.md>, <https://react-spe
     - No macro, uma propriedade só com condição e sem `default` (`borderEndWidth: {orientation:
       {vertical: 1}}`) não zera a borda quando a condição falha: com `borderStyle: 'solid'` a borda sai
       `medium` (3 px). Ponha `default: 0`.
+  - **Accordion e Disclosure, medido** (S2 1.8.2, 2026-11-20, `src/Accordion.tsx` e `src/Disclosure.tsx`
+    do pacote, `tsc`, build e ao vivo na sidebar):
+    - O `Accordion` é um `DisclosureGroup` do RAC, e o `AccordionItem`, o `AccordionItemTitle`,
+      o `AccordionItemHeader` e o `AccordionItemPanel` são só apelidos do `Disclosure`, do
+      `DisclosureTitle`, do `DisclosureHeader` e do `DisclosurePanel` (todos exportados do pacote).
+      Dentro do `Accordion` o `Disclosure` já sabe que está num grupo (`isInGroup`: sem a borda de baixo,
+      menos na última).
+    - `allowsMultipleExpanded`, `expandedKeys`/`defaultExpandedKeys` (chaves = o `id` de cada item) e
+      `onExpandedChange` são do `Accordion`. Chave da lista inicial sem item ainda não faz mal: o item
+      que aparece depois com essa chave já nasce aberto.
+    - `size` (`S`/`M`/`L`/`XL`), `density` e `isQuiet` descem do `Accordion` por contexto. `isQuiet` tira as
+      bordas e dá raio ao botão do título. A altura mínima do título vai de 18 px (`S` compacto) a 56
+      (`XL` espaçoso); `S` regular dá 24.
+    - **Só o `DisclosureTitle` aceita `styles`**, e só as cinco propriedades de fonte (`font`,
+      `fontFamily`, `fontWeight`, `fontSize`, `lineHeight`); o `AccordionItemTitle` não repassa o `styles`.
+      A cor do título (`neutral`) e o `text-transform` não passam pelo macro: o `text-transform` herda do
+      `Heading` (`h3`), que aceita `UNSAFE_className`, e a cor fica a do S2.
+    - O painel (`DisclosurePanel`) tem `overflow: clip` e anima `height` (variável
+      `--disclosure-panel-height`) sem transição com `prefers-reduced-motion`. O conteúdo vai num `div`
+      interno com `paddingTop` 8, `paddingBottom` 16 e `paddingX` que depende do `size` (8 em `S`, 12 em
+      `L`), que não dá para sobrescrever; para devolver o espaço, o filho leva margem negativa.
+    - O botão do título é um RAC `Button slot="trigger"` dentro de um `Heading` (nível 3, o `level` troca). A
+      doc oficial não tem seção de teclado nem de movimento reduzido.
+  - **Animar o `Button` do S2, medido** (S2 1.8.2, 2026-11-20, `src/Button.tsx` e `style-utils.ts`): o
+    `styles` aceita só layout (sem `transition`), e o "só ícone" (respiro 0 e sem vão) é uma
+    pseudoclasse `:has([slot=icon]):not(:has([data-rsp-slot=text]))`: com o `Text` montado ele nunca
+    vira só ícone, e sem ele vira de uma vez, sem animar. Para um botão que encolhe até o ícone, o
+    app usa um RAC `Button` do macro com as cores do `variant="accent"` (`lightDark('accent-900',
+    'accent-700')`, hover/press/foco `lightDark('accent-1000', 'accent-600')`, texto `white`).
+    `text-transform` num `h3` não chega ao `button` dentro dele (o navegador põe `none` no botão):
+    use `css('text-transform: uppercase; & button { text-transform: inherit; }')`. Easings do macro:
+    `default` `cubic-bezier(0.45, 0, 0.4, 1)`, `in` `(0.5, 0, 1, 1)`, `out` `(0, 0, 0.40, 1)`; a
+    transição base do S2 dura 150 ms, e o painel do `SideNavPanel`, 300 ms. `transitionDuration` e
+    `transitionDelay` aceitam condição (`{default: 200, isCollapsed: 150}`) e `transition` aceita uma
+    lista entre colchetes (`'[opacity, visibility]'`).
   - **Macro no vitest 5** (`vitest` 5.1.1, `unplugin-parcel-macros` do `package.json`, medido em
     2026-11-19): o `fsModuleCache` (padrão `true`) reaproveita o módulo transformado entre rodadas, e
     o macro não roda de novo, então o `macro-<hash>.css` que ele registra em memória não existe. O

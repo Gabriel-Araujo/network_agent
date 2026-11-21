@@ -222,7 +222,7 @@ export function groupLabel(stamp: string): string {
   return 'Mais antigas'
 }
 
-const GROUP_ORDER = ['Hoje', 'Ontem', 'Últimos 7 dias', 'Mais antigas']
+export const GROUP_ORDER = ['Hoje', 'Ontem', 'Últimos 7 dias', 'Mais antigas']
 
 /**
  * Agrupa para o sidebar: cabeçalhos na ordem fixa acima, itens na ordem

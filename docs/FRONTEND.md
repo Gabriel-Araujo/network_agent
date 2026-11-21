@@ -103,8 +103,8 @@ Este documento descreve o frontend **como ele está**. Os fatos sobre a bibliote
     como o `""` do v2.
 - **Bundle (Vite 8):** com o Shell, as Abas, a Início, a Conversa (Titlebar, Sidebar, TabBar, StatusBar,
   Home, composer, botões da janela, bolhas, Markdown, bloco de código, trilho), o Bloco de diagrama, a
-  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.642,94 KB (gzip 536,03 KB) e o chunk
-  `s2-styles` 80,85 KB (gzip 15,02 KB); o `index-*.css` tem 1,23 KB (o menu próprio em RAC no lugar do `Tabs` do S2 tirou 24 KB do JS, gzip 6,4 KB, e 0,7 KB do CSS). O modal trouxe `Dialog`, `Tabs`
+  gaveta de Logs, as Configurações e só o pt-BR, o JS tem 1.644,87 KB (gzip 536,31 KB) e o chunk
+  `s2-styles` 81,48 KB (gzip 15,18 KB); o `index-*.css` tem 1,23 KB (o menu próprio em RAC no lugar do `Tabs` do S2 tirou 24 KB do JS, gzip 6,4 KB, e 0,7 KB do CSS). O modal trouxe `Dialog`, `Tabs`
   vertical, `ListView`, `SelectBoxGroup`, `NumberField` e `Badge` (+119 KB, gzip +30,6 KB no JS, e
   +15 KB no CSS), e tirar o phosphor não compensou, porque ele já saía do bundle por tree-shaking.
   Antes das Configurações eram 1.547 KB (gzip 511,69 KB) e 67,17 KB (gzip 11,96 KB), antes da gaveta
@@ -236,17 +236,39 @@ frameless. As opções de janela ficam no `cmd/ui/main.go`.
   vermelho (`negative`). Os três são regiões `minimize`, `maximize` e `close`, e o Snap Layouts aparece no hover
   do maximizar. O Wails repassa o mouse dessas regiões à página, então o `onClick` e o `:hover`
   continuam sendo do React.
-- **Sidebar ↔ faixa recolhida** (`Sidebar.tsx`, prop `expanded`): um estado só. Expandida, a
-  sidebar tem 244 px; recolhida, vira a faixa de 56 px com o "Nova conversa". O botão de recolher
-  painel, na titlebar, alterna as duas.
-  O app sempre abre com a sidebar expandida, e a escolha não persiste. Não há atalho de teclado. A
-  coluna anima a largura em 0,3 s, com a mesma curva da gaveta de Logs, e o conteúdo troca na hora.
-  Não há modo sobreposto com scrim. Logs e Configurações saíram do rodapé da sidebar para o menu
-  principal.
-- **Lista de Conversas:** RAC `GridList` com uma `GridListSection` por grupo de data e
-  `keyboardNavigationBehavior="tab"`: as setas andam entre as linhas, e o Tab entra nas ações
-  (renomear, apagar), que aparecem no hover, no foco e na Conversa aberta. Clicar na linha abre a
-  Conversa. Renomear troca o título por um `input` na linha (Enter grava, Esc ou clicar fora
+- **Sidebar ↔ faixa recolhida** (`Sidebar.tsx`, prop `expanded`): um estado só, **numa árvore só**.
+  Expandida, a sidebar tem 244 px; recolhida, vira a faixa de 56 px. O botão de recolher painel, na
+  titlebar, alterna as duas. O app sempre abre com a sidebar expandida, e a escolha não persiste. Não
+  há atalho de teclado. Não há modo sobreposto com scrim. Logs e Configurações saíram do rodapé da
+  sidebar para o menu principal. A coluna (`column`) recorta um painel que tem sempre 244 px, e o que
+  anima é:
+  - **A largura da coluna:** 244 ↔ 56 px em 0,3 s, curva `default` (a mesma da gaveta de Logs).
+  - **O "Nova conversa", um botão só que muda de forma:** um RAC `Button` do macro com as cores do
+    `Button variant="accent"` do S2, e não o `Button` do S2, porque o S2 decide "só ícone" pela
+    presença do `Text` e, com o rótulo montado, não deixa animar o respiro. Expandido é a pílula de
+    220 px (ícone, vão de 8 e rótulo, respiro de 16); recolhido, 32 px, só o ícone, sem respiro nem
+    vão. `width`, `padding-inline` e `column-gap` animam em 0,3 s `default`, e o rótulo encolhe
+    (`max-width` de 160 a 0, na mesma duração e curva) enquanto o texto dele faz o mesmo fade da lista
+    (abaixo), então ele some antes de o botão cortá-lo. O botão fica 12 px à esquerda da coluna nos
+    dois estados (12 + 32 + 12 = 56), então o ícone não salta.
+  - **O fade da lista:** o bloco que rola (card de erro, aviso de lista vazia e as seções) leva
+    `opacity` e `visibility`. Recolher: 150 ms, curva `in`, sem atraso, e o `visibility` vira `hidden` no
+    fim, então o texto some antes de a coluna recortá-lo. Expandir: 200 ms, curva `out`, com 100 ms de
+    atraso (a coluna abre primeiro, como no SideNavPanel). Recolhida, a lista é `inert`: sai da ordem de
+    Tab e do leitor de tela. O foco que estava nela é solto pelo navegador.
+  - **Movimento reduzido:** a regra `reduced-motion` do `global.css` zera tudo isso, e o estado final
+    vale na hora.
+- **Lista de Conversas:** um `Accordion` do S2 (`allowsMultipleExpanded`, `defaultExpandedKeys` com os
+  quatro grupos) com um `Disclosure isQuiet size="S"` por grupo de data (`Hoje`, `Ontem`, `Últimos 7
+  dias`, `Mais antigas`, o `GROUP_ORDER` do `types.ts`; só aparecem os com Conversa). Todas começam
+  abertas, várias podem ficar abertas, e o estado não persiste. O título é o `DisclosureTitle` (o
+  botão com a seta, `detail-sm` em negrito e caixa alta); o painel anima a altura (o do S2, que ele
+  zera com movimento reduzido). Dentro de cada painel, um RAC `GridList` com
+  `keyboardNavigationBehavior="tab"`: as setas andam entre as linhas **da seção**, e o Tab entra nas
+  ações (renomear, apagar), que aparecem no hover, no foco e na Conversa aberta. **Como são várias
+  listas, as setas não passam de uma seção para a outra** (na última linha, ↓ fica nela): o Tab anda
+  do título de uma seção para a linha dela, daí para renomear e apagar e daí para o título da
+  seguinte; uma seção fechada fica fora da ordem de Tab. Enter e Espaço no título abrem e fecham. Clicar na linha abre a Conversa. Renomear troca o título por um `input` na linha (Enter grava, Esc ou clicar fora
   cancela; em falha o input fica aberto e o card de erro explica). O input para a propagação das
   teclas e do clique, para a grade não os tratar como navegação. Apagar abre um `AlertDialog`
   destrutivo, com o foco em Cancelar. Renomear e apagar ficam desabilitados durante um turno. O
@@ -470,9 +492,9 @@ elemento.
 | Chip do Workspace | S2 `MenuTrigger` + `Menu` (gatilho: `ActionButton isQuiet`) | **pronto**, com os recentes | `Titlebar.tsx` |
 | Modelo e conexão | própria (texto "provedor · modelo") + S2 `ProgressCircle size="S"` (carregando) + S2 `ActionButton` "Reconectar" (falha) | **pronto** | `Titlebar.tsx` |
 | Botões da janela | própria (o hover vermelho do fechar não sai do S2) | **pronto** | `WindowControls.tsx` |
-| Faixa recolhida | `nav` própria + S2 `Button variant="accent"` só com ícone | **pronto** | `Sidebar.tsx` |
-| Nova conversa | S2 `Button variant="accent"` | **pronto** | `Sidebar.tsx` |
-| Lista de Conversas | própria em RAC `GridList` + `GridListSection` (grupos por data); ações em S2 `ActionButton isQuiet`; renomear inline | **pronto** | `Sidebar.tsx` |
+| Faixa recolhida | a mesma `aside` da sidebar, recortada pela coluna (a lista com fade e `inert`) | **pronto** | `Sidebar.tsx` |
+| Nova conversa | própria em RAC `Button` com as cores do S2 `accent`; um botão só, 220 px ↔ 32 px | **pronto** | `Sidebar.tsx` |
+| Lista de Conversas | S2 `Accordion` + `Disclosure` (um por grupo de data) com um RAC `GridList` em cada painel; ações em S2 `ActionButton isQuiet`; renomear inline | **pronto** | `Sidebar.tsx` |
 | Card de erro da sidebar | S2 `InlineAlert variant="negative"` + `ActionButton` (Tentar de novo, Dispensar) | **pronto** | `Sidebar.tsx` |
 | Abas | própria em RAC `Tabs`/`TabList`/`Tab`: o "x" dentro da aba, fora da ordem de Tab, e fechar também por teclado; rola na horizontal quando não cabe | **pronto** | `components/TabBar.tsx` |
 | Início: título e subtítulo | própria | **pronto** | `components/Home.tsx` |
@@ -551,6 +573,10 @@ componente S2 mais próximo, com os tokens de transição do macro (`transition`
 - o indicador da aba desliza com `translate`/`width` (0,2 s), como o do S2 `Tabs`;
 - a troca de aba não anima o conteúdo, porque o `TabPanel` do S2 não anima;
 - a gaveta de Logs anima a largura como o `SideNavPanel` (0,3 s);
+- a sidebar anima a largura da coluna e o botão "Nova conversa" em 0,3 s com a curva `default`, e a
+  lista de Conversas some e volta com fade (150 ms `in` ao recolher; 200 ms `out`, atrasada 100 ms,
+  ao expandir), como o conteúdo do `SideNavPanel`, que espera o painel assentar; as seções são o
+  `Disclosure` do S2, que anima a altura do painel;
 - o clique em sugestão, item da lista e aba comprime como os botões S2.
 
 As keyframes do protótipo (`od-*`, `toast-in`, `toast-out`) não entram. Com movimento reduzido, uma
