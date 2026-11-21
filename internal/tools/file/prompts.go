@@ -141,7 +141,7 @@ const (
 
 ### Error Handling:
 
-Any result other than "Success: File edited" means the file on disk was not changed.
+Any result that does not start with "Success: File edited" means the file on disk was not changed. When the edit removed lines from the file, the success result lists them: "Success: File edited. Removed lines: <line> | <line>".
 
 - Path resolving outside its root: Error Filepath outside the permitted working directory
 - Path inside the agent's read-only material: ` + READ_ONLY_ROOT_NOTICE + `<path>

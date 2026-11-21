@@ -23,13 +23,15 @@ Edit the configuration file the user names, in place, following these steps in o
    given. When it says to ask for missing values, or that a part has no source, reply with
    that and stop: call no `EditFile`. Never invent a value.
 5. Change only what was asked with `EditFile`, using the lines the body produced.
-6. `Success: File edited` is the **only** result that means the file on disk changed. Any
-   other result — `Error: File not found.`, `Error: old_text not found in file`, anything
-   starting with `Error` — means the file is exactly as it was: reply that the edit did not
-   happen, quote the result, and stop.
+6. A result starting with `Success: File edited` is the **only** result that means the file on
+   disk changed. Any other result — `Error: File not found.`, `Error: old_text not found in
+   file`, anything starting with `Error` — means the file is exactly as it was: reply that the
+   edit did not happen, quote the result, and stop.
 7. After `EditFile` returns `Success: File edited`, read the file again with `ReadFile` and
    show the changed lines as that read returns them, restating every `! WARNING:` line among
    them. If the read does not show the change, reply that the edit failed.
+   When the `EditFile` result goes on with `Removed lines:`, say in the reply every line it
+   lists: those lines are no longer in the file.
 
 Rules for every step:
 

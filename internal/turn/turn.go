@@ -209,8 +209,8 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 	// As falhas de tool do Chat são drenadas antes do erro, não depois: a
 	// lista é o que aconteceu no turno, e uma tool pode ter falhado no
 	// caminho de um turno que o provedor derrubou depois (ticket 18, §4).
-	resp, failures, activated, err := turnAgent.Chat(ctx, transcript, out.Prompt)
-	warnFailures(&out, failures)
+	resp, reports, activated, err := turnAgent.Chat(ctx, transcript, out.Prompt)
+	warnReports(&out, reports)
 	out.SkillsActivated = append(out.SkillsActivated, activated...)
 	if err != nil {
 		return out, state, err
@@ -276,8 +276,8 @@ func recheckMermaid(ctx context.Context, turnAgent *agentapi.Agent, transcript [
 	// As falhas do re-ask entram no mesmo campo da chamada final, e o dedup
 	// é o que impede a mesma recusa de aparecer duas vezes quando o modelo
 	// repete a tool na segunda tentativa.
-	resp, failures, activated, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
-	warnFailures(out, failures)
+	resp, reports, activated, err := turnAgent.Chat(ctx, retryTranscript, mermaidNotice(first))
+	warnReports(out, reports)
 	out.SkillsActivated = append(out.SkillsActivated, activated...)
 	if err != nil {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("diagram block faulted (%s, line %d) and the re-ask failed — shipping the first reply: %v", first[0].Violation, first[0].Line, err))

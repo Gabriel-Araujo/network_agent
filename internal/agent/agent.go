@@ -83,15 +83,16 @@ func Init(client openai.Client, providerURL, apiKey, modelName string, modelCont
 // Devolve também as falhas de tool do turno, na ordem em que aconteceram
 // (ticket 18). Falha de tool **é** degradação: antes só a string de erro que o
 // modelo lê existia, e o app ficava sabendo da recusa no máximo pela boca dele.
-// A lista vem vazia num turno limpo, e vem junto com o erro quando o provedor
-// derruba o turno depois de uma tool ter falhado.
+// A lista também leva as edições que removeram linhas (tools.Report). Vem
+// vazia num turno limpo, e vem junto com o erro quando o provedor derruba o
+// turno depois de uma tool ter falhado.
 //
 // Um turno pode gastar várias idas ao provedor por causa das ferramentas. Como
 // não há estado no servidor, cada volta reenvia o que já foi trocado: o input
 // acumulado mais as chamadas e os resultados desta resposta.
-func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMessage string) (*responses.Response, []tools.Failure, []string, error) {
+func (a *Agent) Chat(ctx context.Context, transcript []history.Message, userMessage string) (*responses.Response, []tools.Report, []string, error) {
 	input := a.buildInput(transcript, userMessage)
-	var failures []tools.Failure
+	var failures []tools.Report
 	var activated []string
 
 	for {
@@ -181,9 +182,9 @@ func transcriptItems(transcript []history.Message) []responses.ResponseInputItem
 // É o gargalo único das quatro famílias de tool, e por isso o ponto onde as
 // falhas se acumulam (ticket 18, §2). A recusa de tool não oferecida **não**
 // entra: é a regra operando como desenhada, não degradação, e já é um log.Warn.
-func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, []tools.Failure) {
+func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, []tools.Report) {
 	var result responses.ResponseInputItemUnionParam
-	var failures []tools.Failure
+	var failures []tools.Report
 
 	switch {
 
@@ -198,11 +199,11 @@ func (a *Agent) callTool(ctx context.Context, call responses.ResponseFunctionToo
 		var err error
 		result, err = a.SkillCall(ctx, call)
 		if err != nil {
-			failures = append(failures, tools.Failure{Tool: call.Name, Err: err})
+			failures = append(failures, tools.Report{Tool: call.Name, Err: err})
 		}
 
 	default:
-		var failed *tools.Failure
+		var failed *tools.Report
 		result, failed = a.ToolCall(ctx, call)
 		if failed != nil {
 			failures = append(failures, *failed)
@@ -229,7 +230,7 @@ func (a *Agent) offers(name string) bool {
 // de arquivos) e devolve o resultado para o modelo. O Workspace deste Agent vai
 // junto: é a raiz de escrita, e a outra raiz — o material do agente — o
 // CallFunction resolve sozinho, porque é global aos dois front-ends.
-func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, *tools.Failure) {
+func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, *tools.Report) {
 	return tools.CallFunction(ctx, call, a.workspace)
 }
 

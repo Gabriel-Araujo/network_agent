@@ -42,31 +42,38 @@ func GetFileAndSkillTools(skillNames []string) ([]responses.ToolUnionParam, erro
 	return append(toolset, Tools...), nil
 }
 
-// Failure é uma chamada de tool que falhou. É o registro que sobe até o Chat
-// (ticket 18) para o app poder dizer ao usuário **o que ele fez** em vez de
-// deixar a falha morrer num log.Error que ninguém lê.
+// Report é uma chamada de tool que o app precisa contar ao usuário num Aviso.
+// É o registro que sobe até o Chat (ticket 18) para o app poder dizer **o que
+// ele fez** em vez de deixar o fato morrer num log que ninguém lê.
 //
-// Carrega os quatro fatos que o Aviso do ticket 19 formata: a tool, o caminho
-// **como o modelo pediu** (não o absoluto resolvido, que já está no
-// log.Error), a **raiz** contra a qual ele resolveu — o knob que o ticket 02
-// tornou efetivo e o ticket 10 desdobrou em duas — e a causa tipada.
+// É uma de duas coisas, nunca as duas: a chamada que falhou (Err), ou a edição
+// com sucesso que removeu linhas do arquivo (Removed) — a única exceção a
+// "sucesso não avisa", porque o app não distingue a remoção pedida da não
+// pedida (ticket 08 do mapa frr-file-builder).
+//
+// Carrega os fatos que o Aviso do ticket 19 formata: a tool, o caminho **como
+// o modelo pediu** (não o absoluto resolvido, que já está no log.Error), a
+// **raiz** contra a qual ele resolveu — o knob que o ticket 02 tornou efetivo e
+// o ticket 10 desdobrou em duas — e a causa tipada ou as linhas removidas.
 //
 // Path e Root ficam vazios quando a falha é anterior a eles: argumentos
 // ilegíveis, tool sem caminho, raiz de material que não resolveu.
-type Failure struct {
-	Tool string
-	Path string
-	Root string
-	Err  error
+type Report struct {
+	Tool    string
+	Path    string
+	Root    string
+	Err     error
+	Removed []string
 }
 
 // failure embrulha o erro de uma tool no registro, ou devolve nil quando a
-// chamada foi bem: é o que mantém "sucesso não avisa" em um lugar só.
-func failure(tool, path, root string, err error) *Failure {
+// chamada foi bem. A exceção — a edição que removeu linhas — é montada no case
+// do EditFile, e só lá.
+func failure(tool, path, root string, err error) *Report {
 	if err == nil {
 		return nil
 	}
-	return &Failure{Tool: tool, Path: path, Root: root, Err: err}
+	return &Report{Tool: tool, Path: path, Root: root, Err: err}
 }
 
 // pathArg nomeia o argumento de caminho de cada file tool: o search chama o
@@ -103,7 +110,7 @@ func writesToDisk(toolName string) bool {
 //
 // A recusa e o registro andam juntos: refusal != "" se e somente se fail !=
 // nil — a string é o que o modelo lê, o registro é o que o app lê.
-func rootFor(appRoot, toolName, filePath, workspace string) (root string, refusal string, fail *Failure) {
+func rootFor(appRoot, toolName, filePath, workspace string) (root string, refusal string, fail *Report) {
 	// Um caminho chega ao material do agente por duas formas: o prefixo, que é
 	// como os prompts o ensinam, e o absoluto, que é como ele **volta** — as
 	// saídas das tools são absolutas por decisão (ticket 05, Q9), e a descrição
@@ -160,7 +167,8 @@ func rootFor(appRoot, toolName, filePath, workspace string) (root string, refusa
 // "nenhuma escolhida", que é um estado tratado, não um valor a consertar.
 //
 // Devolve o resultado que vai ao modelo e, quando a chamada falhou, o registro
-// da falha (nil no sucesso). Os dois saem juntos de propósito: o resultado é
+// da falha (nil no sucesso, salvo a edição que removeu linhas, que devolve o
+// Report com elas). Os dois saem juntos de propósito: o resultado é
 // uma string de erro que o modelo lê, e o registro é a mesma falha num canal
 // que o app lê — antes do ticket 18 só existia o primeiro, e por isso a recusa
 // chegava ao usuário no máximo pela boca do modelo.
@@ -168,7 +176,7 @@ func CallFunction(
 	ctx context.Context,
 	call responses.ResponseFunctionToolCall,
 	workspace string,
-) (responses.ResponseInputItemUnionParam, *Failure) {
+) (responses.ResponseInputItemUnionParam, *Report) {
 	log.Debugf("function '%s' called with arguments: [%s]\n", call.Name, call.Arguments)
 
 	args := make(map[string]string)
@@ -210,7 +218,10 @@ func CallFunction(
 		out, err := filetools.ReadFile(root, args["filePath"])
 		return responses.ResponseInputItemParamOfFunctionCallOutput(out), failure(call.Name, args[key], root, err)
 	case filetools.EDIT_TOOL_NAME:
-		out, err := filetools.EditFile(root, args["filePath"], args["oldText"], args["newText"])
+		out, removed, err := filetools.EditFile(root, args["filePath"], args["oldText"], args["newText"])
+		if len(removed) > 0 {
+			return responses.ResponseInputItemParamOfFunctionCallOutput(out), &Report{Tool: call.Name, Path: args[key], Root: root, Removed: removed}
+		}
 		return responses.ResponseInputItemParamOfFunctionCallOutput(out), failure(call.Name, args[key], root, err)
 	case filetools.WRITE_TOOL_NAME:
 		out, err := filetools.WriteFile(root, args["filePath"], args["content"])

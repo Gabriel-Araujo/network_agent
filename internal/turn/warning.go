@@ -3,6 +3,7 @@ package turn
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Gabriel-Araujo/network_agent/internal/tools"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
@@ -33,19 +34,39 @@ var acoes = map[string]string{
 	filetools.SEARCH_TOOL_NAME: "busca em",
 }
 
-// warnFailures drena as falhas de tool de uma chamada de Chat para
-// out.Warnings, deduplicadas por texto idêntico: duas tentativas no mesmo
-// arquivo pelo mesmo motivo são uma entrada (ticket 19, §2).
+// warnReports drena os Reports de tool de uma chamada de Chat — as falhas e as
+// edições que removeram linhas — para out.Warnings, deduplicados por texto
+// idêntico: duas tentativas no mesmo arquivo pelo mesmo motivo são uma entrada
+// (ticket 19, §2).
 //
-// A comparação é contra a lista inteira, e não contra as falhas desta chamada,
-// porque o turno tem duas chamadas de Chat — a final e o re-ask do diagrama —
-// e a mesma recusa pode voltar na segunda.
-func warnFailures(out *Outcome, failures []tools.Failure) {
-	for _, fail := range failures {
-		if aviso := failureWarning(fail); !slices.Contains(out.Warnings, aviso) {
+// A comparação é contra a lista inteira, e não contra os Reports desta
+// chamada, porque o turno tem duas chamadas de Chat — a final e o re-ask do
+// diagrama — e a mesma recusa pode voltar na segunda.
+func warnReports(out *Outcome, reports []tools.Report) {
+	for _, r := range reports {
+		var aviso string
+		if r.Err != nil {
+			aviso = failureWarning(r)
+		} else {
+			aviso = removalWarning(r)
+		}
+		if !slices.Contains(out.Warnings, aviso) {
 			out.Warnings = append(out.Warnings, aviso)
 		}
 	}
+}
+
+// removalWarning escreve o Aviso da edição que removeu linhas (ticket 08 do
+// mapa frr-file-builder, §3), no molde do de falha: um por edição, as linhas
+// como estavam no arquivo, separadas por " | ", sem limite. Não há forma sem
+// pasta: edição sem pasta escolhida é recusada antes de remover qualquer coisa.
+func removalWarning(r tools.Report) string {
+	unidade := "linha"
+	if len(r.Removed) > 1 {
+		unidade = "linhas"
+	}
+	return fmt.Sprintf(`%s "%s" na pasta "%s" removeu %d %s: %s`,
+		acoes[r.Tool], r.Path, r.Root, len(r.Removed), unidade, strings.Join(r.Removed, " | "))
 }
 
 // failureWarning escreve o Aviso de uma falha: ação + caminho **como o modelo
@@ -58,7 +79,7 @@ func warnFailures(out *Outcome, failures []tools.Failure) {
 //
 // Sem a cláusula de continuação dos quatro avisos da composição ("continuing
 // without..."): na tira, a degradação é a própria tira.
-func failureWarning(fail tools.Failure) string {
+func failureWarning(fail tools.Report) string {
 	motivo := filetools.Reason(fail.Err)
 	acao, ok := acoes[fail.Tool]
 	if !ok {

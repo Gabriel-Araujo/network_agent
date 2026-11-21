@@ -27,22 +27,22 @@ import (
 func TestFailureWarningDizOQueOAppFez(t *testing.T) {
 	cases := []struct {
 		nome string
-		fail tools.Failure
+		fail tools.Report
 		want string
 	}{
 		{
 			nome: "leitura não encontrada diz a pasta onde a tool olhou",
-			fail: tools.Failure{Tool: filetools.READ_TOOL_NAME, Path: "frr.conf", Root: `C:\configs`, Err: filetools.ErrNotFound},
+			fail: tools.Report{Tool: filetools.READ_TOOL_NAME, Path: "frr.conf", Root: `C:\configs`, Err: filetools.ErrNotFound},
 			want: `leitura de "frr.conf" falhou na pasta "C:\configs": arquivo não encontrado`,
 		},
 		{
 			nome: "sem pasta escolhida não há pasta a mostrar",
-			fail: tools.Failure{Tool: filetools.WRITE_TOOL_NAME, Path: "frr.conf", Err: filetools.ErrNoWorkspace},
+			fail: tools.Report{Tool: filetools.WRITE_TOOL_NAME, Path: "frr.conf", Err: filetools.ErrNoWorkspace},
 			want: `gravação de "frr.conf" falhou: nenhuma pasta escolhida para os arquivos do usuário`,
 		},
 		{
 			nome: "o motivo tipado vence o erro embrulhado",
-			fail: tools.Failure{
+			fail: tools.Report{
 				Tool: filetools.SEARCH_TOOL_NAME,
 				Path: "../..",
 				Root: `C:\configs`,
@@ -52,7 +52,7 @@ func TestFailureWarningDizOQueOAppFez(t *testing.T) {
 		},
 		{
 			nome: "o caso inesperado mostra o erro cru",
-			fail: tools.Failure{
+			fail: tools.Report{
 				Tool: filetools.EDIT_TOOL_NAME,
 				Path: "frr.conf",
 				Root: `C:\configs`,
@@ -62,7 +62,7 @@ func TestFailureWarningDizOQueOAppFez(t *testing.T) {
 		},
 		{
 			nome: "tool que não é file tool aparece pelo nome",
-			fail: tools.Failure{Tool: "use_skill", Err: errors.New("skill desconhecida")},
+			fail: tools.Report{Tool: "use_skill", Err: errors.New("skill desconhecida")},
 			want: "a tool use_skill falhou: skill desconhecida",
 		},
 	}
@@ -74,18 +74,18 @@ func TestFailureWarningDizOQueOAppFez(t *testing.T) {
 	}
 }
 
-// TestWarnFailuresDedupeiaPorTextoIdentico fixa o §2: duas tentativas no mesmo
+// TestWarnReportsDedupeiaPorTextoIdentico fixa o §2: duas tentativas no mesmo
 // arquivo pelo mesmo motivo são uma entrada, e os avisos que já estavam na
 // lista (os fallbacks da composição) ficam onde estavam.
-func TestWarnFailuresDedupeiaPorTextoIdentico(t *testing.T) {
+func TestWarnReportsDedupeiaPorTextoIdentico(t *testing.T) {
 	out := Outcome{Warnings: []string{"retrieval failed, continuing without RAG context: db down"}}
-	mesma := tools.Failure{Tool: filetools.READ_TOOL_NAME, Path: "frr.conf", Root: `C:\configs`, Err: filetools.ErrNotFound}
-	outra := tools.Failure{Tool: filetools.READ_TOOL_NAME, Path: "bgpd.conf", Root: `C:\configs`, Err: filetools.ErrNotFound}
+	mesma := tools.Report{Tool: filetools.READ_TOOL_NAME, Path: "frr.conf", Root: `C:\configs`, Err: filetools.ErrNotFound}
+	outra := tools.Report{Tool: filetools.READ_TOOL_NAME, Path: "bgpd.conf", Root: `C:\configs`, Err: filetools.ErrNotFound}
 
 	// Duas chamadas de propósito: o turno tem duas de Chat (a final e o
 	// re-ask do diagrama), e a repetição atravessa as duas.
-	warnFailures(&out, []tools.Failure{mesma, mesma, outra})
-	warnFailures(&out, []tools.Failure{mesma})
+	warnReports(&out, []tools.Report{mesma, mesma, outra})
+	warnReports(&out, []tools.Report{mesma})
 
 	want := []string{
 		"retrieval failed, continuing without RAG context: db down",
@@ -94,6 +94,33 @@ func TestWarnFailuresDedupeiaPorTextoIdentico(t *testing.T) {
 	}
 	if len(out.Warnings) != len(want) {
 		t.Fatalf("avisos = %q, esperava %d entradas (a mesma falha é uma)", out.Warnings, len(want))
+	}
+	for i, w := range want {
+		if out.Warnings[i] != w {
+			t.Errorf("aviso %d = %q, esperava %q", i, out.Warnings[i], w)
+		}
+	}
+}
+
+// TestWarnReportsNomeiaAsLinhasRemovidas fixa o §3 da decisão do ticket 08 do
+// mapa frr-file-builder: a edição com sucesso que removeu linhas vira um Aviso
+// no molde do de falha, "linha"/"linhas" pela contagem, linhas separadas por
+// " | ", e o mesmo texto duas vezes é uma entrada.
+func TestWarnReportsNomeiaAsLinhasRemovidas(t *testing.T) {
+	uma := tools.Report{Tool: filetools.EDIT_TOOL_NAME, Path: "frr.conf", Root: `C:\configs`,
+		Removed: []string{"neighbor 203.0.113.2 description AS65010"}}
+	duas := tools.Report{Tool: filetools.EDIT_TOOL_NAME, Path: "frr.conf", Root: `C:\configs`,
+		Removed: []string{"router bgp 65001", "! WARNING: no password on 203.0.113.2"}}
+
+	var out Outcome
+	warnReports(&out, []tools.Report{uma, uma, duas})
+
+	want := []string{
+		`edição de "frr.conf" na pasta "C:\configs" removeu 1 linha: neighbor 203.0.113.2 description AS65010`,
+		`edição de "frr.conf" na pasta "C:\configs" removeu 2 linhas: router bgp 65001 | ! WARNING: no password on 203.0.113.2`,
+	}
+	if len(out.Warnings) != len(want) {
+		t.Fatalf("avisos = %q, esperava %q", out.Warnings, want)
 	}
 	for i, w := range want {
 		if out.Warnings[i] != w {

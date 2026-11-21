@@ -460,6 +460,8 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 		existing = "router bgp 65001\n neighbor 203.0.113.2 remote-as 65010\n"
 		edited   = existing + " ! WARNING: no password on 203.0.113.6\n neighbor 203.0.113.6 remote-as 65020\n"
 		edit     = `{"filePath":"frr.conf","oldText":" neighbor 203.0.113.2 remote-as 65010\n","newText":" neighbor 203.0.113.2 remote-as 65010\n ! WARNING: no password on 203.0.113.6\n neighbor 203.0.113.6 remote-as 65020\n"}`
+		replaced = "router bgp 65001\n neighbor 203.0.113.6 remote-as 65020\n"
+		replace  = `{"filePath":"frr.conf","oldText":" neighbor 203.0.113.2 remote-as 65010","newText":" neighbor 203.0.113.6 remote-as 65020"}`
 	)
 	activate := callsOneTool(skills.ToolUseSkill, `{"skill_name":"frr-file-builder"}`)
 	read := callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`)
@@ -468,14 +470,14 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 	bgpTurn := skills.Turn{Protocol: "bgp", Retrieved: true}
 
 	cases := []struct {
-		agent, name  string
-		turn         skills.Turn // what Run hands the Subagente; zero is "nothing classified"
-		before       string      // frr.conf before the turn; "" is no file
-		script       []string
-		wantOutputs  []string // prefix of each tool output, in call order
-		wantActive   []string
-		wantFailures int
-		after        string // frr.conf after the turn; "" is no file
+		agent, name string
+		turn        skills.Turn // what Run hands the Subagente; zero is "nothing classified"
+		before      string      // frr.conf before the turn; "" is no file
+		script      []string
+		wantOutputs []string // prefix of each tool output, in call order
+		wantActive  []string
+		wantReports int
+		after       string // frr.conf after the turn; "" is no file
 	}{
 		{
 			agent: "builder", name: "arquivo novo",
@@ -502,18 +504,18 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 		},
 		{
 			agent: "builder", name: "falha de ativação",
-			script:       []string{failActivation, answers("a skill falhou")},
-			wantOutputs:  []string{"erro:"},
-			wantFailures: 1,
+			script:      []string{failActivation, answers("a skill falhou")},
+			wantOutputs: []string{"erro:"},
+			wantReports: 1,
 		},
 		{
 			agent: "builder", name: "escrita recusada",
 			script: []string{activate,
 				callsOneTool(filetools.WRITE_TOOL_NAME, `{"filePath":"resources/frr.conf","content":"router bgp 65001\n"}`),
 				answers("a escrita falhou")},
-			wantOutputs:  []string{sk.Body, filetools.READ_ONLY_ROOT_NOTICE},
-			wantActive:   []string{"frr-file-builder"},
-			wantFailures: 1,
+			wantOutputs: []string{sk.Body, filetools.READ_ONLY_ROOT_NOTICE},
+			wantActive:  []string{"frr-file-builder"},
+			wantReports: 1,
 		},
 		{
 			agent: "modifier", name: "arquivo existe",
@@ -525,18 +527,28 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 			after:       edited,
 		},
 		{
+			agent: "modifier", name: "substituição que remove linha",
+			turn:        bgpTurn,
+			before:      existing,
+			script:      []string{read, activate, callsOneTool(filetools.EDIT_TOOL_NAME, replace), read, answers("editado")},
+			wantOutputs: []string{existing, sk.Body, "Success: File edited. Removed lines: neighbor 203.0.113.2 remote-as 65010", replaced},
+			wantActive:  []string{"frr-file-builder"},
+			wantReports: 1,
+			after:       replaced,
+		},
+		{
 			agent: "modifier", name: "arquivo inexistente",
-			script:       []string{read, answers("o arquivo não existe")},
-			wantOutputs:  []string{filetools.READ_NOT_FOUND_NOTICE},
-			wantFailures: 1,
+			script:      []string{read, answers("o arquivo não existe")},
+			wantOutputs: []string{filetools.READ_NOT_FOUND_NOTICE},
+			wantReports: 1,
 		},
 		{
 			agent: "modifier", name: "falha de ativação",
-			before:       existing,
-			script:       []string{read, failActivation, answers("a skill falhou")},
-			wantOutputs:  []string{existing, "erro:"},
-			wantFailures: 1,
-			after:        existing,
+			before:      existing,
+			script:      []string{read, failActivation, answers("a skill falhou")},
+			wantOutputs: []string{existing, "erro:"},
+			wantReports: 1,
+			after:       existing,
 		},
 		{
 			agent: "modifier", name: "pedido incompleto",
@@ -563,7 +575,7 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 			}
 			sub = sub.WithSkillTurn(tc.turn)
 
-			_, failures, activated, err := sub.Chat(context.Background(), nil, "frr.conf")
+			_, reports, activated, err := sub.Chat(context.Background(), nil, "frr.conf")
 			if err != nil {
 				t.Fatalf("Chat devolveu erro: %v", err)
 			}
@@ -593,8 +605,8 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 			if !slices.Equal(activated, tc.wantActive) {
 				t.Errorf("skills ativadas = %v, esperava %v", activated, tc.wantActive)
 			}
-			if len(failures) != tc.wantFailures {
-				t.Errorf("falhas = %+v, esperava %d", failures, tc.wantFailures)
+			if len(reports) != tc.wantReports {
+				t.Errorf("reports = %+v, esperava %d", reports, tc.wantReports)
 			}
 			got, err := os.ReadFile(conf)
 			if err != nil && !os.IsNotExist(err) {
@@ -630,7 +642,7 @@ func repoAgentMD(t *testing.T, name string) string {
 func TestChatCarriesTheToolFailureOutOfTheTurn(t *testing.T) {
 	workspace := t.TempDir()
 
-	chat := func(t *testing.T) ([]tools.Failure, []string) {
+	chat := func(t *testing.T) ([]tools.Report, []string) {
 		t.Helper()
 		client, requests := scriptedProvider(t,
 			callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`),
