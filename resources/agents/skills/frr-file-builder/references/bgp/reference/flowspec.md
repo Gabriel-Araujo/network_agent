@@ -5,7 +5,7 @@ technology. Kept here as reference, loaded by no stage.
 
 FlowSpec (RFC 8955) propagates filtering rules by 5-tuple, where RTBH
 propagates a drop by destination alone. Both use BGP as the bus for a
-security policy. For the RTBH shape, see `examples/rtbh.md`.
+security policy. For the RTBH shape, see `references/bgp/examples/rtbh.md`.
 
 ```
 ! ---- reception and local install ----

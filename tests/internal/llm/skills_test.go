@@ -133,16 +133,19 @@ func TestFrrFileBuilderSkillInCatalog(t *testing.T) {
 		read(path)
 	}
 	index := read("references/bgp/TECH.md")
-	examples := regexp.MustCompile("`(examples/[a-z0-9-]+\\.md)`").FindAllStringSubmatch(index, -1)
+	// The index path is read verbatim: the model copies it into read_skill_file,
+	// which resolves from the skill root. A pack-relative `examples/x.md` failed
+	// in the app with "O sistema não pode encontrar o caminho especificado".
+	examples := regexp.MustCompile("`(references/bgp/examples/[a-z0-9-]+\\.md)`").FindAllStringSubmatch(index, -1)
 	if len(examples) == 0 {
-		t.Fatal(`TECH.md of the bgp pack lists no example under "Examples"`)
+		t.Fatal(`TECH.md of the bgp pack lists no example under "Examples" by its path from the skill root`)
 	}
 	var indexed []string
 	for _, m := range examples {
-		if got := read("references/bgp/" + m[1]); !strings.Contains(got, "```") {
+		if got := read(m[1]); !strings.Contains(got, "```") {
 			t.Errorf("%s has no fenced frr.conf shape", m[1])
 		}
-		indexed = append(indexed, "references/bgp/"+m[1])
+		indexed = append(indexed, m[1])
 	}
 
 	item, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{

@@ -31,7 +31,10 @@ The shape below is local to this skill. The teacher keeps its own, in
 
 Create `<slug>/` with all four files plus `examples/`, and list every example
 in the "Examples" section of its `TECH.md`: the model picks an example by the
-description there, so an unlisted one is only ever picked blind. Add a row to
+description there, so an unlisted one is only ever picked blind. A pack file
+names another by its path from the skill root (`references/<slug>/examples/<name>.md`):
+the model passes that path to `read_skill_file` as written, and a path relative
+to the pack folder does not exist there. Add a row to
 the table above, to the pack table in `../SKILL.md`, and to the selection table
 in `../../../builder/CONTEXT.md`. No stage contract changes: they address the pack
 through `{{TECH}}`.

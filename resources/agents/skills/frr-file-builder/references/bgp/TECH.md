@@ -91,29 +91,29 @@ Never ask in bulk ("send me the network details").
 
 ## Examples
 
-Canonical shapes of `frr.conf`, one file each under `examples/`. Read the one
+Canonical shapes of `frr.conf`, one file each under `references/bgp/examples/`. Read the one
 closest to the request; copy its structure, never its values.
 
 | File | Shape |
 |------|-------|
-| `examples/ebgp-peer.md` | eBGP session with policy both ways |
-| `examples/ebgp-aggregate-anchor.md` | eBGP with aggregate origination and a static anchor |
-| `examples/ebgp-with-bfd.md` | eBGP with BFD |
-| `examples/session-hardening.md` | Session hardening |
-| `examples/route-policy-objects.md` | Route policy: prefix-list, AS-path and community |
-| `examples/ibgp-route-reflector.md` | iBGP route reflector |
-| `examples/ibgp-over-ospf.md` | iBGP over an OSPF underlay |
-| `examples/bgp-confederation.md` | BGP confederation |
-| `examples/mp-bgp-dual-stack.md` | MP-BGP dual-stack over one session |
-| `examples/bgp-unnumbered-ecmp.md` | BGP unnumbered with ECMP on a Linux host |
-| `examples/multihoming-traffic-engineering.md` | Multihoming with traffic engineering |
-| `examples/conditional-advertisement.md` | Conditional advertisement for backup transit |
-| `examples/graceful-restart-and-shutdown.md` | Maintenance with graceful restart and graceful shutdown |
-| `examples/rpki-origin-validation.md` | RPKI origin validation |
-| `examples/rtbh.md` | Remote triggered black hole |
-| `examples/bgp-with-pbr.md` | BGP with PBR for selective egress |
-| `examples/bgp-wan-vrrp-lan.md` | BGP on the WAN with VRRP on the LAN |
-| `examples/bgp-over-gre-ipsec.md` | BGP over a GRE tunnel with IPsec |
+| `references/bgp/examples/ebgp-peer.md` | eBGP session with policy both ways |
+| `references/bgp/examples/ebgp-aggregate-anchor.md` | eBGP with aggregate origination and a static anchor |
+| `references/bgp/examples/ebgp-with-bfd.md` | eBGP with BFD |
+| `references/bgp/examples/session-hardening.md` | Session hardening |
+| `references/bgp/examples/route-policy-objects.md` | Route policy: prefix-list, AS-path and community |
+| `references/bgp/examples/ibgp-route-reflector.md` | iBGP route reflector |
+| `references/bgp/examples/ibgp-over-ospf.md` | iBGP over an OSPF underlay |
+| `references/bgp/examples/bgp-confederation.md` | BGP confederation |
+| `references/bgp/examples/mp-bgp-dual-stack.md` | MP-BGP dual-stack over one session |
+| `references/bgp/examples/bgp-unnumbered-ecmp.md` | BGP unnumbered with ECMP on a Linux host |
+| `references/bgp/examples/multihoming-traffic-engineering.md` | Multihoming with traffic engineering |
+| `references/bgp/examples/conditional-advertisement.md` | Conditional advertisement for backup transit |
+| `references/bgp/examples/graceful-restart-and-shutdown.md` | Maintenance with graceful restart and graceful shutdown |
+| `references/bgp/examples/rpki-origin-validation.md` | RPKI origin validation |
+| `references/bgp/examples/rtbh.md` | Remote triggered black hole |
+| `references/bgp/examples/bgp-with-pbr.md` | BGP with PBR for selective egress |
+| `references/bgp/examples/bgp-wan-vrrp-lan.md` | BGP on the WAN with VRRP on the LAN |
+| `references/bgp/examples/bgp-over-gre-ipsec.md` | BGP over a GRE tunnel with IPsec |
 
 ## Verification Commands
 
