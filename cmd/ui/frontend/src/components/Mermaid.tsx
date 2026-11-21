@@ -72,7 +72,10 @@ const viewportBox = style({
   textAlign: 'center',
   touchAction: 'none',
 })
-const canvasInner = style({ display: 'inline-block', transformOrigin: 'center', willChange: 'transform' })
+// Sem `will-change: transform` de propósito: no WebView2 ele faz o diagrama ser
+// rasterizado uma vez e depois só esticado, e o SVG ampliado vira bitmap borrado
+// (docs/FRONTEND.md, Bloco de diagrama → Zoom). Sem a dica, o Chromium refaz o raster na escala do zoom.
+const canvasInner = style({ display: 'inline-block', transformOrigin: 'center' })
 // O SVG do pele traz o tamanho próprio: aqui ele cabe na largura da coluna.
 const fitSvg = css(`& > svg { display: block; max-width: 100%; height: auto; }`)
 const source = style({ margin: 0, padding: 16, overflowX: 'auto', textAlign: 'start', fontSize: 'code-sm', lineHeight: 'code', color: 'neutral' })

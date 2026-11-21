@@ -259,6 +259,20 @@ navegador do `wails dev` ([§4](#4-frontend)).
   grava `diagrama.svg` (com ` (1)`, ` (2)` se já existir) em `Downloads`.
   Fontes: `internal/webview2/pkg/webview2/ICoreWebView2DownloadStartingEventArgs.go`,
   `pkg/application/webview_window_windows.go:2878-2880`.
+- **`will-change: transform` borra o SVG ampliado (WebView2).** **Medido no app (2026-11-20, WebView2
+  158.0.4370.33, DPR 1, `wails3 dev`).** Um elemento com `will-change: transform` e `scale()` mudado
+  por script (o zoom do diagrama) sai como se tivesse sido rasterizado na escala em que nasceu, com o
+  compositor só esticando o bitmap: texto e traço de um SVG a 200% e 300% saem de bitmap ampliado. Sem a dica, o Chromium refaz o
+  raster na escala do zoom e o SVG fica vetor nítido (nitidez, variância do laplaciano do mesmo recorte:
+  147,6 contra 1.661,2 a 200% e 76,2 contra 994,5 a 300%). Funciona em zoom por roda, por botão e
+  depois de arrastar. O custo de tirar a dica, num diagrama de 1.181 elementos, não apareceu: ver
+  **Bloco de diagrama** em `FRONTEND.md`.
+- **O `Page.captureScreenshot` do CDP esconde o borrado do `will-change`.** **Medido no app
+  (2026-11-20).** O print do CDP força um raster novo na escala certa: com `will-change` ele saiu
+  idêntico ao sem (diferença média de pixel 0, medida nos dois), e o app na tela estava borrado. Para ver
+  o que o usuário vê, tire o print da janela real (`PrintWindow` com `PW_RENDERFULLCONTENT`, flag 2,
+  sobre o `MainWindowHandle` do `net_agent.exe`) e **sem nenhum print do CDP antes** na mesma
+  sequência (um print do CDP refaz o raster e a janela passa a sair nítida também).
 
 ### 5. Risco: issues abertas (busca de 2026-11-19)
 

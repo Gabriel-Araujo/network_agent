@@ -349,6 +349,19 @@ carga). Mora em `components/Mermaid.tsx`; o `Markdown.tsx` o monta.
   não passivo, para não rolar a Conversa), e arrastar move. Ajustar à tela escolhe o zoom que cabe o
   diagrama (no tamanho de layout) no viewport e o centraliza: um diagrama alto encolhe até caber; um
   baixo fica em 100%.
+  - **Como o zoom é aplicado:** um `transform: translate() scale()` no `canvasInner`, **sem
+    `will-change: transform`**. Com a dica, o WebView2 mostra o SVG ampliado como bitmap esticado
+    (borrado, mais quanto maior o zoom); sem ela, ele refaz o raster na escala e o SVG fica vetor
+    nítido de 25% a 300%, inclusive depois de arrastar e de Ajustar à tela. Não volte com o
+    `will-change` por "fluidez": tirá-lo não custou nada medido (abaixo). Quem confere isso ao vivo não
+    pode usar o print do CDP, que refaz o raster e esconde o borrado: ver
+    [`WAILS_V3.md`](WAILS_V3.md), §4, CDP e depuração.
+  - **Medido** (2026-11-20, `wails3 dev`, WebView2 158, DPR 1, diagrama de 1.181 elementos SVG, trace
+    do CDP com entrada de roda e de arrasto a cada 16 ms, 3 rodadas por caso, com e sem a dica): a roda
+    desenhou 47 a 53 quadros em 1,6 s nos dois (mediana do intervalo de 29 a 34 ms), e o arrasto 89 a
+    107 quadros em 3,2 s; o tempo de `RasterTask` por rodada foi de 13 a 23 ms na roda nos dois e, no
+    arrasto, de 43 ms com a dica e 17 ms sem. O trace não enxerga diferença de fluidez; o ritmo dos
+    quadros é o do trace e do CDP, não o do app (conferência de olho pendente, ver o ticket).
 - **Código:** o fonte numa `pre` em JetBrains Mono, sem cabeçalho. Durante o streaming o bloco
   ainda não renderiza, e o fonte sai no `CodeBlock` (linguagem `mermaid`).
 - **Falha de render:** um `InlineAlert negative` ("O diagrama não renderizou", a causa do pele em
