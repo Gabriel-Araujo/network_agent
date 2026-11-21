@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag"
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/paths"
+	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills/classifier"
 	filetools "github.com/Gabriel-Araujo/network_agent/internal/tools/file"
 	"github.com/openai/openai-go/v3"
@@ -104,6 +106,9 @@ type fakeLLM struct {
 	// text answer".
 	toolCall       string
 	toolCallServed bool
+	// skillCall, when set, makes that first call a use_skill of this skill
+	// instead — how a test sees what the activation hands the Subagente.
+	skillCall string
 }
 
 // nextReply pops the next canned reply, repeating the last one once the queue
@@ -146,12 +151,16 @@ func (f *fakeLLM) start(t *testing.T) *httptest.Server {
 		case "/responses":
 			body, _ := io.ReadAll(r.Body)
 			f.lastResponseBody = body
-			if f.toolCall != "" && !f.toolCallServed {
+			if (f.toolCall != "" || f.skillCall != "") && !f.toolCallServed {
 				f.toolCallServed = true
+				name, args := filetools.READ_TOOL_NAME, `{"filePath":"`+f.toolCall+`"}`
+				if f.skillCall != "" {
+					name, args = skills.ToolUseSkill, `{"skill_name":"`+f.skillCall+`"}`
+				}
 				w.Header().Set("Content-Type", "application/json")
 				io.WriteString(w, `{"id":"resp_tool","object":"response","created_at":0,"status":"completed","model":"test-model",
-					"output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"`+filetools.READ_TOOL_NAME+`","arguments":`+
-					strconv.Quote(`{"filePath":"`+f.toolCall+`"}`)+`,"status":"completed"}],
+					"output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"`+name+`","arguments":`+
+					strconv.Quote(args)+`,"status":"completed"}],
 					"parallel_tool_calls":false,"tool_choice":"auto","tools":[]}`)
 				return
 			}
@@ -456,10 +465,14 @@ func TestRunDiesWhenTheDefaultDoesNotLoad(t *testing.T) {
 // TestRunComposesTheTurn proves the whole composition in one call: the routing
 // classification picks the Subagente, the RAG classification feeds the
 // filters, the retrieval lands in the <recovered_context> block, and the
-// metadata reports it all. The second turn with the same classification skips
-// the retrieval and re-injects the same context.
+// metadata reports it all. The Subagente's activation carries the pack of the
+// classified protocol and the reach of that retrieval. The second turn with the
+// same classification skips the retrieval and re-injects the same context.
 func TestRunComposesTheTurn(t *testing.T) {
-	fake := &fakeLLM{classification: `{"protocol":"bgp","daemon":"bgpd","chunk_type":"concept","subagent":"modifier"}`}
+	fake := &fakeLLM{
+		classification: `{"protocol":"bgp","daemon":"bgpd","chunk_type":"concept","subagent":"modifier"}`,
+		skillCall:      "frr-file-builder",
+	}
 	base := newFakeAgent(t, fake)
 	results := []rag.Result{{Query: "q", Protocol: "bgp", Daemon: "bgpd", ChunkType: "concept"}}
 	calls := stubRetrieval(t, results, nil)
@@ -495,6 +508,14 @@ func TestRunComposesTheTurn(t *testing.T) {
 	}
 	if got := systemFromBody(t, fake.lastResponseBody); !strings.Contains(got, "Modifier") {
 		t.Errorf("system prompt = %q, want the modifier AGENT.md", got)
+	}
+	for _, want := range []string{"references/bgp/doctrine.md", "retrieved for bgp only"} {
+		if !bytes.Contains(fake.lastResponseBody, []byte(want)) {
+			t.Errorf("the activation output lacks %q: the turn did not reach the Subagente's use_skill", want)
+		}
+	}
+	if !slices.Equal(out.SkillsActivated, []string{"frr-file-builder"}) {
+		t.Errorf("SkillsActivated = %v, want the activation counted", out.SkillsActivated)
 	}
 
 	// Second turn, same classification: the skip rule keeps the retrieval

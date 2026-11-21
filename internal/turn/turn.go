@@ -30,6 +30,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/agent/rag/env"
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
 	"github.com/Gabriel-Araujo/network_agent/internal/logger"
+	"github.com/Gabriel-Araujo/network_agent/internal/skills"
 	"github.com/Gabriel-Araujo/network_agent/internal/skills/classifier"
 	ragretriever "github.com/Gabriel-Araujo/network_agent/internal/skills/rag-retriever"
 	"github.com/openai/openai-go/v3/responses"
@@ -199,6 +200,11 @@ func Run(ctx context.Context, agent *agentapi.Agent, transcript []history.Messag
 	if recovered != "" {
 		out.Prompt = input + "\n\n<recovered_context>\n" + recovered + "\n</recovered_context>"
 	}
+
+	// The Subagente was mounted before the context existed; the activation
+	// needs both facts to deliver the pack of the turn's protocol and say how
+	// far the retrieval reached (.agent/frr-file-builder/issues/06-decidir-como-o-pack-chega-ao-modelo.md).
+	turnAgent = turnAgent.WithSkillTurn(skills.Turn{Protocol: out.Filters.Protocol, Retrieved: recovered != ""})
 
 	// As falhas de tool do Chat são drenadas antes do erro, não depois: a
 	// lista é o que aconteceu no turno, e uma tool pode ter falhado no

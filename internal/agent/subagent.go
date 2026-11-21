@@ -34,8 +34,9 @@ var deniedTools = map[string][]string{
 // (tools.GetFileAndSkillTools), so no other description can order a different
 // activation — the 12 of 30 wasted calls the ticket 28 batch measured. Nothing
 // is mounted in the prompt: the use_skill call is the only path the body
-// travels (owner decision, ticket 35). A name absent from the registry is an
-// explicit error.
+// travels (owner decision, ticket 35), and the pack of the turn's protocol
+// travels in the result of the frr-file-builder activation, after the body
+// (WithSkillTurn). A name absent from the registry is an explicit error.
 var subagentSkills = map[string][]string{
 	"builder":     {"frr-file-builder"},
 	"illustrator": {"mermaid"},

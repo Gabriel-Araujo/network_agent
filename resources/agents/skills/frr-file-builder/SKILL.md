@@ -17,9 +17,10 @@ Every build uses each of these that exists:
   this request. It says which commands exist and how they are written. Read it on every build.
   When the turn carries no such block, the retrieval did not run or failed: build from the
   pack alone.
-- **The technology's pack**: a folder `references/<slug>/` of this skill, read with
-  `read_skill_file` (`skill_name`: `frr-file-builder`). It says how this agent writes the
-  technology: shape, syntax rules, policy, and the facts a request must give.
+- **The technology's pack**: a folder `references/<slug>/` of this skill. It says how this
+  agent writes the technology: shape, syntax rules, policy, and the facts a request must give.
+  The pack of the turn's technology comes after this body; any other pack, and every example,
+  is read with `read_skill_file` (`skill_name`: `frr-file-builder`).
 
 The two do not overlap: the documentation names the commands, the pack decides how they are
 used here.
@@ -33,11 +34,16 @@ used here.
 1. **Name the technologies.** List every technology the configuration needs: the ones the
    request names and the ones it implies (BGP over an OSPF underlay needs OSPF too; a session
    over an interface the request describes needs that interface).
-2. **Read the packs.** For each technology with a row in the table above, read
-   `references/<slug>/TECH.md` first: its "Required Facts" says what the request must give, and
-   its "Examples" describes each example file. Then read `references/<slug>/syntax.md`,
-   `references/<slug>/doctrine.md` and the one example from that list closest to the request. A technology with no row has no pack: the `<recovered_context>`
-   is its only source.
+2. **Read the packs.** The pack of the turn's technology already follows this body:
+   `references/<slug>/TECH.md`, `syntax.md` and `doctrine.md`, each inside a `<file>` block
+   named by its path. When the turn has no pack, a line after this body says why: no
+   technology was classified, or no pack covers it (with the warning to write). A last line
+   may say which technology the `<recovered_context>` was retrieved for. `TECH.md`'s
+   "Required Facts" says what the request must give, and its "Examples" describes each example
+   file: read the one closest to the request with `read_skill_file`. For any other technology
+   of the request with a row in the table above, read its `TECH.md`, `syntax.md`,
+   `doctrine.md` and closest example with `read_skill_file`. A technology with no row has no
+   pack: the `<recovered_context>` is its only source.
 3. **Check the facts.** Collect every identity value the configuration needs and the request
    does not give: each one in a pack's "Required Facts" that blocks the build, and, for any
    technology, any AS number, address, prefix, router-id, interface name, area or VRF name the

@@ -67,5 +67,12 @@ docker compose -f ./.dockercontainer/docker-compose.yml up -d
 just exec the go build command
 
 ```bash
-go build
+go build ./cmd/cli
+```
+
+To build de GUI
+
+```bash
+cd cmd/ui
+wails3 build
 ```

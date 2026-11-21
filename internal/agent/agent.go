@@ -33,6 +33,19 @@ type Agent struct {
 	// tools recusam com texto próprio; não é estado de erro do Agent.
 	workspace    string
 	systemPrompt string
+	// skillTurn é o que a ativação de skill precisa saber do turno (o
+	// protocol e se houve <recovered_context>). Só o Subagente de um turno o
+	// leva, posto por WithSkillTurn; o zero é "nada classificado".
+	skillTurn skills.Turn
+}
+
+// WithSkillTurn devolve uma cópia deste Agent cujas ativações de skill sabem
+// do turno: é como o pack do protocol classificado chega no resultado do
+// use_skill (.agent/frr-file-builder/issues/11-entregar-o-pack-na-ativacao.md).
+func (a *Agent) WithSkillTurn(turn skills.Turn) *Agent {
+	c := *a
+	c.skillTurn = turn
+	return &c
 }
 
 // Init monta um Agent. providerURL e apiKey são a conexão — a URL do provedor
@@ -221,8 +234,9 @@ func (a *Agent) ToolCall(ctx context.Context, call responses.ResponseFunctionToo
 }
 
 // SkillCall ativa, lê arquivos ou lista pastas de uma skill (use_skill /
-// read_skill_file / read_skill_directory), devolvendo o corpo da skill, o
-// arquivo bundlado ou a listagem para o modelo.
+// read_skill_file / read_skill_directory), devolvendo o corpo da skill (com o
+// pack do turno, na frr-file-builder), o arquivo bundlado ou a listagem para o
+// modelo.
 func (a *Agent) SkillCall(ctx context.Context, call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, error) {
-	return skills.HandleSkillCall(call)
+	return skills.HandleSkillCall(call, a.skillTurn)
 }

@@ -446,8 +446,9 @@ func TestBuilderPromptKeepsOnlyTheFlow(t *testing.T) {
 // AGENT.md and toolset from the mirror — through the flows of the
 // frr-file-builder contract, with a provider that scripts the model's calls.
 // What is real is everything the model reads back: the body use_skill delivers
-// before the WriteFile or EditFile call is decided, the pack read_skill_file
-// reaches, the tool openings the reply has to copy, the refusals, and the disk.
+// before the WriteFile or EditFile call is decided, with the turn's pack after
+// it when the turn has a protocol, the pack read_skill_file reaches when it has
+// none, the tool openings the reply has to copy, the refusals, and the disk.
 func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 	sk, ok := skills.LoadSkills().Get("frr-file-builder")
 	if !ok {
@@ -464,10 +465,12 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 	read := callsOneTool(filetools.READ_TOOL_NAME, `{"filePath":"frr.conf"}`)
 	readTECH := callsOneTool(skills.ToolReadSkillFile, `{"skill_name":"frr-file-builder","relative_path":"references/bgp/TECH.md"}`)
 	failActivation := callsOneTool(skills.ToolUseSkill, `{"skill_name":"no-such-skill"}`)
+	bgpTurn := skills.Turn{Protocol: "bgp", Retrieved: true}
 
 	cases := []struct {
 		agent, name  string
-		before       string // frr.conf before the turn; "" is no file
+		turn         skills.Turn // what Run hands the Subagente; zero is "nothing classified"
+		before       string      // frr.conf before the turn; "" is no file
 		script       []string
 		wantOutputs  []string // prefix of each tool output, in call order
 		wantActive   []string
@@ -476,6 +479,7 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 	}{
 		{
 			agent: "builder", name: "arquivo novo",
+			turn:        bgpTurn,
 			script:      []string{activate, callsOneTool(filetools.WRITE_TOOL_NAME, write), answers("gravado")},
 			wantOutputs: []string{sk.Body, filetools.WRITE_CREATED_NOTICE},
 			wantActive:  []string{"frr-file-builder"},
@@ -491,8 +495,9 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 		},
 		{
 			agent: "builder", name: "pedido incompleto",
-			script:      []string{activate, readTECH, answers("qual é o AS local?")},
-			wantOutputs: []string{sk.Body, "# BGP"},
+			turn:        bgpTurn,
+			script:      []string{activate, answers("qual é o AS local?")},
+			wantOutputs: []string{sk.Body},
 			wantActive:  []string{"frr-file-builder"},
 		},
 		{
@@ -512,6 +517,7 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 		},
 		{
 			agent: "modifier", name: "arquivo existe",
+			turn:        bgpTurn,
 			before:      existing,
 			script:      []string{read, activate, callsOneTool(filetools.EDIT_TOOL_NAME, edit), read, answers("editado")},
 			wantOutputs: []string{existing, sk.Body, "Success: File edited", edited},
@@ -555,6 +561,7 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ForSubagent(%s): %v", tc.agent, err)
 			}
+			sub = sub.WithSkillTurn(tc.turn)
 
 			_, failures, activated, err := sub.Chat(context.Background(), nil, "frr.conf")
 			if err != nil {
@@ -575,6 +582,13 @@ func TestSubagentFlowsConsumeTheSkillBody(t *testing.T) {
 				if !strings.HasPrefix(outputs[i], want) {
 					t.Errorf("saída %d = %.80q, esperava começar com %.80q", i, outputs[i], want)
 				}
+			}
+			// The turn's pack rides the activation: with a protocol, the
+			// model has the doctrine without calling read_skill_file.
+			if tc.turn.Protocol != "" && !slices.ContainsFunc(outputs, func(o string) bool {
+				return strings.HasPrefix(o, sk.Body) && strings.Contains(o, `<file path="references/`+tc.turn.Protocol+`/doctrine.md">`)
+			}) {
+				t.Errorf("nenhuma ativação trouxe o pack %s depois do corpo", tc.turn.Protocol)
 			}
 			if !slices.Equal(activated, tc.wantActive) {
 				t.Errorf("skills ativadas = %v, esperava %v", activated, tc.wantActive)

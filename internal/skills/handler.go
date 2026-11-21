@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/openai/openai-go/v3/responses"
@@ -16,7 +18,9 @@ import (
 // Devolve também a falha, quando houve: o erro é o canal que leva a falha de
 // tool até o Chat (ticket 18), e sem ele a única notícia de que a skill não
 // carregou é a frase seca que o modelo recebe.
-func HandleSkillCall(call responses.ResponseFunctionToolCall) (responses.ResponseInputItemUnionParam, error) {
+//
+// turn só pesa na ativação da frr-file-builder (ver activation).
+func HandleSkillCall(call responses.ResponseFunctionToolCall, turn Turn) (responses.ResponseInputItemUnionParam, error) {
 	reg := LoadSkills()
 
 	switch call.Name {
@@ -34,7 +38,11 @@ func HandleSkillCall(call responses.ResponseFunctionToolCall) (responses.Respons
 			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: skill %q não encontrada", args.SkillName)),
 				fmt.Errorf("skill %q não encontrada no registry", args.SkillName)
 		}
-		return responses.ResponseInputItemParamOfFunctionCallOutput(sk.Body), nil
+		body, err := reg.activation(sk, turn)
+		if err != nil {
+			return responses.ResponseInputItemParamOfFunctionCallOutput(fmt.Sprintf("erro: %v", err)), err
+		}
+		return responses.ResponseInputItemParamOfFunctionCallOutput(body), nil
 
 	case ToolReadSkillFile:
 		var args struct {
@@ -74,6 +82,63 @@ func HandleSkillCall(call responses.ResponseFunctionToolCall) (responses.Respons
 		return responses.ResponseInputItemParamOfFunctionCallOutput("Error: Called invalid skill function"),
 			errors.New("não é uma tool de skill")
 	}
+}
+
+// Turn é o que a ativação da frr-file-builder precisa saber do turno em que
+// roda: o protocol classificado, que nomeia o Tech pack, e se o prompt leva
+// um bloco <recovered_context>. O zero é "nada classificado, nada buscado".
+type Turn struct {
+	Protocol  string
+	Retrieved bool
+}
+
+// packSkill é a skill cuja ativação entrega o Tech pack do turno junto do
+// corpo; qualquer outra ativa só com o corpo
+// (.agent/frr-file-builder/issues/06-decidir-como-o-pack-chega-ao-modelo.md).
+const packSkill = "frr-file-builder"
+
+// packFiles são os arquivos do pack que a ativação entrega, nesta ordem.
+// Exemplo nenhum: esses o modelo escolhe pelo índice do TECH.md e lê com
+// read_skill_file.
+var packFiles = []string{"TECH.md", "syntax.md", "doctrine.md"}
+
+// activation é o resultado do use_skill: o corpo e, só para a packSkill, o
+// pack de references/<protocol>/ (casado por nome exato) ou a linha que diz
+// por que ele não vem, e a linha do alcance do RAG quando o turno buscou para
+// um protocol. Pasta do pack sem um dos packFiles é erro: entrega parcial
+// calada é o modelo construindo sem a regra achando que a tem.
+func (r *Registry) activation(sk *Skill, turn Turn) (string, error) {
+	if sk.Name != packSkill {
+		return sk.Body, nil
+	}
+	var out strings.Builder
+	out.WriteString(sk.Body)
+
+	dir := "references/" + turn.Protocol
+	info, statErr := os.Stat(filepath.Join(sk.Dir, filepath.FromSlash(dir)))
+	switch {
+	case turn.Protocol == "":
+		fmt.Fprintf(&out, "\n\nThis turn has no classified technology, so no pack follows this body: "+
+			"read the pack of each technology of the request that has a row in the table with %s.", ToolReadSkillFile)
+	case statErr != nil || !info.IsDir():
+		fmt.Fprintf(&out, "\n\nNo pack covers %[1]s, the technology of this turn. Above its first block write:\n"+
+			"! WARNING: no pack covers %[1]s; built from the retrieved FRR documentation only", turn.Protocol)
+	default:
+		for _, name := range packFiles {
+			rel := dir + "/" + name
+			text, err := r.ReadFile(sk.Name, rel)
+			if err != nil {
+				return "", fmt.Errorf("pack %q da skill %q incompleto: %w", turn.Protocol, sk.Name, err)
+			}
+			fmt.Fprintf(&out, "\n\n<file path=%q>\n%s\n</file>", rel, strings.TrimRight(text, "\n"))
+		}
+	}
+
+	if turn.Retrieved && turn.Protocol != "" {
+		fmt.Fprintf(&out, "\n\nThe <recovered_context> of this turn was retrieved for %s only: "+
+			"a part of the request in another technology with no pack has no source, so say which part and stop.", turn.Protocol)
+	}
+	return out.String(), nil
 }
 
 // ActivatedSkill devolve o nome da skill que uma chamada use_skill ordena
