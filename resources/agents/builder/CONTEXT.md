@@ -42,6 +42,7 @@ whole run. A request for a different technology is a new run.
 | Slug | Covers |
 |------|--------|
 | `bgp` | eBGP/iBGP, route reflectors, policy, communities, aggregation, multihoming, BFD over BGP |
+| `ospf` | OSPFv2: areas, passive and transit interfaces, authentication, area types, redistribution, graceful restart, VRF, BFD over OSPF |
 
 If nothing fits, return `UNROUTABLE` with one sentence saying what was missing.
 Do not guess.

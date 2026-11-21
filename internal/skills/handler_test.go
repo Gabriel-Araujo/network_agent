@@ -17,7 +17,7 @@ func TestActivationDeliversTheTurnPack(t *testing.T) {
 	pack := []string{"references/bgp/TECH.md", "references/bgp/syntax.md", "references/bgp/doctrine.md"}
 	const (
 		reach  = "retrieved for "
-		absent = "! WARNING: no pack covers ospf; built from the retrieved FRR documentation only"
+		absent = "! WARNING: no pack covers kernel; built from the retrieved FRR documentation only"
 		empty  = "This turn has no classified technology"
 	)
 
@@ -32,7 +32,7 @@ func TestActivationDeliversTheTurnPack(t *testing.T) {
 			wantLines: []string{reach + "bgp only"}, denyLines: []string{empty, "no pack covers"}},
 		{name: "bgp without context", skill: packSkill, turn: Turn{"bgp", false}, wantFiles: true,
 			denyLines: []string{reach, empty, "no pack covers"}},
-		{name: "protocol without pack", skill: packSkill, turn: Turn{"ospf", false},
+		{name: "protocol without pack", skill: packSkill, turn: Turn{"kernel", false},
 			wantLines: []string{absent}, denyLines: []string{reach, empty}},
 		{name: "empty protocol", skill: packSkill, turn: Turn{"", true},
 			wantLines: []string{empty}, denyLines: []string{reach, "no pack covers"}},

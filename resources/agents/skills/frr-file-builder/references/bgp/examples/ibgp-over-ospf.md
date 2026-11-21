@@ -8,17 +8,19 @@ routes. `update-source` and `next-hop-self` are what make the pair work.
 ! ---- underlay: OSPF carries infrastructure only ----
 interface lo
  ip address 10.0.0.1/32
- ip ospf area 0
+ ip ospf area 0.0.0.0
 exit
+!
 interface eth1
- ip ospf area 0
+ ip ospf area 0.0.0.0
  ip ospf network point-to-point
+ no ip ospf passive
+ ! WARNING: no authentication on the adjacencies of eth1
 exit
 !
 router ospf
  ospf router-id 10.0.0.1
  passive-interface default
- no passive-interface eth1
 exit
 !
 ! ---- overlay: iBGP between loopbacks ----
@@ -42,7 +44,6 @@ exit
 What the shape demonstrates:
 
 - the IGP redistributes nothing from BGP; the two tables stay separate
-- `passive-interface default` with an explicit opt-in per link
 - sessions sourced from the loopback, so one link failure does not drop the
   session
 - a peer-group used at the point where peers share one policy

@@ -78,9 +78,12 @@ func TestMermaidSkillInCatalog(t *testing.T) {
 // skill loads, use_skill delivers a body that is no longer the stub and that
 // never names the file tools (writing and replying belong to the agent that
 // activates it) but orders the pack listed with read_skill_directory to find
-// the closest shape in examples/ or reference/, and read_skill_file reaches
-// every file of the bgp pack the body orders read — TECH.md, syntax.md,
-// doctrine.md — plus every example the TECH.md index lists. The index is how the model picks an example, by its
+// the closest shape in examples/ or reference/. The three registries of the
+// packs — the table of SKILL.md, the Available Packs of references/CONTEXT.md
+// and the selection of builder/CONTEXT.md — name the same slugs as the folders
+// under references/, and for each pack read_skill_file reaches TECH.md,
+// syntax.md, doctrine.md and checklist.md plus every example the TECH.md
+// index lists. The index is how the model picks an example, by its
 // description, so it must name exactly what read_skill_directory lists under
 // examples/: a row naming a missing file is an example the model asks for and
 // never gets, and a file with no row is one it can only pick blind.
@@ -129,35 +132,68 @@ func TestFrrFileBuilderSkillInCatalog(t *testing.T) {
 		}
 	}
 
-	for _, path := range []string{"references/bgp/syntax.md", "references/bgp/doctrine.md"} {
-		read(path)
-	}
-	index := read("references/bgp/TECH.md")
-	// The index path is read verbatim: the model copies it into read_skill_file,
-	// which resolves from the skill root. A pack-relative `examples/x.md` failed
-	// in the app with "O sistema não pode encontrar o caminho especificado".
-	examples := regexp.MustCompile("`(references/bgp/examples/[a-z0-9-]+\\.md)`").FindAllStringSubmatch(index, -1)
-	if len(examples) == 0 {
-		t.Fatal(`TECH.md of the bgp pack lists no example under "Examples" by its path from the skill root`)
-	}
-	var indexed []string
-	for _, m := range examples {
-		if got := read(m[1]); !strings.Contains(got, "```") {
-			t.Errorf("%s has no fenced frr.conf shape", m[1])
+	slugs := slugTable(t, packsDir+"/../SKILL.md")
+	for _, path := range []string{packsDir + "/CONTEXT.md", "resources/agents/builder/CONTEXT.md"} {
+		if got := slugTable(t, path); !slices.Equal(got, slugs) {
+			t.Errorf("the pack table of %s = %v, the one of SKILL.md = %v", path, got, slugs)
 		}
-		indexed = append(indexed, m[1])
+	}
+	if folders := packSlugs(t); !slices.Equal(folders, slugs) {
+		t.Errorf("the pack folders under %s = %v, the table of SKILL.md = %v", packsDir, folders, slugs)
 	}
 
-	item, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{
-		CallID:    "call_list",
-		Name:      skills.ToolReadSkillDirectory,
-		Arguments: `{"skill_name": "` + skill + `", "relative_path": "references/bgp/examples"}`,
-	})
-	listed := strings.Split(callOutput(t, item), "\n")
-	slices.Sort(indexed)
-	if !slices.Equal(listed, indexed) {
-		t.Errorf("read_skill_directory references/bgp/examples = %v, the TECH.md index = %v", listed, indexed)
+	for _, slug := range slugs {
+		pack := "references/" + slug + "/"
+		for _, name := range []string{"syntax.md", "doctrine.md", "checklist.md"} {
+			read(pack + name)
+		}
+		index := read(pack + "TECH.md")
+		// The index path is read verbatim: the model copies it into read_skill_file,
+		// which resolves from the skill root. A pack-relative `examples/x.md` failed
+		// in the app with "O sistema não pode encontrar o caminho especificado".
+		examples := regexp.MustCompile("`("+regexp.QuoteMeta(pack)+"examples/[a-z0-9-]+\\.md)`").FindAllStringSubmatch(index, -1)
+		if len(examples) == 0 {
+			t.Errorf(`TECH.md of the %s pack lists no example under "Examples" by its path from the skill root`, slug)
+			continue
+		}
+		var indexed []string
+		for _, m := range examples {
+			if got := read(m[1]); !strings.Contains(got, "```") {
+				t.Errorf("%s has no fenced frr.conf shape", m[1])
+			}
+			indexed = append(indexed, m[1])
+		}
+
+		item, _ := a.SkillCall(context.Background(), responses.ResponseFunctionToolCall{
+			CallID:    "call_list",
+			Name:      skills.ToolReadSkillDirectory,
+			Arguments: `{"skill_name": "` + skill + `", "relative_path": "` + pack + `examples"}`,
+		})
+		listed := strings.Split(callOutput(t, item), "\n")
+		slices.Sort(indexed)
+		if !slices.Equal(listed, indexed) {
+			t.Errorf("read_skill_directory %sexamples = %v, the TECH.md index = %v", pack, listed, indexed)
+		}
 	}
+}
+
+// slugTable returns, sorted, the slugs of the table whose header opens with
+// a Slug column: the pack table every registry of the packs carries.
+func slugTable(t *testing.T, path string) []string {
+	t.Helper()
+	for _, table := range tablesOf(readText(t, path)) {
+		if table[0][0] != "Slug" {
+			continue
+		}
+		var slugs []string
+		for _, row := range table[1:] {
+			slugs = append(slugs, strings.Trim(row[0], "`"))
+		}
+		slices.Sort(slugs)
+		return slugs
+	}
+	t.Fatalf("%s has no table with a Slug column", path)
+	return nil
 }
 
 // pipelineSkills are the skills a dispatched Subagente has no use for: the
