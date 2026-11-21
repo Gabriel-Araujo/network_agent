@@ -10,7 +10,7 @@ import (
 	"github.com/Gabriel-Araujo/network_agent/internal/history"
 	"github.com/Gabriel-Araujo/network_agent/internal/turn"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // App struct
@@ -30,10 +30,9 @@ type App struct {
 	// provedor a cada pergunta da UI (GetContextWindow).
 	active activeModel
 
-	// emit publica um evento para a UI. É um campo, e não runtime.EventsEmit
+	// emit publica um evento para a UI. É um campo, e não o Event.Emit do app
 	// direto nos métodos, para que o teste do turno observe os eventos sem a
-	// ponte do Wails — com um contexto que não veio dos hooks do app, o runtime
-	// real encerra o processo.
+	// ponte do Wails, que fora do application.New não existe.
 	emit func(eventName string, data ...any)
 
 	// conn é o estado da conexão com o provedor, para a UI dizer o que está
@@ -102,15 +101,15 @@ func NewApp() *App {
 	// O histórico vive ao lado do config.json, em ~/.network_agent/history.
 	a.store = history.NewFileStore(history.DefaultDir())
 
-	// A ponte de eventos de produção; o ctx chega no startup e o closure lê o
-	// campo na hora da chamada.
+	// A ponte de eventos de produção. O app do Wails nasce depois do NewApp,
+	// então o closure o busca na hora da chamada.
 	a.emit = func(eventName string, data ...any) {
-		runtime.EventsEmit(a.ctx, eventName, data...)
+		application.Get().Event.Emit(eventName, data...)
 	}
 
 	// Conecta a partir do arquivo de configuração (~/.network_agent/config.json),
 	// o mesmo usado pelo cmd/cli — e não espera a conexão terminar: ela roda em
-	// background, porque NewApp acontece ANTES do wails.Run e uma carga de
+	// background, porque NewApp acontece ANTES do Run do Wails e uma carga de
 	// modelo de dezenas de segundos aqui seria um duplo-clique sem janela
 	// nenhuma na tela (ticket 13).
 	a.Reconnect()
@@ -250,10 +249,12 @@ func (a *App) activeConfig() activeModel {
 	return a.active
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
-func (a *App) startup(ctx context.Context) {
+// ServiceStartup é o hook de serviço do Wails v3: o ctx vale enquanto o app
+// roda e é o dos turnos, da janela de contexto e do reparo de diagrama. Não
+// vira binding (o v3 exclui os métodos de ciclo de vida).
+func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	a.ctx = ctx
+	return nil
 }
 
 func (a *App) emitStatus(label string) {

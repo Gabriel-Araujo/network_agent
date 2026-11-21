@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Network Agent
+Comment=Agente de LLM para engenharia de rede com FRRouting
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/net_agent %u
+Terminal=false
+Type=Application
+Icon=net_agent
+Categories=Utility;
+StartupWMClass=net_agent
+
+ 

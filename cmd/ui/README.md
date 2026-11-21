@@ -1,19 +1,23 @@
-# README
+# UI desktop (Wails v3)
 
-## About
+O app desktop do network_agent, em Wails v3.1.0. O frontend é descrito em
+[`docs/FRONTEND.md`](../../docs/FRONTEND.md), e os fatos do Wails ficam em
+[`docs/WAILS_V3.md`](../../docs/WAILS_V3.md).
 
-This is the official Wails React-TS template.
+## Dev e build
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+Os comandos rodam em `cmd/ui`, com a CLI `wails3` 3.1.0
+(`go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`):
 
-## Live Development
+```powershell
+wails3 dev     # Vite na 9245; front recarrega, Go recompila e a janela reabre ao salvar
+wails3 build   # .exe em cmd/ui/bin/net_agent.exe
+```
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+Fechar a janela encerra o `wails3 dev`. Com `$env:NETWORK_AGENT_CDP_PORT = '9333'` antes do
+`wails3 dev`, a janela abre a porta de CDP.
 
-## Building
-
-To build a redistributable, production mode package, use `wails build`.
+A configuração do projeto é o `build/config.yml` e os Taskfiles (`Taskfile.yml` e `build/`), gerados
+por `wails3 generate build-assets`. A única edição no gerado é o `-ts` do `generate:bindings` em
+`build/Taskfile.yml`. As bindings ficam em `frontend/bindings/`, versionadas: regenere-as (o
+`wails3 dev` e o `wails3 build` já fazem isso) quando mudar um método ou tipo exposto ao front.

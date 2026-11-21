@@ -1,7 +1,7 @@
 # network_agent
 
 Agente de LLM para engenharia de rede com FRRouting. Backend OpenAI-compatible em
-`internal/agent`, UI desktop em `cmd/ui` (Wails v2 + React/Vite) e CLI em `cmd/cli`.
+`internal/agent`, UI desktop em `cmd/ui` (Wails v3 + React/Vite) e CLI em `cmd/cli`.
 
 ## Frontend
 

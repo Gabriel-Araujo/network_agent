@@ -1,39 +1,52 @@
-export type Role = 'user' | 'agent'
+// Os tipos que o Go já descreve vêm dos modelos das bindings geradas
+// (`frontend/bindings/`, `wails3 generate bindings`). Ficam à mão só os da tela:
+// `Message` (hora formatada, `persistentId`, o turno ao vivo; o `toUiMessages` a projeta
+// da mensagem do Go),
+// `MermaidRepair` (o estado `repairing`, que só a tela tem) e `Connection`.
+export type {
+  AgentError,
+  Conversation,
+  MermaidFailure,
+  MermaidReplacement,
+  TokenUsage,
+  ToolCall,
+} from '../bindings/github.com/Gabriel-Araujo/network_agent/internal/history/models'
+export type {
+  MermaidRepairStart,
+  RecentWorkspace,
+  contextWindow as ContextWindow,
+} from '../bindings/github.com/Gabriel-Araujo/network_agent/cmd/ui/models'
+export type {
+  Config as AppConfig,
+  Model as ModelConfig,
+  Provider as ProviderConfig,
+} from '../bindings/github.com/Gabriel-Araujo/network_agent/internal/types/models'
+import type {
+  AgentError,
+  Conversation,
+  Message as GoMessage,
+  TokenUsage,
+  ToolCall,
+} from '../bindings/github.com/Gabriel-Araujo/network_agent/internal/history/models'
+import type {
+  Config as AppConfig,
+  Model as ModelConfig,
+  Provider as ProviderConfig,
+} from '../bindings/github.com/Gabriel-Araujo/network_agent/internal/types/models'
+
+/**
+ * Se a página roda dentro do app. O `@wailsio/runtime` cria o `window._wails`
+ * até no browser puro; o `environment` só existe quando o Go injeta o script.
+ * Fora do app (browser, testes) as chamadas ao Go não são feitas.
+ */
+export const inWails = () => !!(window as any)._wails?.environment
+
+/** O texto do erro de uma chamada: o v3 rejeita com `RuntimeError`, e `String(e)` traria o prefixo. */
+export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// Os valores dos enums `Role` e `Status` do Go (`internal/history`), como literais.
+export type Role = 'user' | 'agent' | 'mermaid_repair'
 export type MsgStatus = 'streaming' | 'done' | 'error'
-
-export interface ToolCall {
-  id: string
-  action: string
-  label: string
-  result: string
-}
-
-export interface AgentError {
-  what: string
-  why: string
-  next: string
-}
-
-export interface TokenUsage {
-  input: number
-  output: number
-  total: number
-  contextUsed: number
-  contextTotal: number
-  /**
-   * De onde veio a janela (`contextTotal`): 'provider' quando o endpoint do
-   * provedor a informou, 'config' quando é o context_size declarado na
-   * configuração. Conversas gravadas antes desta marcação vêm sem o campo — e o
-   * número delas era o declarado.
-   */
-  contextSource?: string
-}
-
-/** A janela de contexto do modelo ativo: o total e a origem (cmd/ui/context.go). */
-export interface ContextWindow {
-  total: number
-  source: string
-}
 
 /**
  * O estado da conexão com o provedor (cmd/ui/app.go). A conexão é background —
@@ -46,30 +59,13 @@ export interface Connection {
   cause?: string
 }
 
-export interface MermaidFailure {
-  index: number
-  source: string
-  error: string
-}
-
-export interface MermaidReplacement {
-  index: number
-  source: string
-}
-
 export interface MermaidRepair {
   attemptId: string
   messageId: string
   state: 'repairing' | 'started' | 'candidate' | 'accepted' | 'rejected' | 'failed'
   correctedContent?: string
   error?: string
-  usage?: TokenUsage
-}
-
-/** O que a operação de início devolve: a tentativa e os candidatos. */
-export interface MermaidRepairStart {
-  attemptId: string
-  replacements: MermaidReplacement[]
+  usage?: TokenUsage | null
 }
 
 export interface Message {
@@ -81,9 +77,9 @@ export interface Message {
   time?: string
   elapsedMs?: number
   tokens?: number
-  usage?: TokenUsage
+  usage?: TokenUsage | null
   toolCalls?: ToolCall[]
-  error?: AgentError
+  error?: AgentError | null
   /**
    * Quem respondeu o turno: o Subagente (`teacher`, `builder`, `modifier`,
    * `illustrator`) ou vazio para o agente genérico. É quem DE FATO respondeu,
@@ -97,18 +93,7 @@ export interface Message {
    * respondeu — degradação nunca mata o turno —, mas com menos do que devia.
    */
   warnings?: string[]
-  mermaidRepair?: MermaidRepair
-}
-
-/** Conversa como o Go a devolve (`history.Conversation`): transcript junto, updatedAt desc. */
-export interface Conversation {
-  id: string
-  title: string
-  createdAt: string
-  updatedAt: string
-  provider: string
-  model: string
-  messages: Message[]
+  mermaidRepair?: MermaidRepair | null
 }
 
 // ---------- erros da ponte do Wails ----------
@@ -198,8 +183,15 @@ export function formatTs(stamp: string): string {
  * conversa reaberta idêntica à que estava na tela e mantém o resumo do rodapé
  * sem contagem dobrada.
  */
-export function toUiMessages(msgs: Message[] | null | undefined): Message[] {
-  const out = (msgs ?? []).map((m) => ({ ...m, time: m.time ? formatTs(m.time) : undefined }))
+export function toUiMessages(msgs: GoMessage[] | null | undefined): Message[] {
+  // Os enums do Go chegam como TS `enum`, que não se atribui a literal: os valores são os mesmos.
+  const out: Message[] = (msgs ?? []).map((m) => ({
+    ...m,
+    role: m.role as string as Role,
+    status: m.status as string as MsgStatus,
+    mermaidRepair: m.mermaidRepair as MermaidRepair | null | undefined,
+    time: m.time ? formatTs(m.time) : undefined,
+  }))
   for (let i = 0; i < out.length; i++) {
     if (out[i].role !== 'user') continue
     // a resposta do turno é o primeiro agente depois desta pergunta
@@ -230,7 +222,7 @@ export function groupLabel(stamp: string): string {
   return 'Mais antigas'
 }
 
-const GROUP_ORDER = ['Hoje', 'Ontem', 'Últimos 7 dias', 'Mais antigas']
+export const GROUP_ORDER = ['Hoje', 'Ontem', 'Últimos 7 dias', 'Mais antigas']
 
 /**
  * Agrupa para o sidebar: cabeçalhos na ordem fixa acima, itens na ordem
@@ -267,32 +259,6 @@ export function sortByUpdatedDesc(list: Conversation[]): Conversation[] {
 // ---------- configurações: provedores e modelos ----------
 // Espelha internal/types (types.Config/Provider/Model). Os registros são
 // identificados por ÍNDICE, como no Go — não há campo id de provedor.
-
-export interface ModelConfig {
-  id: string
-  name: string
-  context_size: number
-}
-
-export interface ProviderConfig {
-  name: string
-  url: string
-  api_key: string
-  default_model: number
-  models: ModelConfig[]
-}
-
-export interface AppConfig {
-  selected: number
-  providers: ProviderConfig[]
-  /**
-   * A pasta que o usuário escolheu: a única raiz de escrita das file tools.
-   * Ausente ou vazia é "nenhuma escolhida" — Builder e Modifier recusam
-   * gravar, Teacher e Illustrator seguem inteiros, porque o material do
-   * agente não depende dessa escolha.
-   */
-  workspace?: string
-}
 
 export const EMPTY_PROVIDER: ProviderConfig = {
   name: '',

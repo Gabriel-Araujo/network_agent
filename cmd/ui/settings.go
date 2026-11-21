@@ -8,7 +8,7 @@ import (
 
 	"github.com/Gabriel-Araujo/network_agent/internal/config"
 	"github.com/Gabriel-Araujo/network_agent/internal/types"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 var configMux sync.Mutex
@@ -63,20 +63,23 @@ func (a *App) PickWorkspace() (types.Config, error) {
 		return cfg, err
 	}
 
-	// O runtime do Wails com ctx nil chama log.Fatalf (medido no ticket 06):
-	// sem a janela no ar o diálogo derrubaria o app em vez de falhar.
-	if a.ctx == nil {
-		return cfg, fmt.Errorf("a janela ainda não está no ar")
-	}
-
-	opts := runtime.OpenDialogOptions{Title: "Escolha a pasta de trabalho do agente"}
-	// DefaultDirectory inexistente é erro do próprio runtime — e "o Workspace
+	dialog := application.Get().Dialog.OpenFile().
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		SetTitle("Escolha a pasta de trabalho do agente")
+	// Diretório inicial inexistente é erro do próprio diálogo — e "o Workspace
 	// sumiu" é justamente um dos casos que trazem o usuário até aqui.
 	if info, err := os.Stat(cfg.Workspace); err == nil && info.IsDir() {
-		opts.DefaultDirectory = cfg.Workspace
+		dialog.SetDirectory(cfg.Workspace)
 	}
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, opts)
+	dir, err := dialog.PromptForSingleSelection()
+	// No Windows o v3 devolve o cancelar como erro (cfd.ErrorCancelled, de um
+	// pacote internal, então só a mensagem dá para comparar). Cancelar não é
+	// falha: é o "" do v2.
+	if err != nil && err.Error() == "cancelled by user" {
+		dir, err = "", nil
+	}
 	if err != nil {
 		log.Error("falha ao abrir o diálogo de pasta", "err", err)
 		return cfg, fmt.Errorf("falha ao abrir o diálogo de pasta: %w", err)
@@ -86,8 +89,63 @@ func (a *App) PickWorkspace() (types.Config, error) {
 	}
 
 	log.Info("Workspace escolhido", "path", dir)
-	cfg.Workspace = dir
+	cfg.UseWorkspace(dir)
 	return a.persist(cfg)
+}
+
+// RecentWorkspace é um recente como o menu do chip o lê: `Exists` é a conferência
+// no disco, que o front não faz.
+type RecentWorkspace struct {
+	Path   string `json:"path"`
+	Exists bool   `json:"exists"`
+}
+
+// ListRecentWorkspaces devolve os Workspaces recentes, o de uso mais recente
+// primeiro, cada um com a pasta conferida agora. O front chama ao abrir o menu.
+func (a *App) ListRecentWorkspaces() ([]RecentWorkspace, error) {
+	configMux.Lock()
+	defer configMux.Unlock()
+	cfg, err := readConfig()
+	if err != nil {
+		return nil, err
+	}
+	config.Normalize(&cfg)
+	list := make([]RecentWorkspace, len(cfg.RecentWorkspaces))
+	for i, p := range cfg.RecentWorkspaces {
+		list[i] = RecentWorkspace{Path: p, Exists: isDir(p)}
+	}
+	return list, nil
+}
+
+// PickRecentWorkspace faz de um recente o Workspace, sem diálogo. Se a pasta
+// sumiu, recusa e não muda nada.
+func (a *App) PickRecentWorkspace(dir string) (types.Config, error) {
+	configMux.Lock()
+	defer configMux.Unlock()
+	cfg, err := readConfig()
+	if err != nil {
+		return cfg, err
+	}
+	if err := useRecent(&cfg, dir); err != nil {
+		return cfg, err
+	}
+	log.Info("Workspace recente escolhido", "path", dir)
+	return a.persist(cfg)
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// useRecent é o PickRecentWorkspace sem o disco da configuração: confere a
+// pasta e, só então, troca o Workspace.
+func useRecent(cfg *types.Config, dir string) error {
+	if !isDir(dir) {
+		return fmt.Errorf("pasta não encontrada: %s", dir)
+	}
+	cfg.UseWorkspace(dir)
+	return nil
 }
 
 // SelectProvider define qual provedor está em uso (índice Selected).

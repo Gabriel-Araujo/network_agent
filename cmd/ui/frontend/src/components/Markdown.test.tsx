@@ -17,8 +17,8 @@ describe('Markdown × extração compartilhada', () => {
     // dois blocos na extração = dois renders
     expect(extractMermaidBlocks(content)).toHaveLength(2)
     const html = renderToStaticMarkup(<Markdown content={content} />)
-    expect(html.match(/class="mermaid__diagram"/g)).toHaveLength(2)
-    expect(html).not.toContain('mermaid--failed')
+    expect(html.match(/data-diagram/g)).toHaveLength(2)
+    expect(html).not.toContain('role="alert"')
   })
 
   it('bloco rejeitado mostra erro E fonte, sem derrubar os blocos vizinhos', () => {
@@ -27,7 +27,7 @@ describe('Markdown × extração compartilhada', () => {
     // o bloco bom renderiza...
     expect(html).toContain('<svg')
     // ...e o rejeitado mantém o erro e o fonte originais visíveis
-    expect(html).toContain('mermaid--failed')
+    expect(html).toContain('role="alert"')
     expect(html).toContain('O diagrama não renderizou')
     expect(html).toContain('inactivate')
     expect(html).toContain('participant R1')
@@ -36,28 +36,28 @@ describe('Markdown × extração compartilhada', () => {
   it('durante o streaming mostra o fonte cru e não renderiza SVG', () => {
     const content = `\`\`\`mermaid\n${VALID}\n\`\`\`\n`
     const html = renderToStaticMarkup(<Markdown content={content} streaming />)
-    expect(html).not.toContain('<svg')
-    expect(html).toContain('mermaid-source')
+    expect(html).not.toContain('data-diagram')
+    expect(html).toContain('>mermaid<')
     expect(html).toContain('A[origem]')
   })
 
   it('offers accessible modes and download only for rendered blocks', () => {
     const content = `\`\`\`mermaid\n${VALID}\n\`\`\`\n`
     const html = renderToStaticMarkup(<Markdown content={content} />)
-    expect(html).toContain('aria-label="Visualizar diagrama"')
-    expect(html).toContain('aria-label="Visualizar codigo"')
+    expect(html).toContain('aria-label="Ver código"')
     expect(html).toContain('aria-label="Baixar SVG"')
-    expect(html).toContain('aria-pressed="true"')
+    expect(html).toContain('aria-pressed="false"')
+    expect(html).toContain('aria-label="Ajustar à tela"')
     expect(html).toContain('aria-label="Menos zoom"')
     expect(html).toContain('aria-label="Mais zoom"')
-    expect(html).toContain('aria-label="Redefinir zoom e posicao"')
+    expect(html).toContain('aria-label="Redefinir zoom e posição"')
     expect(renderToStaticMarkup(<Markdown content={content} streaming />)).not.toContain('Baixar SVG')
     expect(renderToStaticMarkup(<Markdown content={`\`\`\`mermaid\n${SEMANTIC}\n\`\`\`\n`} />)).not.toContain('Baixar SVG')
   })
 
   it('includes the app theme in the downloaded SVG', () => {
     expect(standaloneSvg('<svg viewBox="0 0 1 1"><rect /></svg>', { '--pele-bg': '#0a0f1c', '--pele-fg': '#e5eaf5' })).toBe(
-      '<svg viewBox="0 0 1 1"><style>svg{--pele-bg:#0a0f1c;--pele-fg:#e5eaf5}</style><rect /></svg>',
+      '<svg viewBox="0 0 1 1"><style>svg{--pele-bg:#0a0f1c;--pele-fg:#e5eaf5;background:var(--pele-bg)}</style><rect /></svg>',
     )
   })
 

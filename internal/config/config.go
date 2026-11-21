@@ -121,6 +121,11 @@ func Load() (types.Config, error) {
 // garante slices não-nulos. Chamado em toda leitura e gravação, já que os
 // front-ends podem remover o provedor ou modelo apontado por um índice.
 func Normalize(cfg *types.Config) {
+	// O Workspace em uso é sempre o primeiro dos recentes, inclusive num
+	// config.json de antes da lista existir.
+	if cfg.Workspace != "" {
+		cfg.UseWorkspace(cfg.Workspace)
+	}
 	if cfg.Providers == nil {
 		cfg.Providers = []types.Provider{}
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -71,5 +72,27 @@ func TestReconnectSemWorkspaceEntregaVazio(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("o Connect não foi chamado")
+	}
+}
+
+// A pasta que sumiu é recusada e a configuração fica como estava; a que existe
+// vira o Workspace e sobe nos recentes.
+func TestUseRecentRecusaPastaSumida(t *testing.T) {
+	viva, sumida := t.TempDir(), filepath.Join(t.TempDir(), "sumiu")
+	cfg := types.Config{Workspace: viva, RecentWorkspaces: []string{viva, sumida}}
+
+	if err := useRecent(&cfg, sumida); err == nil {
+		t.Fatal("a pasta que não existe foi aceita")
+	}
+	if cfg.Workspace != viva || cfg.RecentWorkspaces[0] != viva {
+		t.Fatalf("a recusa mudou a configuração: %+v", cfg)
+	}
+
+	outra := t.TempDir()
+	if err := useRecent(&cfg, outra); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Workspace != outra || cfg.RecentWorkspaces[0] != outra || cfg.RecentWorkspaces[1] != viva {
+		t.Fatalf("a escolha não subiu: %+v", cfg)
 	}
 }
