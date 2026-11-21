@@ -62,9 +62,11 @@ Run in flight. Only 3 and 4 appear in the Source column of an Inputs table.
 _Avoid_: tier, level
 
 **Tech pack**:
-The reference material for one technology, named by a slug. The
+The reference material for one technology, named by a slug that is a value of
+the turn classification's `protocol` list, matched by name. The
 `frr-file-builder` **Skill** keeps a folder of files per slug in its
-`references/`, and a request loads every pack it touches; the Teacher keeps a
+`references/`: activating it delivers the pack of the turn's `protocol` with the
+body, and any other pack the request touches is read on demand; the Teacher keeps a
 single `<slug>.md` in its `tech-packs/`. In a Run, the slug picked at the start
 binds `{{TECH}}` for the whole Run. Each line of a configuration belongs to the
 pack of the protocol it configures, whichever `.rst` documents it.

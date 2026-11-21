@@ -8,8 +8,8 @@ the result becomes a route-map condition.
 ! daemon: bgpd built with RPKI support + enabled in /etc/frr/daemons
 rpki
  rpki polling_period 300
- rpki cache 192.0.2.10 3323 preference 1
- rpki cache 192.0.2.11 3323 preference 2
+ rpki cache tcp 192.0.2.10 3323 preference 1
+ rpki cache tcp 192.0.2.11 3323 preference 2
 exit
 !
 route-map RM-TRANSIT-IN deny 10
@@ -38,7 +38,8 @@ exit
 
 What the shape demonstrates:
 
-- RPKI syntax is version gated: confirm against the FRR version in use or
+- RPKI syntax is version gated: FRR 10 names the transport (`rpki cache tcp`);
+  confirm against the FRR version in use or
   fall back to prefix-list filtering with a `VERSION NOTE`
 - two caches configured with a preference, so validation survives one being
   down

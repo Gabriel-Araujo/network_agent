@@ -33,5 +33,5 @@ What the shape demonstrates:
   session
 - `maximum-prefix` inside the address family, with a ceiling stated relative
   to the current full table
-- a `!` comment on every line carrying a number
+- a `!` comment on its own line above every line carrying a number
 - a contested default flagged in the artifact rather than applied silently

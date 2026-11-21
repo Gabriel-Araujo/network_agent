@@ -70,7 +70,8 @@ used here.
 - One integrated file: never a file per daemon, never `bgpd.conf`.
 - Never write `frr version`: the version is a fact about the user's machine that the request
   does not give, and the wrong one changes defaults silently.
-- A comment starts with `!`, never with `#`. A `!` line separates blocks.
+- A comment starts with `!`, never with `#`, and takes a line of its own: FRR rejects a `!`
+  after a command on the same line. A `!` line separates blocks.
 - Order: the header, then interfaces and static routes, then policy objects (prefix-lists,
   route-maps, community-lists), then the routing protocol blocks. A policy object always comes
   before the block that references it.
