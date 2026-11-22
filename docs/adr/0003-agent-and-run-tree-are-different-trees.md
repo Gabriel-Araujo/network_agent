@@ -5,9 +5,12 @@ split 0002 made stands: the ICM definition of a pipeline is versioned and
 read-only, the artifacts a run produces are neither, and this repo keeps them in
 two trees. Only the second name changes. **Agent** is still the definition at
 `resources/agents/<name>/`; what 0002 called **Workspace** is now the **Run
-tree**, at `.agent/runs/<agent>/<stage>/`. `Workspace` is freed, and names the
-folder the user picks in the desktop app: the single root the file tools may
-write to.
+tree**, at `~/.network_agent/runs/<agent>/<stage>/` (under the app's data
+directory `config.Dir()`, alongside the projected **Agent root** of
+[ADR 0004](./0004-agent-material-is-embedded-and-projected.md) — never under
+`.agent/`, which belongs exclusively to the local issue tracker). `Workspace` is
+freed, and names the folder the user picks in the desktop app: the single root
+the file tools may write to.
 
 ## Considered Options
 

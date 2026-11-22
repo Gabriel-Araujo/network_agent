@@ -319,3 +319,37 @@ layer 4, and from the **Agent root**, which is read-only. See
 A **recent Workspace** is a folder that was the Workspace before and can be
 picked again; it is not a root until picked, so there is still one Workspace.
 _Avoid_: run tree, project folder, output folder
+
+### Verificação FRR
+
+Three distinct levels of checking an FRR configuration, ordered by what they can
+prove. None of the single-file levels makes a configuration "valid" in the sense
+of working on a live network: each proves only the defects its layer can see.
+
+**Checagem de gramática**:
+Parsing an FRR configuration against `vtysh`'s compiled-in command grammar with
+no daemons running. Proves only that each line matches a known command in its
+node; blind to daemon semantics, dangling references and protocol behavior.
+_Avoid_: validação, validação sintática completa, dry-run válido, valid
+
+**Carga em daemon**:
+Applying an FRR configuration against active FRR daemons in an isolated
+environment with no peers. Catches grammar errors, daemon semantic rejections
+and daemon warnings, but stays silent on references the daemons themselves
+ignore (such as missing prefix-lists or BFD profiles) and proves nothing about
+runtime protocol behavior.
+_Avoid_: validação completa, config válida, daemon test, valid
+
+**Prova de topologia**:
+Running two or more FRR nodes over isolated networks and asserting on their
+observed control-plane or routing state. The only level that proves runtime
+protocol behavior such as session establishment, policy enforcement or route
+origination.
+_Avoid_: teste de integração, teste e2e, simulação
+
+**Achado**:
+One diagnostic item emitted by an FRR verification — an error, a warning or an
+informational note — tied to a severity, a rule and, when known, a file, line
+and daemon. Distinct from **Aviso**, which is the app's claim about its own
+action in a conversation turn.
+_Avoid_: aviso, erro de validação, log, warning
