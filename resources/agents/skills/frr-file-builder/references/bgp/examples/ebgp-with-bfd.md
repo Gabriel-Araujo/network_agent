@@ -7,9 +7,11 @@ other: BFD detects, BGP reacts.
 ```
 bfd
  profile FABRIC
+  ! the peer declares a session down after 3 x 100 ms = 300 ms without packets,
+  ! while its own receive-interval is 100 ms or less
   detect-multiplier 3
-  receive-interval 300
-  transmit-interval 300
+  receive-interval 100
+  transmit-interval 100
  exit
 exit
 !
@@ -36,9 +38,8 @@ exit
 
 What the shape demonstrates:
 
-- `bfdd` added to the daemon set, which needs a justification
-- a named BFD profile reused by the peer-group instead of per-neighbor
-  timers
+- `bfdd` added to the daemon set
+- the peer-group binding every session to the BFD profile on one line
 - `remote-as external`, valid with interface-based unnumbered peers
 - `maximum-paths` inside the address family, which is where ECMP is decided
 - verification commands named next to the feature that needs them

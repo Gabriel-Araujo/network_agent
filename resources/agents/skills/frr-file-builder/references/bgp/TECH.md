@@ -7,6 +7,8 @@ multihoming, BFD bound to a BGP session, MP-BGP IPv4/IPv6 unicast.
 
 Out of this pack: EVPN/VXLAN, VPNv4/VPNv6, MPLS/SR, flowspec, multicast.
 
+Read with: `bfd`, when a session carries `neighbor <peer> bfd`.
+
 ## Daemons
 
 | Daemon | When |

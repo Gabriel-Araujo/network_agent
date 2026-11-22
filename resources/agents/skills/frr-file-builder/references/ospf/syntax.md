@@ -52,7 +52,7 @@ The shape generalizes by these rules. Each cites the `.rst` section it rests on.
 - `ip ospf hello-interval` and `ip ospf dead-interval` are written only with values the
   request gives, and are equal on every router of the link. [ospfd › Interfaces]
 - BFD is bound in the interface block with `ip ospf bfd`. `ip ospf bfd profile <profile>`
-  goes right below it, only with a profile the request names: alone, it does nothing.
+  goes right below it, only with a profile the `bfd` block defines: alone, it does nothing.
   [bfd › OSPF BFD Configuration]
 - A `redistribute` line takes its options in this order: `redistribute <source> metric-type
   <1|2> metric <cost> route-map <name>`, each option only when used. [ospfd › Redistribution]

@@ -56,7 +56,7 @@ The shape generalizes by these rules. Each cites the `.rst` section it rests on.
 - `isis metric`, `isis priority`, `isis hello-interval`, `isis hello-multiplier` and the
   timers of `router isis` are written only with values the request gives. [isisd › ISIS interface; isisd › ISIS Timer]
 - BFD is bound in the interface block with `isis bfd`. `isis bfd profile <profile>` goes right
-  below it, only with a profile the request names. [bfd › IS-IS BFD Configuration; isisd › ISIS interface]
+  below it, only with a profile the `bfd` block defines. [bfd › IS-IS BFD Configuration; isisd › ISIS interface]
 - `default-information originate` takes the family and the level, then `always`, then
   `metric` or `route-map`, one of the two; each only when used:
   `default-information originate ipv4 level-2`.

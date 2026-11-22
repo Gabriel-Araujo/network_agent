@@ -31,6 +31,7 @@ used here.
 | `bgp` | eBGP/iBGP, route reflectors, policy, communities, aggregation, multihoming, BFD bound to a BGP session, MP-BGP IPv4/IPv6 unicast |
 | `ospf` | OSPFv2: interfaces in areas, passive and transit interfaces, authentication, area types and ABR summarization, redistribution, graceful restart, OSPF in a VRF, BFD bound to an OSPF interface |
 | `isis` | IS-IS for IPv4 and IPv6: levels and circuit types, passive and transit interfaces, point-to-point and broadcast circuits, attached and overload bits, default origination, local LFA, IS-IS in a VRF, BFD bound to an IS-IS interface |
+| `bfd` | The `bfd` block that Binding lines and monitored static routes name: profiles and peers, detection timers, echo and passive modes, single-hop and multihop sessions |
 
 ## Procedure
 
@@ -88,8 +89,9 @@ used here.
 - A comment starts with `!`, never with `#`, and takes a line of its own: FRR rejects a `!`
   after a command on the same line. A `!` line separates blocks.
 - Order: the header, then the Shared objects (below) and the named objects of a pack such as a
-  BGP community-list, then static routes, then `vrf` blocks, then interfaces, then the routing
-  protocol blocks. Every object then comes before the block that references it.
+  BGP community-list or the `bfd` block with its profiles, then static routes, then `vrf`
+  blocks, then interfaces, then the routing protocol blocks. Every object then comes before the
+  block that references it.
 - One block per object: an interface, a `vrf` or a `router` block appears once and carries
   the lines of every pack that has lines in it. One `interface eth1` holds its OSPF and BFD
   lines together; one `router bgp` holds every address-family inside it.
@@ -100,7 +102,9 @@ used here.
   request gives for that interface; with none given, write no address line and ask nothing, as
   no protocol line needs it.
 - A static route is written only when the request asks for it or a pack's doctrine requires
-  one.
+  one. A static route the request wants monitored by BFD carries `bfd` after its gateway, then
+  `multi-hop` when the gateway is more than one hop away, then `profile <profile>` when the
+  `bfd` pack writes one: `ip route <prefix> <gateway> bfd profile <profile>`.
 - Write only what the request asks for and what a pack's doctrine requires: no interface or
   feature beyond them.
 - New lines for an existing file go where these rules place them relative to the file's

@@ -16,7 +16,7 @@ The shape below is local to this skill. The teacher keeps its own, in
 |------|-----------|----------|
 | `TECH.md` | skill, 01-intent, 03-plan | Scope, daemon set, vocabulary, required facts, example index |
 | `syntax.md` | skill, 04-render | Artifact shape and syntax rules |
-| `doctrine.md` | skill, 03-plan | The protocol's policy section (Session Policy, Adjacency Policy), non negotiable security and performance rules |
+| `doctrine.md` | skill, 03-plan | The protocol's policy section (Session Policy, Adjacency Policy, Profile Policy), non negotiable security and performance rules |
 | `checklist.md` | 06-review | Verifiable pass/fail questions over the artifact |
 | `examples/` | skill, 03-plan, 04-render | Canonical shapes of `frr.conf`, short, values are placeholders. The skill lists the pack and reads the shape closest to the request, from here or `reference/`; 03 sees the titles and names one, 04 loads that one |
 | `reference/` | skill | Broader shapes the skill may pick as the closest one: other daemons, other formats, technologies the pack declares out of scope. Each file opens saying so when it is outside the pack's scope or not FRR syntax |
@@ -28,6 +28,7 @@ The shape below is local to this skill. The teacher keeps its own, in
 | `bgp` | complete |
 | `ospf` | complete |
 | `isis` | complete |
+| `bfd` | complete |
 
 ## Adding a Pack
 
