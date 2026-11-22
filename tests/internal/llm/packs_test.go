@@ -31,10 +31,11 @@ const (
 // (.agent/frr-tech-packs/issues/15-retrofit-do-pack-bgp-ao-molde.md).
 var retrofitPending = map[string]bool{"bgp": true}
 
-// bodyForms are the lines the skill body writes that no clicmd documents
-// (.agent/frr-tech-packs/issues/03-objetos-transversais.md): one form per
-// entry, in clicmd grammar, with the section whose example block shows it.
-// TestBodyFormsAreShownInTheirSection holds each to that section.
+// bodyForms are the lines no clicmd documents: the ones the skill body writes
+// (.agent/frr-tech-packs/issues/03-objetos-transversais.md), and a pack line
+// whose clicmd misnames the keyword its own description and the daemon use.
+// One form per entry, in clicmd grammar, with the section whose example block
+// shows it. TestBodyFormsAreShownInTheirSection holds each to that section.
 var bodyForms = []struct{ form, source string }{
 	{"key chain NAME", "ospfd › Interfaces"},
 	{"key (0-2147483647)", "ospfd › Interfaces"},
@@ -43,6 +44,9 @@ var bodyForms = []struct{ form, source string }{
 	{"match ip address prefix-list NAME", "bgp › Example Configuration"},
 	{"ip address A.B.C.D/M", "ospfd › Sample Configuration"},
 	{"interface NAME vrf NAME", "isisd › ISIS Vrf Configuration Examples"},
+	// The clicmd lists `level-2`; its description, the examples and isisd's
+	// own help (`isis circuit-type ?` in frr:10.5.0) say `level-2-only`.
+	{"isis circuit-type level-2-only", "isisd › ISIS Configuration Examples"},
 }
 
 // TestPackExamplesPassDryRun feeds the first fenced block of every example of
@@ -256,6 +260,10 @@ func TestPackCheckersCatchTheirFailures(t *testing.T) {
 		" ip ospf cost 70000":                 false,
 		" area 0.0.0.10 totally-stubby":       false,
 		" ospf router-id 10.0.0.1   ! a note": false,
+		" net 49.0001.0000.0000.0001.00":      true,
+		" net <NET>":                          true,
+		" net 49.0001 0000.0000.0001.00":      false,
+		" isis circuit-type level-3":          false,
 	} {
 		if got := isCorpusCommand(grammars, line); got != want {
 			t.Errorf("isCorpusCommand(%q) = %v, want %v", line, got, want)
@@ -482,11 +490,15 @@ type gram struct {
 
 var clicmdToken = regexp.MustCompile(`[\[\]()<>{}|]|[^\s\[\]()<>{}|]+`)
 
+// isoEllipsis is how `net` writes one ISO address, `XX.XXXX. ... .XXX.XX`:
+// three words in the clicmd, one token in a line.
+var isoEllipsis = regexp.MustCompile(`\S+ \.\.\. \S+`)
+
 // parseClicmd parses a clicmd syntax: `[opt]`, `(a|b)`, `<a|b>`, `{a|b}`,
-// ranges `(1-65535)`, typed variables (`A.B.C.D`, `A.B.C.D/M`, `X:X::X:X`)
-// and any other upper-case word as a variable.
+// ranges `(1-65535)`, typed variables (`A.B.C.D`, `A.B.C.D/M`, `X:X::X:X`),
+// an ISO address and any other upper-case word as a variable.
 func parseClicmd(syntax string) *gram {
-	toks := clicmdToken.FindAllString(syntax, -1)
+	toks := clicmdToken.FindAllString(isoEllipsis.ReplaceAllString(syntax, "NET"), -1)
 	g, _ := parseGroup(toks, 0, "")
 	return g
 }
