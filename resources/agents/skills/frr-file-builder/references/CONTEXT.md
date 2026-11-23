@@ -27,6 +27,7 @@ The shape below is local to this skill. The teacher keeps its own, in
 |------|--------|
 | `bgp` | complete |
 | `ospf` | complete |
+| `ospf6` | complete |
 | `isis` | complete |
 | `bfd` | complete |
 

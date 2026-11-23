@@ -6,9 +6,10 @@ sessions.
 
 ## Scope
 
-A Binding line belongs to its client's pack: `ip ospf bfd` to `ospf`, `isis bfd` to `isis`,
-`neighbor <peer> bfd` to `bgp`. A static route monitored by BFD is a static route of the skill
-body. This pack writes the `bfd` block those lines name, and decides what goes in it.
+A Binding line belongs to its client's pack: `ip ospf bfd` to `ospf`, `ipv6 ospf6 bfd` to
+`ospf6`, `isis bfd` to `isis`, `neighbor <peer> bfd` to `bgp`. A static route monitored by BFD
+is a static route of the skill body. This pack writes the `bfd` block those lines name, and
+decides what goes in it.
 
 Out of this pack: authentication (`authentication key-chain`, `authentication algorithm
 meticulous`) and `demand-mode`, which `bfd.rst` documents and `vtysh` of `frr:10.5.0`, the image

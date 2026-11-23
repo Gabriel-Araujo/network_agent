@@ -30,6 +30,7 @@ used here.
 |------|--------|
 | `bgp` | eBGP/iBGP, route reflectors, policy, communities, aggregation, multihoming, BFD bound to a BGP session, MP-BGP IPv4/IPv6 unicast |
 | `ospf` | OSPFv2: interfaces in areas, passive and transit interfaces, authentication, area types and ABR summarization, redistribution, graceful restart, OSPF in a VRF, BFD bound to an OSPF interface |
+| `ospf6` | OSPFv3 for IPv6: interfaces in areas, passive and transit interfaces, the authentication trailer, NSSA and ABR summarization, redistribution and ASBR summarization, graceful restart, stub router, OSPFv3 in a VRF, BFD bound to an OSPFv3 interface |
 | `isis` | IS-IS for IPv4 and IPv6: levels and circuit types, passive and transit interfaces, point-to-point and broadcast circuits, attached and overload bits, default origination, local LFA, IS-IS in a VRF, BFD bound to an IS-IS interface |
 | `bfd` | The `bfd` block that Binding lines and monitored static routes name: profiles and peers, detection timers, echo and passive modes, single-hop and multihop sessions |
 
@@ -153,7 +154,8 @@ the file carried would be the secret itself.
 - A key chain is written without `key-string`, and each of its keys carries
   `! WARNING: key <N> of <chain> has no key-string; set it on the router, never in this file`.
 - A line whose argument is the secret is left out: `neighbor <peer> password`,
-  `ip ospf authentication-key`, `ip ospf message-digest-key`, `isis password`,
+  `ip ospf authentication-key`, `ip ospf message-digest-key`,
+  `ipv6 ospf6 authentication key-id`, `isis password`,
   `area-password`, `domain-password`, `password`, `enable password`. In its place a warning names the line the
   operator adds on the router: `! WARNING: <line> is left out; add it on the router, never in this file`.
 - A secret has no placeholder either (`<SECRET>`, `changeme`): `vtysh` takes the word as the

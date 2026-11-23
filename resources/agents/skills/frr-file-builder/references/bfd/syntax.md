@@ -39,9 +39,10 @@ The shape generalizes by these rules. Each cites the `.rst` section it rests on.
   `echo transmit-interval` take 10 to 4294967, `echo receive-interval` the same or `disabled`,
   and `detect-multiplier` takes 1 to 255. [bfd › Peer / Profile Configuration]
 - A client names a profile with its own `profile` form: `ip ospf bfd profile <profile>`,
-  `isis bfd profile <profile>`, `neighbor <peer> bfd profile <profile>`, and `bfd profile
-  <profile>` or `bfd multi-hop profile <profile>` at the end of a static route.
-  [bfd › OSPF BFD Configuration; bfd › IS-IS BFD Configuration; bfd › BGP BFD Configuration; bfd › BFD Static Route Monitoring Configuration]
+  `ipv6 ospf6 bfd profile <profile>`, `isis bfd profile <profile>`,
+  `neighbor <peer> bfd profile <profile>`, and `bfd profile <profile>` or
+  `bfd multi-hop profile <profile>` at the end of a static route.
+  [bfd › OSPF BFD Configuration; bfd › OSPF6 BFD Configuration; bfd › IS-IS BFD Configuration; bfd › BGP BFD Configuration; bfd › BFD Static Route Monitoring Configuration]
 - A configured peer is `peer <address>`, with `profile <profile>` inside when it uses one. A peer
   more than one hop away is `peer <address> multihop local-address <address>`, and an IPv6 peer
   always carries `local-address`. `interface <name>` selects the interface the peer uses, and

@@ -43,6 +43,7 @@ whole run. A request for a different technology is a new run.
 |------|--------|
 | `bgp` | eBGP/iBGP, route reflectors, policy, communities, aggregation, multihoming, BFD over BGP |
 | `ospf` | OSPFv2: areas, passive and transit interfaces, authentication, area types, redistribution, graceful restart, VRF, BFD over OSPF |
+| `ospf6` | OSPFv3: areas, passive and transit interfaces, authentication trailer, NSSA, ABR and ASBR summarization, redistribution, graceful restart, stub router, VRF, BFD over OSPFv3 |
 | `isis` | IS-IS: levels, circuit types, passive and transit interfaces, IPv4 and IPv6, attached and overload bits, default origination, LFA, VRF, BFD over IS-IS |
 | `bfd` | BFD: the `bfd` block, profiles and peers, detection timers, echo and passive modes, multihop sessions, static routes monitored by BFD |
 

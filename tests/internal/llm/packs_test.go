@@ -42,6 +42,8 @@ var bodyForms = []struct{ form, source string }{
 	{"cryptographic-algorithm hmac-sha-256", "ospfd › Interfaces"},
 	{"route-map NAME (permit|deny) (1-65535)", "bgp › Example Configuration"},
 	{"match ip address prefix-list NAME", "bgp › Example Configuration"},
+	{"ipv6 prefix-list NAME seq NUMBER (permit|deny) PREFIX [le LEN] [ge LEN]", "ospf6d › Sample configuration"},
+	{"match ipv6 address prefix-list NAME", "ospf6d › Sample configuration"},
 	{"ip address A.B.C.D/M", "ospfd › Sample Configuration"},
 	{"interface NAME vrf NAME", "isisd › ISIS Vrf Configuration Examples"},
 	// The clicmd lists `level-2`; its description, the examples and isisd's
