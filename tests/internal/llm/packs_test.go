@@ -32,8 +32,10 @@ const (
 var retrofitPending = map[string]bool{"bgp": true}
 
 // bodyForms are the lines no clicmd documents: the ones the skill body writes
-// (.agent/frr-tech-packs/issues/03-objetos-transversais.md), and a pack line
-// whose clicmd misnames the keyword its own description and the daemon use.
+// (.agent/frr-tech-packs/issues/03-objetos-transversais.md), a pack line
+// whose clicmd misnames the keyword its own description and the daemon use,
+// and a pack line no clicmd declares that an example block of its section
+// shows (the address families and the `vni` of EVPN).
 // One form per entry, in clicmd grammar, with the section whose example block
 // shows it. TestBodyFormsAreShownInTheirSection holds each to that section.
 var bodyForms = []struct{ form, source string }{
@@ -46,6 +48,12 @@ var bodyForms = []struct{ form, source string }{
 	{"match ipv6 address prefix-list NAME", "ospf6d › Sample configuration"},
 	{"ip address A.B.C.D/M", "ospfd › Sample Configuration"},
 	{"interface NAME vrf NAME", "isisd › ISIS Vrf Configuration Examples"},
+	{"vrf NAME", "evpn › Sample Configuration"},
+	{"address-family ipv4 unicast", "evpn › Sample Configuration"},
+	{"address-family l2vpn evpn", "bgp › Enabling EVPN"},
+	// The L3VNI of a `vrf` block and the L2VNI context of `address-family l2vpn evpn`.
+	{"vni (1-16777215)", "evpn › Sample Configuration"},
+	{"vni (1-16777215)", "bgp › EVPN MAC-VRF / L2VNI Route Targets"},
 	// The clicmd lists `level-2`; its description, the examples and isisd's
 	// own help (`isis circuit-type ?` in frr:10.5.0) say `level-2-only`.
 	{"isis circuit-type level-2-only", "isisd › ISIS Configuration Examples"},
@@ -266,6 +274,10 @@ func TestPackCheckersCatchTheirFailures(t *testing.T) {
 		" net <NET>":                          true,
 		" net 49.0001 0000.0000.0001.00":      false,
 		" isis circuit-type level-3":          false,
+		" neighbor 10.0.0.1 description a b":  true,
+		" neighbor 10.0.0.1 descriptor a":     false,
+		" vni 5000":                           true,
+		" vni 16777216":                       false,
 	} {
 		if got := isCorpusCommand(grammars, line); got != want {
 			t.Errorf("isCorpusCommand(%q) = %v, want %v", line, got, want)
@@ -524,6 +536,12 @@ func parseGroup(toks []string, i int, closer string) (*gram, int) {
 			continue
 		}
 		last := len(g.alts) - 1
+		if tok == "..." {
+			// Free text, as in `neighbor PEER description ...`: any words. The
+			// dry-run, not this checker, rejects a description left empty.
+			g.alts[last] = append(g.alts[last], &gram{alts: [][]*gram{{{word: "WORD"}}}, optional: true, repeat: true})
+			continue
+		}
 		g.alts[last] = append(g.alts[last], &gram{word: tok})
 	}
 	return g, i

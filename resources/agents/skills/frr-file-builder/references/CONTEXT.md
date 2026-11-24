@@ -30,6 +30,7 @@ The shape below is local to this skill. The teacher keeps its own, in
 | `ospf6` | complete |
 | `isis` | complete |
 | `bfd` | complete |
+| `evpn` | complete |
 
 ## Adding a Pack
 
