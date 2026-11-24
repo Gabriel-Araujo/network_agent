@@ -34,6 +34,7 @@ used here.
 | `isis` | IS-IS for IPv4 and IPv6: levels and circuit types, passive and transit interfaces, point-to-point and broadcast circuits, attached and overload bits, default origination, local LFA, IS-IS in a VRF, BFD bound to an IS-IS interface |
 | `bfd` | The `bfd` block that Binding lines and monitored static routes name: profiles and peers, detection timers, echo and passive modes, single-hop and multihop sessions |
 | `evpn` | BGP EVPN over VXLAN on iBGP sessions: EVPN in the underlay instance, L2VNIs and L3VNIs, route targets of MAC-VRFs and IP-VRFs, Type-5 export, BUM flooding, SVI addresses as Type-2 routes, route reflectors of EVPN routes, EVPN multihoming |
+| `ldp` | MPLS label distribution by LDP: discovery interfaces and transport addresses, IPv4 and IPv6 on a dual-stack LSR, authenticated neighbors, session holdtime and hello timers, ordered control, GTSM |
 
 ## Procedure
 

@@ -33,7 +33,8 @@ var retrofitPending = map[string]bool{"bgp": true}
 
 // bodyForms are the lines no clicmd documents: the ones the skill body writes
 // (.agent/frr-tech-packs/issues/03-objetos-transversais.md), a pack line
-// whose clicmd misnames the keyword its own description and the daemon use,
+// whose clicmd misnames the keyword its own description and the daemon use
+// or misgroups its alternatives,
 // and a pack line no clicmd declares that an example block of its section
 // shows (the address families and the `vni` of EVPN).
 // One form per entry, in clicmd grammar, with the section whose example block
@@ -57,6 +58,9 @@ var bodyForms = []struct{ form, source string }{
 	// The clicmd lists `level-2`; its description, the examples and isisd's
 	// own help (`isis circuit-type ?` in frr:10.5.0) say `level-2-only`.
 	{"isis circuit-type level-2-only", "isisd › ISIS Configuration Examples"},
+	// The clicmd `discovery transport-address A.B.C.D | A:B::C:D` groups no
+	// alternatives, so its IPv6 form parses as a bare address.
+	{"discovery transport-address X:X::X:X", "ldpd › Sample configuration"},
 }
 
 // TestPackExamplesPassDryRun feeds the first fenced block of every example of
@@ -278,6 +282,8 @@ func TestPackCheckersCatchTheirFailures(t *testing.T) {
 		" neighbor 10.0.0.1 descriptor a":     false,
 		" vni 5000":                           true,
 		" vni 16777216":                       false,
+		" discovery transport-address ::1":    true,
+		" discovery transport-address ::zz":   false,
 	} {
 		if got := isCorpusCommand(grammars, line); got != want {
 			t.Errorf("isCorpusCommand(%q) = %v, want %v", line, got, want)

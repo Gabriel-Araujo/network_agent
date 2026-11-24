@@ -5,8 +5,8 @@ multihoming, BFD bound to a BGP session, MP-BGP IPv4/IPv6 unicast.
 
 ## Scope
 
-Out of this pack: EVPN/VXLAN (pack `evpn`, which reads this one), VPNv4/VPNv6, MPLS/SR,
-flowspec, multicast.
+Out of this pack: EVPN/VXLAN (pack `evpn`, which reads this one), VPNv4/VPNv6, MPLS label
+distribution by LDP (pack `ldp`), Segment Routing, flowspec, multicast.
 
 Read with: `bfd`, when a session carries `neighbor <peer> bfd`.
 

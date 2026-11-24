@@ -31,6 +31,7 @@ The shape below is local to this skill. The teacher keeps its own, in
 | `isis` | complete |
 | `bfd` | complete |
 | `evpn` | complete |
+| `ldp` | complete |
 
 ## Adding a Pack
 
